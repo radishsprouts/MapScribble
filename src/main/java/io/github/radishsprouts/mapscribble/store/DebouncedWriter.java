@@ -12,6 +12,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,10 +38,17 @@ public final class DebouncedWriter implements AutoCloseable {
     });
     private final Map<Path, List<Memo>> pending = new LinkedHashMap<>();
     private ScheduledFuture<?> scheduled;
+    /** 1件の書き込みの結果（失敗なら原因、成功なら null）。書き込み用スレッドから呼ばれる。 */
+    private volatile BiConsumer<Path, Throwable> resultHandler = (file, error) -> { };
 
     public DebouncedWriter(long delayMs, Sink sink) {
         this.delayMs = delayMs;
         this.sink = sink;
+    }
+
+    /** 書き込みの結果の通知先。書き込み用スレッド（または flush を呼んだスレッド）から呼ばれる。 */
+    public void setResultHandler(BiConsumer<Path, Throwable> handler) {
+        this.resultHandler = handler == null ? (file, error) -> { } : handler;
     }
 
     /** 主スレッドから呼ぶ。snapshot は以後変更されない一覧であること。 */
@@ -85,9 +93,19 @@ public final class DebouncedWriter implements AutoCloseable {
         for (Map.Entry<Path, List<Memo>> e : work) {
             try {
                 sink.write(e.getKey(), e.getValue());
+                report(e.getKey(), null);
             } catch (IOException | RuntimeException ex) {
                 LOGGER.error("MapScribble: メモの書き込みに失敗した: {}", e.getKey(), ex);
+                report(e.getKey(), ex);
             }
+        }
+    }
+
+    private void report(Path file, Throwable error) {
+        try {
+            resultHandler.accept(file, error);
+        } catch (RuntimeException ex) {
+            LOGGER.warn("MapScribble: 書き込み結果の通知に失敗した", ex);
         }
     }
 

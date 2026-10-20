@@ -99,6 +99,8 @@ public final class ScribbleBridge {
         this.ui = new ScribbleUi(controller, FabricLoader.getInstance().getConfigDir().resolve(UiPrefs.FILE_NAME));
         // メモのファイルを読めなかった時は、帯の説明の行に出す
         StoreSession.setNotifier(message -> ui.onLoadFailed());
+        // メモを保存できなかった時（と、その後に保存できた時）も、同じ行に出す・消す
+        StoreSession.setSaveNotifier(ui::onSaveStateChanged);
     }
 
     /** イベントを購読する。 */
