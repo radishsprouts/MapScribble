@@ -1,8 +1,16 @@
 # MapScribble 素材仕様書（作業3）
 
-## 状態（2026-10-20 候補の選別まで完了）
+## 状態（2026-10-20 加工済み）
 
-**候補29枚の選別が終わった。撮り直しが要る素材は無い。次は Dev-Engineer による加工（縮小・2値化・透過・名前変更）。**
+**加工済み（2026-10-20）。** icon・toggle・ツール9枚（redo は undo の左右反転）を `src/main/resources/assets/mapscribble/` へ出力した。撮り直しが要る素材は無い。元画像の名前変更（`_src` / `_rejN`）も済んでいる。
+
+加工の記録:
+
+- 加工は Pillow の組み込み処理のみ（`getbbox`・`crop`・`ImageOps.pad`（最近傍）・`point`・`ImageChops.difference`・`ImageOps.mirror`）。icon の透過は、四隅の背景色（#D2D2D1）との差が 20 を超える所だけを不透明にした。
+- **変えた値: enclose は外接矩形を元画像で 4px 広げてから 14x14 へ縮める。** 外接矩形ぴったりだと縮小後の輪が上辺で開き、閉じた輪にならなかったため。しきい値は 128 のまま。ほかの素材はしきい値・外接矩形とも仕様どおり。
+- 出力後の確認: 全 PNG の alpha は 0 か 255 のみ、不透明部の色は #FFFFFF のみ（icon を除く）。enclose は内側の透明部が外と 4 近傍でつながらない（閉じている）。line・enclose・undo・redo・text・eraser・edit は 1 つながり。
+
+（以下は加工前の選別の記録）
 
 - 生成済み: 29枚（icon 2、toggle/enclose/line/text/eraser/edit/undo/visible/hidden 各3）。プログラム描画での代用なし。加工・描き足しなし。
 - 選別済み: 採用10枚（下の「採否」）、不採用19枚。全素材で採用あり。
