@@ -1,11 +1,13 @@
 package io.github.radishsprouts.mapscribble.ui;
 
+import io.github.radishsprouts.mapscribble.MapScribble;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
 import io.github.radishsprouts.mapscribble.draw.DrawingState;
 import io.github.radishsprouts.mapscribble.draw.Tool;
 import java.util.ArrayList;
 import java.util.List;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -68,6 +70,8 @@ public final class ToolBand {
     /** 説明の行の、はみ出しを切った文字列の使い回し。 */
     private String hintSource;
     private String hintShown;
+    private boolean hintVisible;
+    private boolean widthsChecked;
 
     public ToolBand(DrawingState state, DrawingController controller) {
         this.state = state;
@@ -127,6 +131,7 @@ public final class ToolBand {
     public void render(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY, HintResolver.Line hint,
                        float hintAlpha) {
         updateHover(mouseX, mouseY);
+        checkHintWidths(font);
 
         g.fill(BandLayout.X, BandLayout.Y, BandLayout.X + BandLayout.WIDTH, BandLayout.Y + BandLayout.HEIGHT, BG);
         g.outline(BandLayout.X, BandLayout.Y, BandLayout.WIDTH, BandLayout.HEIGHT, EDGE);
@@ -149,6 +154,24 @@ public final class ToolBand {
 
         drawHint(g, font, hint, hintAlpha);
         showTooltip(g, font, mouseX, mouseY);
+    }
+
+    /** 開発環境だけ、最初の描画で帯に出る全文言の幅を 1 回測り、長すぎるものを警告に出す（本番では測らない）。 */
+    private void checkHintWidths(Font font) {
+        if (widthsChecked) {
+            return;
+        }
+        widthsChecked = true;
+        if (!FabricLoader.getInstance().isDevelopmentEnvironment()) {
+            return;
+        }
+        for (String key : HintFit.bandKeys()) {
+            int width = font.width(I18n.get(key));
+            if (HintFit.tooWide(width)) {
+                MapScribble.LOGGER.warn("帯の説明が長すぎます key={} 幅={}（上限 {}、行の幅 {}）",
+                        key, width, HintFit.WARN_WIDTH, BandLayout.HINT_MAX_WIDTH);
+            }
+        }
     }
 
     private void updateHover(int mouseX, int mouseY) {
@@ -234,7 +257,8 @@ public final class ToolBand {
 
     private void drawHint(GuiGraphicsExtractor g, Font font, HintResolver.Line hint, float alpha) {
         int a = Math.round(Math.max(0f, Math.min(1f, alpha)) * 255f);
-        if (a <= 4) {
+        hintVisible = a > 4;
+        if (!hintVisible) {
             return;
         }
         String text = I18n.get(hint.translationKey());
@@ -259,6 +283,9 @@ public final class ToolBand {
     private void showTooltip(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY) {
         BandLayout.Cell cell = hover;
         if (cell == null) {
+            if (hintVisible && HintFit.showFullText(hintSource, hintShown, mouseX, mouseY)) {
+                g.setComponentTooltipForNextFrame(font, List.of(Component.literal(hintSource)), mouseX, mouseY);
+            }
             return;
         }
         boolean undo = controller.canUndo();
