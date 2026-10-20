@@ -35,6 +35,7 @@ public final class ScribbleUi {
     private final Path prefsFile;
     private String lastSavedPrefs;
     private boolean loadFailed;
+    private boolean saveFailed;
 
     private Memo tooltipMemo;
     private Tool tooltipTool;
@@ -63,6 +64,11 @@ public final class ScribbleUi {
     /** メモのファイルを読めなかった（ストアからの通知）。モードを抜けるか、メモが使える状態になるまで説明の行に出す。 */
     public void onLoadFailed() {
         loadFailed = true;
+    }
+
+    /** メモの保存に失敗した（true）／失敗の後で保存できた（false）。次に保存が成功するまで説明の行に出す。 */
+    public void onSaveStateChanged(boolean failed) {
+        saveFailed = failed;
     }
 
     private void onStateChanged() {
@@ -101,7 +107,7 @@ public final class ScribbleUi {
         }
         String noticeKey = notice.activeKey(now);
         HintResolver.Line hint = HintResolver.resolve(new HintResolver.Input(
-                loadFailed, false, repo == null && !loadFailed, noticeKey, !state.isVisible(),
+                loadFailed, saveFailed, repo == null && !loadFailed, noticeKey, !state.isVisible(),
                 repo != null && repo.memos().isEmpty() && state.tool() == Tool.ENCLOSE, state.tool()));
         float alpha = noticeKey != null && noticeKey.equals(hint.translationKey()) ? notice.alpha(now) : 1f;
         band.render(g, mc.font, mouseX, mouseY, hint, alpha);

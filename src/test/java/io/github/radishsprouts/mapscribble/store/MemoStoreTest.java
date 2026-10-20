@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -150,6 +151,40 @@ class MemoStoreTest {
         session.recheck(new SessionKey(dir.resolve("B"), "B", "minecraft:overworld"));
         assertTrue(store.memos().isEmpty());
         assertEquals(1, MemoFile.read(dir.resolve("A").resolve("minecraft__overworld.json")).memos().size());
+        store.shutdown();
+    }
+
+    @Test
+    void 書き込みの失敗と回復だけが通知される(@TempDir Path dir) {
+        AtomicBoolean failing = new AtomicBoolean(false);
+        DebouncedWriter writer = new DebouncedWriter(60_000, (f, snapshot) -> {
+            if (failing.get()) {
+                throw new IOException("disk full (test)");
+            }
+            MemoFile.writeAtomic(f, MemoFile.toJson(snapshot));
+        });
+        MemoStore store = new MemoStore(writer);
+        List<Boolean> states = new CopyOnWriteArrayList<>();
+        store.setSaveStateHandler(states::add);
+        store.open(dir.resolve("minecraft__overworld.json"));
+
+        store.add(memo(1));
+        store.flush();
+        assertEquals(List.of(), states, "成功し続けている間は通知しない");
+
+        failing.set(true);
+        store.add(memo(2));
+        store.flush();
+        assertEquals(List.of(true), states, "失敗は通知される");
+
+        failing.set(false);
+        store.add(memo(3));
+        store.flush();
+        assertEquals(List.of(true, false), states, "次に成功したら回復が通知される");
+
+        store.add(memo(4));
+        store.flush();
+        assertEquals(List.of(true, false), states, "回復の後の成功は通知しない");
         store.shutdown();
     }
 

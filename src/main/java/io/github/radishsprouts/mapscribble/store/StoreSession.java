@@ -33,6 +33,14 @@ public final class StoreSession {
         STORE.setProblemHandler(notifier);
     }
 
+    /**
+     * 保存に失敗した時に true、その後の保存が成功した時に false を渡す。呼ばれるのは Minecraft の主スレッド。
+     * 書き込みは主スレッドの外で行うので、ここで主スレッドへ戻している。
+     */
+    public static void setSaveNotifier(Consumer<Boolean> notifier) {
+        STORE.setSaveStateHandler(failed -> Minecraft.getInstance().execute(() -> notifier.accept(failed)));
+    }
+
     /** JourneyMap プラグインの initialize から1回だけ呼ぶ。 */
     public static void attach(IClientAPI clientApi) {
         if (attached) {

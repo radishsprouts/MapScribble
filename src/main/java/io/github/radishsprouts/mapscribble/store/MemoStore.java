@@ -5,6 +5,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
@@ -28,6 +30,9 @@ public final class MemoStore implements MemoRepository {
     /** 読めなかったファイルは上書きしない。 */
     private boolean writable;
     private volatile Consumer<String> problemHandler = message -> { };
+    private volatile Consumer<Boolean> saveStateHandler = failed -> { };
+    /** 書き込みに失敗したままのファイル。空になった時が「次に保存が成功した」時。 */
+    private final Set<Path> failedFiles = new HashSet<>();
 
     public MemoStore() {
         this(WRITE_DELAY_MS);
@@ -40,6 +45,30 @@ public final class MemoStore implements MemoRepository {
     /** 書き込みの仕組みを差し替える（試験用）。 */
     public MemoStore(DebouncedWriter writer) {
         this.writer = writer;
+        writer.setResultHandler(this::onWriteResult);
+    }
+
+    /**
+     * 保存の失敗・回復の通知先。書き込み用スレッドから呼ばれるので、画面へ渡す側が主スレッドへ戻すこと。
+     * 失敗した時に true、失敗が続いていた後で書き込みが成功した時に false。ずっと成功している間は呼ばれない。
+     */
+    public void setSaveStateHandler(Consumer<Boolean> handler) {
+        this.saveStateHandler = handler == null ? failed -> { } : handler;
+    }
+
+    private void onWriteResult(Path written, Throwable error) {
+        boolean notifyFailed;
+        synchronized (failedFiles) {
+            if (error != null) {
+                failedFiles.add(written);
+                notifyFailed = true;
+            } else if (failedFiles.remove(written) && failedFiles.isEmpty()) {
+                notifyFailed = false;
+            } else {
+                return;
+            }
+        }
+        saveStateHandler.accept(notifyFailed);
     }
 
     /** 読めなかった時の通知先（画面の担当がつなぐ）。主スレッドから呼ばれる。 */
