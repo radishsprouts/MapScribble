@@ -16,8 +16,10 @@ import io.github.radishsprouts.mapscribble.ui.BandLayout;
 import io.github.radishsprouts.mapscribble.ui.ScribbleUi;
 import io.github.radishsprouts.mapscribble.ui.UiPrefs;
 import java.awt.geom.Point2D;
+import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -62,6 +64,11 @@ public final class ScribbleBridge {
 
     /** 右列の「手書き」ボタン（全画面マップを開き直すたびに作り直される）。 */
     private IThemeButton toggleButton;
+    /** 新しく足した切替ボタンが、画面の部品の一覧に二重に入っていないかを、まだ見ていない。 */
+    private boolean toggleDedupePending;
+    /** Screen の描画する部品の一覧（private の renderables）。取れなければ null（一度だけ警告して諦める）。 */
+    private Field renderablesField;
+    private boolean renderablesFieldTried;
 
     // 消しゴム・編集でカーソルの下にあるメモの判定の使い回し（マウス・地図・メモが変わるまで同じ答え）
     private int hoverX = Integer.MIN_VALUE;
@@ -134,6 +141,62 @@ public final class ScribbleBridge {
                     state.toggleMode();
                     button.setToggled(state.isModeOn());
                 });
+        toggleDedupePending = true;
+    }
+
+    /**
+     * JourneyMap（6.0.10・26.1.2 / 26.2 / 26.3 で確認）は、アドオンのボタンを同じ実体のまま画面へ2回登録する
+     * （CustomEventDispatcher.getAddonToolbar が各ボタンを Fullscreen.addButtonWidget で登録し、続けて
+     * Fullscreen.initButtons が addonToolbar.addAllButtons で同じボタンを登録し直す）。
+     * そのままだと同じ座標に同じボタンが2回描かれ、2つ重なって見える。イベントの購読と呼び出しは1回ずつで、
+     * こちらが2回足しているのではない。足したボタンの二重登録を1つにする（足した直後の1回だけ見る）。
+     */
+    private void dedupeToggleButton(Screen screen) {
+        IThemeButton button = toggleButton;
+        if (!toggleDedupePending || button == null || screen == null) {
+            return;
+        }
+        toggleDedupePending = false;
+        removeExtra(screen.children(), button);
+        List<?> renderables = renderablesOf(screen);
+        if (renderables != null) {
+            removeExtra(renderables, button);
+        }
+    }
+
+    /** 一覧の中の同じ実体を、最初の1つだけ残して取り除く。 */
+    private static void removeExtra(List<?> parts, Object target) {
+        boolean seen = false;
+        Iterator<?> it = parts.iterator();
+        while (it.hasNext()) {
+            if (it.next() == target) {
+                if (seen) {
+                    it.remove();
+                }
+                seen = true;
+            }
+        }
+    }
+
+    private List<?> renderablesOf(Screen screen) {
+        if (!renderablesFieldTried) {
+            renderablesFieldTried = true;
+            try {
+                Field field = Screen.class.getDeclaredField("renderables");
+                field.setAccessible(true);
+                renderablesField = field;
+            } catch (ReflectiveOperationException | RuntimeException e) {
+                MapScribble.LOGGER.warn("Screen.renderables を読めないため、切替ボタンの二重登録を直せません", e);
+            }
+        }
+        if (renderablesField == null) {
+            return null;
+        }
+        try {
+            return (List<?>) renderablesField.get(screen);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
     }
 
     /** キーなどでモードが変わった時に、ボタンの見た目を状態へ合わせる（比べるだけで軽い）。 */
@@ -172,6 +235,10 @@ public final class ScribbleBridge {
         if (screen == null) {
             return;
         }
+        IFullscreen fs = fullscreen;
+        if (fs != null && fs.getScreen() == screen) {
+            dedupeToggleButton(screen);
+        }
         ScreenMouseEvents.allowMouseClick(screen).register(this::allowMouseClick);
         ScreenMouseEvents.afterMouseRelease(screen).register(this::afterMouseRelease);
         ScreenKeyboardEvents.allowKeyPress(screen).register(this::allowKeyPress);
@@ -181,6 +248,8 @@ public final class ScribbleBridge {
 
     private void onRender(FullscreenRenderEvent event) {
         track(event.getFullscreen());
+        // テーマの切り替え等で JourneyMap が画面の部品を作り直した時は、AFTER_INIT が来ないので描画で直す
+        dedupeToggleButton(event.getFullscreen().getScreen());
         renderer.render(event);
         syncToggleButton();
         int mouseX = event.getMouseX();
