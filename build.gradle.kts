@@ -69,6 +69,18 @@ loom {
     }
 }
 
+// Loom's `downloadAssets` declares `<run directory>/resources` as an @OutputDirectory, so Gradle creates it
+// right before that task runs. The run directory is shared by the dev client and the client gametests
+// (`run/`), and `deleteGameTestRunDir` (registered by `fabricApi.configureTests`) deletes all of it. The two
+// tasks have no dependency edge, so with `org.gradle.parallel=true` they run at the same time: Gradle recreates
+// `run/resources` while `deleteGameTestRunDir` is emptying `run/`, and the delete fails with
+// "New files were found. This might happen because a process is still writing to the target directory."
+// (only when `run/` already exists, i.e. from the second run on). `mustRunAfter` only orders the two when both
+// are in the task graph, so `runClient` (which has no `deleteGameTestRunDir`) is unaffected.
+tasks.matching { it.name == "downloadAssets" }.configureEach {
+    mustRunAfter("deleteGameTestRunDir")
+}
+
 java {
     withSourcesJar()
     targetCompatibility = requiredJava
