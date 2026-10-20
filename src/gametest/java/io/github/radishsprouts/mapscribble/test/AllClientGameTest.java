@@ -6,9 +6,13 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 
 /**
  * gametest の入口は、これ1つだけ（src/gametest/resources/fabric.mod.json）。
- * ワールドを1回だけ作り、3つの試験を同じワールドで順に動かす（ワールドの開閉は {@link TestWorlds}）。
  *
- * <p>順序: Flow（文字入力の画面を含む、囲む→文字→保存→消す→戻す）→ Ui（帯・入力画面・編集）→ Drawing
+ * <p>最初に {@link MultiplayerClientGameTest}（専用サーバーに接続して、マルチ用の保存先を確かめる）を動かす。
+ * 後ろの Drawing 試験が確定後の処理（文字入力の画面を開く）を外したまま戻さないので、文字入力の画面を使うマルチの試験は
+ * その前に置く。
+ *
+ * <p>続けてシングルのワールドを1回だけ作り、3つの試験を同じワールドで順に動かす（ワールドの開閉は {@link TestWorlds}）。
+ * 順序: Flow（文字入力の画面を含む、囲む→文字→保存→消す→戻す）→ Ui（帯・入力画面・編集）→ Drawing
  * （Drawing は確定後の処理を外すので最後）。期待と違えば AssertionError で落ち、全部通れば
  * 「[MS-ALL] 3つの試験が最後まで通った」を出す。
  */
@@ -16,6 +20,8 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 public class AllClientGameTest implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext context) {
+        MultiplayerClientGameTest.run(context);
+
         TestSingleplayerContext singleplayer = TestWorlds.open(context);
 
         try {
