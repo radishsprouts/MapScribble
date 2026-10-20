@@ -65,6 +65,7 @@ public final class ToolBand {
     private boolean tooltipUndo;
     private boolean tooltipRedo;
     private boolean tooltipVisible;
+    private String tooltipKeyLabel;
     private List<Component> tooltip = List.of();
 
     /** 説明の行の、はみ出しを切った文字列の使い回し。 */
@@ -291,7 +292,11 @@ public final class ToolBand {
         boolean undo = controller.canUndo();
         boolean redo = controller.canRedo();
         boolean visible = state.isVisible();
-        if (cell != tooltipCell || undo != tooltipUndo || redo != tooltipRedo || visible != tooltipVisible) {
+        // 道具キーを操作設定で変えた直後も古い名前を出さないよう、キーの表示名も作り直しの条件に入れる
+        String keyLabel = cell.kind() == BandLayout.Kind.TOOL ? ScribbleKeys.toolKeyLabel(Tool.values()[cell.index()]) : null;
+        if (cell != tooltipCell || undo != tooltipUndo || redo != tooltipRedo || visible != tooltipVisible
+                || !java.util.Objects.equals(keyLabel, tooltipKeyLabel)) {
+            tooltipKeyLabel = keyLabel;
             tooltipCell = cell;
             tooltipUndo = undo;
             tooltipRedo = redo;
@@ -306,8 +311,11 @@ public final class ToolBand {
         List<Component> lines = new ArrayList<>(2);
         switch (cell.kind()) {
             case TOOL -> {
-                String key = HintResolver.toolKey(Tool.values()[cell.index()]);
-                lines.add(Component.translatable(key));
+                Tool tool = Tool.values()[cell.index()];
+                String key = HintResolver.toolKey(tool);
+                String keyLabel = ScribbleKeys.toolKeyLabel(tool);
+                lines.add(keyLabel == null ? Component.translatable(key)
+                        : Component.translatable("mapscribble.tool.tooltip", Component.translatable(key), keyLabel));
                 lines.add(gray(Component.translatable(key + ".desc")));
             }
             case UNDO -> {

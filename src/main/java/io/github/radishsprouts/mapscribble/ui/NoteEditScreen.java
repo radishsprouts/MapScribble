@@ -217,6 +217,8 @@ public final class NoteEditScreen extends Screen {
         if (!renderParent(g, partialTick)) {
             super.extractBackground(g, mouseX, mouseY, partialTick);
         }
+        // 親の画面（JourneyMap）が後ろの層に描く部品（右下のキー一覧など）より、幕を手前にするため層を進める
+        g.nextStratum();
         g.fill(0, 0, width, height, CURTAIN);
         int px = layout.panelX(width);
         int py = layout.panelY();
@@ -249,14 +251,14 @@ public final class NoteEditScreen extends Screen {
         g.centeredText(font, title, px + EditLayout.PANEL_WIDTH / 2, py + layout.titleY(), TEXT_WHITE);
         g.text(font, Component.translatable("mapscribble.screen.label.text"), left, py + layout.labelY(), TEXT_LABEL, false);
 
-        int hintY = py + layout.hintY();
+        // 文字数「n/200」はバニラの MultiLineEditBox（setCharacterLimit）が欄の右下に描く。MOD は描かず、
+        // 左のヒントの y をそのカウンタの行に揃える（2重に描くと 1px ずれて重なって読みにくい）
+        int hintY = py + layout.counterY();
         if (spec.kind() == MemoKind.TEXT && text.isBlank()) {
             g.text(font, Component.translatable("mapscribble.screen.error.text_required"), left, hintY, TEXT_ERROR, false);
         } else {
             g.text(font, Component.translatable("mapscribble.screen.hint.keys"), left, hintY, TEXT_GRAY, false);
         }
-        Component counter = Component.translatable("mapscribble.screen.counter", text.length(), MAX_CHARS);
-        g.text(font, counter, left + EditLayout.BOX_WIDTH - font.width(counter), hintY, TEXT_GRAY, false);
 
         g.text(font, Component.translatable("mapscribble.screen.label.color", colorName()), left,
                 py + layout.colorLabelY(), TEXT_LABEL, false);

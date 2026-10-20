@@ -40,6 +40,14 @@ public final class ScribbleKeys {
         return toggle != null && toggle.matches(event);
     }
 
+    /** このツールに今割り当てられているキーの表示名（操作設定で変えた後の名前）。未割り当て・未登録なら null。 */
+    public static String toolKeyLabel(Tool tool) {
+        if (tools == null || tool.ordinal() >= tools.length || tools[tool.ordinal()].isUnbound()) {
+            return null;
+        }
+        return tools[tool.ordinal()].getTranslatedKeyMessage().getString();
+    }
+
     /** このキーに割り当てたツール。無ければ null。 */
     public static Tool toolFor(KeyEvent event) {
         if (tools == null) {

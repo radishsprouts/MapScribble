@@ -14,6 +14,7 @@
   "mapscribble.tool.eraser.desc": "Click a note to delete it",
   "mapscribble.tool.edit": "Edit",
   "mapscribble.tool.edit.desc": "Click a note to change its text or color",
+  "mapscribble.tool.tooltip": "%s (%s)",
   "mapscribble.hint.enclose": "Outline: drag around an area",
   "mapscribble.hint.line": "Line: drag to draw",
   "mapscribble.hint.text": "Text: click to place",

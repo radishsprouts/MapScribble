@@ -14,6 +14,7 @@
   "mapscribble.tool.eraser.desc": "クリックしたメモを消します",
   "mapscribble.tool.edit": "編集",
   "mapscribble.tool.edit.desc": "クリックしたメモの文字や色を直します",
+  "mapscribble.tool.tooltip": "%s (%s)",
   "mapscribble.hint.enclose": "囲み：ドラッグして範囲を囲む",
   "mapscribble.hint.line": "線：ドラッグして線を引く",
   "mapscribble.hint.text": "文字：クリックした場所に置く",

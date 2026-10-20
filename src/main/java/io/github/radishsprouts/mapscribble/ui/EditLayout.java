@@ -47,6 +47,14 @@ public record EditLayout(MemoKind kind, boolean edit, int guiHeight) {
         return boxY() + boxHeight() + 3;
     }
 
+    /**
+     * 左のヒントを描く y。バニラの MultiLineEditBox が文字数カウンタを描く y（欄の下端 + 4。
+     * 26.1.2 / 26.2 / 26.3 の extractDecorations で同じ）に揃える。
+     */
+    public int counterY() {
+        return boxY() + boxHeight() + 4;
+    }
+
     /** 「色：赤」の行。 */
     public int colorLabelY() {
         return hintY() + 16;

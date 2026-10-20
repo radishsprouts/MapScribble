@@ -37,6 +37,13 @@ class EditLayoutTest {
     }
 
     @Test
+    void ヒントの行はバニラの文字数カウンタの行_欄の下端プラス4() {
+        var l = new EditLayout(MemoKind.REGION, true, 300);
+        assertEquals(l.boxY() + l.boxHeight() + 4, l.counterY());
+        assertEquals(94, l.counterY());
+    }
+
+    @Test
     void パネルは画面の中央に置き_上端は4以上() {
         var l = new EditLayout(MemoKind.REGION, false, 300);
         assertEquals(36, l.panelY());

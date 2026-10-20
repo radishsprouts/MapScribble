@@ -10,7 +10,9 @@ import io.github.radishsprouts.mapscribble.model.MapPoint;
 import io.github.radishsprouts.mapscribble.model.Memo;
 import io.github.radishsprouts.mapscribble.model.MemoKind;
 import io.github.radishsprouts.mapscribble.store.MemoRepository;
+import io.github.radishsprouts.mapscribble.store.MemoStore;
 import io.github.radishsprouts.mapscribble.store.StoreSession;
+import io.github.radishsprouts.mapscribble.ui.BandLayout;
 import io.github.radishsprouts.mapscribble.ui.FillLevel;
 import io.github.radishsprouts.mapscribble.ui.NoteColor;
 import java.lang.reflect.Field;
@@ -21,10 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.screens.Screen;
 
 /**
  * 見た目の確認用に、GUI 倍率 × 画面の大きさ × 言語の組み合わせでスクリーンショットを撮る（判定はしない。
@@ -37,6 +42,9 @@ import net.minecraft.client.Minecraft;
  * <p>撮るもの: 01 全画面マップ（手書きオフ）、02 帯（ツールごとの説明の行）、03 文字入力の画面（日本語を数行）、
  * 04 編集の画面、05 メモの上のカーソルの表示。GUI 倍率 2・1920x1080 では加えて、残りのツールの帯、
  * 色・塗り・太さ・文字の大きさの見比べ（06）を撮る。最後に拡大した地図の斜めの線と円（07）を撮る。
+ * 640x480 は GUI 倍率 1・2 を撮る。GUI 倍率 2 の 1920x1080 と 640x480（日本語）では加えて、説明の行の各状態（08）、
+ * 初回の既定（09）、文字のメモの空欄と入力済み（10）、線のメモ（11）、ボタンのツールチップ（12）を撮る。
+ * 撮る前にマウスを無害な位置へ動かす（ホバー・ツールチップの撮影を除く）。
  * GUI 倍率が画面の大きさで頭打ちになる（854x480 は最大 2 など）組は、実際の倍率が違うので撮らない（ログに出す）。
  *
  * <p>他の試験が残したメモが写り込まないよう、撮影の間は既存のメモをいったん外し、終わるときに戻す。
@@ -46,7 +54,7 @@ import net.minecraft.client.Minecraft;
 @SuppressWarnings("UnstableApiUsage")
 public class ScreenshotClientGameTest implements FabricClientGameTest {
     private static final int TIMEOUT_TICKS = 600;
-    private static final int[][] SIZES = {{854, 480}, {1280, 720}, {1920, 1080}};
+    private static final int[][] SIZES = {{640, 480}, {854, 480}, {1280, 720}, {1920, 1080}};
     private static final int[] SCALES = {1, 2, 3, 4};
 
     private static int shotCount;
@@ -131,12 +139,35 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         context.runOnClient(client -> holder[0] = openFullscreen());
         context.waitTicks(25);
         ensureFullscreen(context, holder);
-        context.getInput().setCursorPos(context.computeOnClient(c -> c.getWindow().getWidth()) * 0.5,
-                context.computeOnClient(c -> c.getWindow().getHeight()) * 0.92);
+        parkCursor(context);
+    }
+
+    /**
+     * マウスを無害な位置へ動かす。JourneyMap の下の列（「マップを削除」など）にも、手書きの帯にも、右列のボタンにも
+     * 載らない位置（全画面マップは右寄りの上、文字入力の画面はパネルの外の左端）。撮る前にここへ置かないと、
+     * 前の操作で残ったマウスの位置の下にある部品のツールチップが写り込む。
+     */
+    private static void parkCursor(ClientGameTestContext context) {
+        int w = context.computeOnClient(c -> c.getWindow().getWidth());
+        int h = context.computeOnClient(c -> c.getWindow().getHeight());
+        if (screenOf(context).endsWith(".NoteEditScreen")) {
+            context.getInput().setCursorPos(w * 0.01, h * 0.5);
+        } else {
+            context.getInput().setCursorPos(w * 0.8, h * 0.22);
+        }
         context.waitTicks(3);
     }
 
     private static void snap(ClientGameTestContext context, Object[] holder, String prefix, String suffix) {
+        snap(context, holder, prefix, suffix, false);
+    }
+
+    /** keepCursor: ホバー・ツールチップの撮影で、今のマウスの位置を保つ（それ以外は撮る前に無害な位置へ動かす）。 */
+    private static void snap(ClientGameTestContext context, Object[] holder, String prefix, String suffix,
+                             boolean keepCursor) {
+        if (!keepCursor) {
+            parkCursor(context);
+        }
         String name = prefix + "_" + suffix;
         Path saved = context.takeScreenshot(name);
         shotCount++;
@@ -233,12 +264,22 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
 
     /** 手書きの一筆（囲み）を、画面の割合の軌跡で描く。 */
     private static void dragEnclose(ClientGameTestContext context) {
+        dragPath(context, new double[][] {{0.35, 0.65}, {0.50, 0.35}, {0.65, 0.65}, {0.50, 0.70}, {0.36, 0.66}});
+    }
+
+    /** 手書きの一筆（線）。帯（左上）に載らない、画面の下寄りを通す。 */
+    private static void dragLine(ClientGameTestContext context) {
+        dragPath(context, new double[][] {{0.30, 0.75}, {0.45, 0.62}, {0.60, 0.72}, {0.75, 0.60}});
+    }
+
+    /** 画面の幅・高さに対する割合の軌跡を、左ボタンを押したままなぞる。 */
+    private static void dragPath(ClientGameTestContext context, double[][] ratios) {
         int width = context.computeOnClient(client -> client.getWindow().getWidth());
         int height = context.computeOnClient(client -> client.getWindow().getHeight());
-        double[][] path = {
-                {width * 0.35, height * 0.65}, {width * 0.50, height * 0.35}, {width * 0.65, height * 0.65},
-                {width * 0.50, height * 0.70}, {width * 0.36, height * 0.66}
-        };
+        double[][] path = new double[ratios.length][];
+        for (int i = 0; i < ratios.length; i++) {
+            path[i] = new double[] {width * ratios[i][0], height * ratios[i][1]};
+        }
         context.getInput().setCursorPos(path[0][0], path[0][1]);
         context.waitTicks(2);
         context.getInput().holdMouse(InputConstants.MOUSE_BUTTON_LEFT);
@@ -266,6 +307,8 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
     private static void shootCombination(ClientGameTestContext context, Object[] holder, DrawingState state,
                                          List<UUID> basicIds, String lang, int w, int h, int scale, boolean full,
                                          boolean extras) {
+        // 細部の撮影（説明の行の各状態・文字入力の画面・ツールチップ・既定）は、GUI 倍率 2 の大きい画面と 640x480 で撮る
+        boolean detail = full && scale == 2 && lang.equals("ja") && (w == 1920 || w == 640);
         String prefix = lang + "_gui" + scale + "_" + w + "x" + h;
         reopenFullscreen(context, holder);
         removeMemos(context, basicIds);
@@ -314,7 +357,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         context.getInput().setCursorPos(inside[0], inside[1]);
         context.waitTicks(5);
         if (extras) {
-            snap(context, holder, prefix, "05_hover_edit");
+            snap(context, holder, prefix, "05_hover_edit", true);
         }
         context.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
         context.waitTicks(10);
@@ -326,10 +369,13 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         setMode(context, state, true, Tool.ERASER);
         context.getInput().setCursorPos(inside[0], inside[1]);
         context.waitTicks(5);
-        snap(context, holder, prefix, "05_hover_eraser");
+        snap(context, holder, prefix, "05_hover_eraser", true);
 
         if (extras) {
             shootCompare(context, holder, state, prefix);
+        }
+        if (detail) {
+            shootDetails(context, holder, state, basicIds, prefix);
         }
         setMode(context, state, false, null);
     }
@@ -376,6 +422,207 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
             snap(context, holder, prefix, "06_compare_styles");
         } finally {
             removeMemos(context, ids);
+        }
+    }
+
+    // ---- 細部の撮影（08〜15） ----
+
+    /** 今の画面（全画面マップ）の右列にある MapScribble の切替ボタン。無ければ null。 */
+    private static AbstractWidget findToggle(Minecraft client) {
+        //? if >=26.2 {
+        /*Screen screen = client.gui.screen();
+        *///?} else {
+        Screen screen = client.screen;
+        //?}
+        if (screen == null) {
+            return null;
+        }
+        try {
+            Field renderables = Screen.class.getDeclaredField("renderables");
+            renderables.setAccessible(true);
+            for (Object part : (List<?>) renderables.get(screen)) {
+                for (Class<?> c = part.getClass(); c != null; c = c.getSuperclass()) {
+                    if (c.getName().equals("journeymap.client.ui.theme.ThemeButton")) {
+                        Field icon = c.getDeclaredField("icon");
+                        icon.setAccessible(true);
+                        Object id = icon.get(part);
+                        if (id != null && id.toString().contains("mapscribble") && id.toString().contains("toggle")) {
+                            return (AbstractWidget) part;
+                        }
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+        return null;
+    }
+
+    private static Field storeField(String name) {
+        try {
+            Field f = MemoStore.class.getDeclaredField(name);
+            f.setAccessible(true);
+            return f;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** 帯の説明の一時のお知らせ（4 秒）が消えるのを待つ（お知らせが「0件」「隠している」より優先されるため）。 */
+    private static void waitNoticeExpire(ClientGameTestContext context) {
+        context.waitTicks(5);
+        try {
+            Thread.sleep(4500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        context.waitTicks(5);
+    }
+
+    /** マウスを GUI 座標 (gx, gy) の位置へ動かして、ツールチップが出るのを待つ。 */
+    private static void hoverGui(ClientGameTestContext context, double gx, double gy) {
+        double scale = context.computeOnClient(client -> client.getWindow().getGuiScale());
+        context.getInput().setCursorPos(gx * scale, gy * scale);
+        context.waitTicks(8);
+    }
+
+    /**
+     * 08 説明の行の各状態、09 初回の既定、10 文字のメモ（空欄・入力済み）、11 線のメモ、12 ボタンのツールチップ。
+     * 状態は試験用に差し込む（メモの窓口の「読めなかった」「使えない」「保存失敗」の通知先と使える印を直接動かし、
+     * 終わるときに戻す）。「読み込み中」は実際には起きない状態（読み込みは同期）なので、同じ文言を一時のお知らせとして出す。
+     */
+    private static void shootDetails(ClientGameTestContext context, Object[] holder, DrawingState state,
+                                     List<UUID> basicIds, String prefix) {
+        // 08 説明の行の各状態（帯の説明の行。ツールは囲み）
+        setMode(context, state, true, Tool.ENCLOSE);
+        removeMemos(context, basicIds);
+        waitNoticeExpire(context);
+        snap(context, holder, prefix, "08_hint_empty");
+
+        context.runOnClient(client -> state.notice("mapscribble.msg.loading"));
+        context.waitTicks(2);
+        snap(context, holder, prefix, "08_hint_loading");
+
+        MemoStore store = (MemoStore) StoreSession.repository();
+        Field writable = storeField("writable");
+        try {
+            context.runOnClient(client -> {
+                try {
+                    writable.setBoolean(store, false);
+                } catch (IllegalAccessException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            waitNoticeExpire(context);
+            snap(context, holder, prefix, "08_hint_not_ready");
+
+            @SuppressWarnings("unchecked")
+            Consumer<String> problem = (Consumer<String>) storeField("problemHandler").get(store);
+            context.runOnClient(client -> problem.accept("test"));
+            context.waitTicks(3);
+            snap(context, holder, prefix, "08_hint_load_failed");
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        } finally {
+            context.runOnClient(client -> {
+                try {
+                    writable.setBoolean(store, true);
+                } catch (IllegalAccessException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+            context.waitTicks(3);
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            Consumer<Boolean> saveState = (Consumer<Boolean>) storeField("saveStateHandler").get(store);
+            context.runOnClient(client -> saveState.accept(true));
+            context.waitTicks(4);
+            snap(context, holder, prefix, "08_hint_save_failed");
+            context.runOnClient(client -> saveState.accept(false));
+            context.waitTicks(4);
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException(e);
+        }
+
+        // 初回の既定（囲み・赤・中）。他の試験が変えた値を、起動直後の既定へ戻してから撮る
+        context.runOnClient(client -> {
+            state.setColor(DrawingState.DEFAULT_COLOR);
+            state.setWidth(2);
+            state.setFillOpacity(FillLevel.NORMAL.opacity());
+            state.setTextScale(1.5f);
+            state.setOnMinimap(true);
+            state.setVisible(true);
+        });
+        setMode(context, state, true, Tool.ENCLOSE);
+        waitNoticeExpire(context);
+        snap(context, holder, prefix, "09_default_band");
+        dragEnclose(context);
+        log(prefix + ": 既定の囲みの後の画面 = " + screenOf(context));
+        snap(context, holder, prefix, "09_default_enclose_input");
+        closeEditScreenWithEsc(context, holder);
+
+        // 10 文字のメモ（クリックした場所に置く）。空欄 → 入力済み
+        setMode(context, state, true, Tool.TEXT);
+        clickMap(context, 0.55, 0.55);
+        log(prefix + ": 文字ツールのクリック後の画面 = " + screenOf(context));
+        snap(context, holder, prefix, "10_text_empty");
+        context.getInput().typeChars("ここに拠点");
+        context.waitTicks(5);
+        snap(context, holder, prefix, "10_text_typed");
+        closeEditScreenWithEsc(context, holder);
+
+        // 11 線のメモ
+        setMode(context, state, true, Tool.LINE);
+        dragLine(context);
+        log(prefix + ": 線の後の画面 = " + screenOf(context));
+        context.getInput().typeChars("水路の予定");
+        context.waitTicks(5);
+        snap(context, holder, prefix, "11_line_input");
+        closeEditScreenWithEsc(context, holder);
+
+        // 12 ツールチップ（帯の道具ボタン 5 つ、右列の切替ボタン）
+        setMode(context, state, true, Tool.ENCLOSE);
+        for (BandLayout.Cell cell : BandLayout.cells()) {
+            if (cell.kind() != BandLayout.Kind.TOOL) {
+                continue;
+            }
+            hoverGui(context, cell.x() + cell.w() / 2.0, cell.y() + cell.h() / 2.0);
+            snap(context, holder, prefix, "12_tooltip_tool_" + Tool.values()[cell.index()].name().toLowerCase(
+                    java.util.Locale.ROOT), true);
+        }
+        hoverToggle(context, holder, prefix, "12_tooltip_toggle_on");
+        setMode(context, state, false, null);
+        hoverToggle(context, holder, prefix, "12_tooltip_toggle_off");
+        parkCursor(context);
+    }
+
+    private static void hoverToggle(ClientGameTestContext context, Object[] holder, String prefix, String suffix) {
+        double[] centre = context.computeOnClient(client -> {
+            AbstractWidget toggle = findToggle(client);
+            return toggle == null ? null
+                    : new double[] {toggle.getX() + toggle.getWidth() / 2.0, toggle.getY() + toggle.getHeight() / 2.0};
+        });
+        if (centre == null) {
+            log(prefix + ": 右列の切替ボタンが見つからないため " + suffix + " は撮らない");
+            return;
+        }
+        hoverGui(context, centre[0], centre[1]);
+        snap(context, holder, prefix, suffix, true);
+    }
+
+    /** 画面の幅・高さに対する割合の位置を左クリックする。 */
+    private static void clickMap(ClientGameTestContext context, double rx, double ry) {
+        int width = context.computeOnClient(client -> client.getWindow().getWidth());
+        int height = context.computeOnClient(client -> client.getWindow().getHeight());
+        context.getInput().setCursorPos(width * rx, height * ry);
+        context.waitTicks(3);
+        context.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+        context.waitTicks(10);
+        if (!screenOf(context).endsWith(".NoteEditScreen")) {
+            context.getInput().releaseMouse(InputConstants.MOUSE_BUTTON_LEFT);
+            context.waitTicks(10);
         }
     }
 
