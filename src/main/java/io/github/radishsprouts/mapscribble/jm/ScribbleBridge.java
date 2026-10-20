@@ -1,6 +1,8 @@
 package io.github.radishsprouts.mapscribble.jm;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.github.radishsprouts.mapscribble.MapScribble;
+import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
 import io.github.radishsprouts.mapscribble.draw.DrawingState;
 import io.github.radishsprouts.mapscribble.draw.HitTester;
@@ -9,6 +11,10 @@ import io.github.radishsprouts.mapscribble.draw.Tool;
 import io.github.radishsprouts.mapscribble.geom.Projection;
 import io.github.radishsprouts.mapscribble.model.Memo;
 import io.github.radishsprouts.mapscribble.store.MemoRepository;
+import io.github.radishsprouts.mapscribble.store.StoreSession;
+import io.github.radishsprouts.mapscribble.ui.BandLayout;
+import io.github.radishsprouts.mapscribble.ui.ScribbleUi;
+import io.github.radishsprouts.mapscribble.ui.UiPrefs;
 import java.awt.geom.Point2D;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -19,15 +25,20 @@ import journeymap.api.v2.client.IClientAPI;
 import journeymap.api.v2.client.event.FullscreenMapEvent;
 import journeymap.api.v2.client.event.FullscreenRenderEvent;
 import journeymap.api.v2.client.fullscreen.IFullscreen;
+import journeymap.api.v2.client.fullscreen.IThemeButton;
+import journeymap.api.v2.client.fullscreen.ThemeButtonDisplay;
 import journeymap.api.v2.common.event.FullscreenEventRegistry;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
@@ -37,10 +48,9 @@ import net.minecraft.world.level.Level;
  * このクラスの先は JourneyMap のプラグインクラスを参照しない。
  */
 public final class ScribbleBridge {
-    /** GLFW のキー（Z・Y）。 */
-    private static final int KEY_Z = 90;
-    private static final int KEY_Y = 89;
-    private static final int MOUSE_LEFT = 0;
+    /** 左ボタン。26.3 は SDL のボタン番号で値が違うので、定数を使う。 */
+    private static final int MOUSE_LEFT = InputConstants.MOUSE_BUTTON_LEFT;
+    private static final Identifier TOGGLE_ICON = GuiCompat.texture("textures/gui/toggle.png");
 
     private final IClientAPI api;
     private final Supplier<MemoRepository> repositorySupplier;
@@ -48,6 +58,18 @@ public final class ScribbleBridge {
     private final DrawingState state;
     private final FullscreenRenderer renderer;
     private final MinimapOverlays minimap;
+    private final ScribbleUi ui;
+
+    /** 右列の「手書き」ボタン（全画面マップを開き直すたびに作り直される）。 */
+    private IThemeButton toggleButton;
+
+    // 消しゴム・編集でカーソルの下にあるメモの判定の使い回し（マウス・地図・メモが変わるまで同じ答え）
+    private int hoverX = Integer.MIN_VALUE;
+    private int hoverY = Integer.MIN_VALUE;
+    private Projection hoverProjection;
+    private List<Memo> hoverMemos;
+    private Tool hoverTool;
+    private Memo hoverResult;
 
     /** 今開いている JourneyMap の全画面マップ（開いていなければ null）。 */
     private IFullscreen fullscreen;
@@ -74,6 +96,9 @@ public final class ScribbleBridge {
         this.state = controller.state();
         this.renderer = new FullscreenRenderer(controller);
         this.minimap = new MinimapOverlays(api);
+        this.ui = new ScribbleUi(controller, FabricLoader.getInstance().getConfigDir().resolve(UiPrefs.FILE_NAME));
+        // メモのファイルを読めなかった時は、帯の説明の行に出す
+        StoreSession.setNotifier(message -> ui.onLoadFailed());
     }
 
     /** イベントを購読する。 */
@@ -81,8 +106,10 @@ public final class ScribbleBridge {
         FullscreenEventRegistry.FULLSCREEN_RENDER_EVENT.subscribe(MapScribble.MOD_ID, this::onRender);
         FullscreenEventRegistry.FULLSCREEN_MAP_CLICK_EVENT.subscribe(MapScribble.MOD_ID, this::onClick);
         FullscreenEventRegistry.FULLSCREEN_MAP_DRAG_EVENT.subscribe(MapScribble.MOD_ID, this::onDrag);
-        FullscreenEventRegistry.ADDON_BUTTON_DISPLAY_EVENT.subscribe(MapScribble.MOD_ID,
-                event -> track(event.getFullscreen()));
+        FullscreenEventRegistry.ADDON_BUTTON_DISPLAY_EVENT.subscribe(MapScribble.MOD_ID, event -> {
+            track(event.getFullscreen());
+            addToggleButton(event.getThemeButtonDisplay());
+        });
 
         // 画面ごとの離す・キーのイベントは、画面の初期化の後に登録する（全画面マップかどうかは実行時に同一性で見る）
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> hook(screen));
@@ -96,6 +123,23 @@ public final class ScribbleBridge {
 
     private void track(IFullscreen fs) {
         this.fullscreen = fs;
+    }
+
+    /** 右列に「手書き」の切替ボタンを足す。ラベルは翻訳キー（オンの時は「終える」、オフの時は「にする」）。 */
+    private void addToggleButton(ThemeButtonDisplay display) {
+        toggleButton = display.addThemeToggleButton("mapscribble.button.toggle.on", "mapscribble.button.toggle.off",
+                TOGGLE_ICON, state.isModeOn(), button -> {
+                    state.toggleMode();
+                    button.setToggled(state.isModeOn());
+                });
+    }
+
+    /** キーなどでモードが変わった時に、ボタンの見た目を状態へ合わせる（比べるだけで軽い）。 */
+    private void syncToggleButton() {
+        IThemeButton button = toggleButton;
+        if (button != null && button.getToggled() != null && button.getToggled() != state.isModeOn()) {
+            button.setToggled(state.isModeOn());
+        }
     }
 
     /** 今開いている全画面マップ。別の画面に切り替わっていれば null。 */
@@ -126,6 +170,7 @@ public final class ScribbleBridge {
         if (screen == null) {
             return;
         }
+        ScreenMouseEvents.allowMouseClick(screen).register(this::allowMouseClick);
         ScreenMouseEvents.afterMouseRelease(screen).register(this::afterMouseRelease);
         ScreenKeyboardEvents.allowKeyPress(screen).register(this::allowKeyPress);
     }
@@ -135,6 +180,40 @@ public final class ScribbleBridge {
     private void onRender(FullscreenRenderEvent event) {
         track(event.getFullscreen());
         renderer.render(event);
+        syncToggleButton();
+        int mouseX = event.getMouseX();
+        int mouseY = event.getMouseY();
+        ui.render(event.getGraphics(), mouseX, mouseY, hoverMemo(event.getFullscreen(), mouseX, mouseY));
+    }
+
+    /** 消しゴム・編集で、カーソルの下にあるメモ。条件が合わなければ null。同じ入力なら前の答えを使い回す。 */
+    private Memo hoverMemo(IFullscreen fs, int guiX, int guiY) {
+        Tool tool = state.tool();
+        if (guiX < 0 || guiY < 0 || !controller.isActive() || !state.isVisible()
+                || (tool != Tool.ERASER && tool != Tool.EDIT) || BandLayout.contains(guiX, guiY)) {
+            return null;
+        }
+        MemoRepository repo = controller.repository();
+        if (repo == null) {
+            return null;
+        }
+        Projection projection = MapProjection.of(fs);
+        List<Memo> memos = repo.memos();
+        if (guiX == hoverX && guiY == hoverY && tool == hoverTool && memos == hoverMemos
+                && projection.equals(hoverProjection)) {
+            return hoverResult;
+        }
+        int guiScale = MapProjection.guiScale();
+        double px = guiX * guiScale + guiScale / 2.0;
+        double py = guiY * guiScale + guiScale / 2.0;
+        hoverX = guiX;
+        hoverY = guiY;
+        hoverTool = tool;
+        hoverMemos = memos;
+        hoverProjection = projection;
+        hoverResult = HitTester.find(memos, projection.toWorldX(px), projection.toWorldZ(py),
+                projection.pixelsToWorld(1.0), guiScale, measure);
+        return hoverResult;
     }
 
     // ---- 入力 ----
@@ -220,33 +299,36 @@ public final class ScribbleBridge {
         controller.extendStroke(pos.x, pos.y, MapProjection.of(fs));
     }
 
+    /**
+     * 帯の上のクリックは、画面の段階で止めて地図（JourneyMap）へ渡さない。
+     * 手書きモードがオンの間は、メモを使えない状態（地図の準備中など）でも帯のボタンは押せる。
+     */
+    private boolean allowMouseClick(Screen screen, MouseButtonEvent event) {
+        IFullscreen fs = current();
+        if (fs == null || fs.getScreen() != screen) {
+            return true;
+        }
+        return !ui.onMouseClick(event.x(), event.y(), event.button() == MOUSE_LEFT);
+    }
+
     private boolean afterMouseRelease(Screen screen, MouseButtonEvent event, boolean consumed) {
         IFullscreen fs = current();
-        if (fs != null && fs.getScreen() == screen && event.button() == MOUSE_LEFT
-                && controller.activeStroke() != null) {
-            controller.finishStroke(MapProjection.of(fs));
+        if (fs != null && fs.getScreen() == screen) {
+            ui.onMouseRelease();
+            if (event.button() == MOUSE_LEFT && controller.activeStroke() != null) {
+                controller.finishStroke(MapProjection.of(fs));
+            }
         }
         return consumed;
     }
 
+    /** 全画面マップでのキー（切替・ツール・Ctrl+Z/Y）。文字の入力欄にフォーカスがある時は何も奪わない。 */
     private boolean allowKeyPress(Screen screen, KeyEvent event) {
         IFullscreen fs = current();
-        if (fs == null || fs.getScreen() != screen || !controller.isActive() || !event.hasControlDown()) {
+        if (fs == null || fs.getScreen() != screen || screen.getFocused() instanceof EditBox) {
             return true;
         }
-        if (event.key() == KEY_Z) {
-            if (event.hasShiftDown()) {
-                controller.redo();
-            } else {
-                controller.undo();
-            }
-            return false;
-        }
-        if (event.key() == KEY_Y) {
-            controller.redo();
-            return false;
-        }
-        return true;
+        return !ui.onKey(event);
     }
 
     private static void cancel(FullscreenMapEvent.ClickEvent event) {

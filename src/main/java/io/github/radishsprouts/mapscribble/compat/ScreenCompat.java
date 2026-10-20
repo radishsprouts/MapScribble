@@ -15,4 +15,13 @@ public final class ScreenCompat {
         Minecraft.getInstance().setScreen(screen);
         //?}
     }
+
+    /** 今開いている画面。何も開いていなければ null。 */
+    public static @Nullable Screen currentScreen() {
+        //? if >=26.2 {
+        /*return Minecraft.getInstance().gui.screen();
+        *///?} else {
+        return Minecraft.getInstance().screen;
+        //?}
+    }
 }
