@@ -69,6 +69,17 @@ loom {
     }
 }
 
+// Loom の `downloadAssets` は `<run ディレクトリ>/resources` を @OutputDirectory にしているので、Gradle が
+// そのタスクの直前にこのフォルダを作る。run ディレクトリは開発用クライアントと client gametest で共有（`run/`）し、
+// `deleteGameTestRunDir`（`fabricApi.configureTests` が登録する）はそれを丸ごと消す。2つのタスクの間に依存が無く、
+// `org.gradle.parallel=true` で同時に走ると、消している最中に `run/resources` が作り直されて Delete が
+// 「New files were found. This might happen because a process is still writing to the target directory.」で
+// 落ちる（`run/` が残っている2回目以降）。`mustRunAfter` は両方がタスクグラフにいる時だけ効くので、
+// `deleteGameTestRunDir` の無い `runClient` には影響しない。
+tasks.matching { it.name == "downloadAssets" }.configureEach {
+    mustRunAfter("deleteGameTestRunDir")
+}
+
 java {
     withSourcesJar()
     targetCompatibility = requiredJava
