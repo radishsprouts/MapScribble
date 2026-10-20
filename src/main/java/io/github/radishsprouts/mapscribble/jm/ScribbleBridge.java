@@ -14,7 +14,6 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.function.Supplier;
 import journeymap.api.v2.client.IClientAPI;
 import journeymap.api.v2.client.event.FullscreenMapEvent;
@@ -52,8 +51,6 @@ public final class ScribbleBridge {
 
     /** 今開いている JourneyMap の全画面マップ（開いていなければ null）。 */
     private IFullscreen fullscreen;
-    /** 離す・キーのイベントを登録済みの画面。 */
-    private final Set<Screen> hooked = Collections.newSetFromMap(new WeakHashMap<>());
     /** 変更の通知を登録済みの窓口。 */
     private final Set<MemoRepository> listened = Collections.newSetFromMap(new IdentityHashMap<>());
     private MemoRepository lastRepository;
@@ -120,8 +117,13 @@ public final class ScribbleBridge {
         return fs;
     }
 
+    /**
+     * 離す・キーのイベントを画面へ登録する。Fabric は画面が（再）初期化されるたびに、画面ごとのイベントを
+     * 初期状態へ戻す（ウィンドウのサイズ変更や、JourneyMap の別の画面から戻った時など）。
+     * そのため重複を恐れず、初期化のたびに登録し直す（実機で、登録を1回で済ませると離すイベントが来なくなることを確認した）。
+     */
     private void hook(Screen screen) {
-        if (screen == null || !hooked.add(screen)) {
+        if (screen == null) {
             return;
         }
         ScreenMouseEvents.afterMouseRelease(screen).register(this::afterMouseRelease);
