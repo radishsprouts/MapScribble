@@ -6,6 +6,7 @@
   "environment": "client",
   "entrypoints": {
     "fabric-client-gametest": [
+      "io.github.radishsprouts.mapscribble.test.UiClientGameTest",
       "io.github.radishsprouts.mapscribble.test.DrawingClientGameTest"
     ]
   },

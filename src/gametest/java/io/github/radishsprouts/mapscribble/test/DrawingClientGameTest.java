@@ -93,6 +93,22 @@ public class DrawingClientGameTest implements FabricClientGameTest {
                 context.waitTicks(20);
             }
 
+            // 案内画面を閉じると全画面マップごと閉じることがある。開き直す
+            if (!context.computeOnClient(DrawingClientGameTest::screenName).endsWith(".Fullscreen")) {
+                context.runOnClient(client -> holder[0] = openFullscreen(client));
+                context.waitTicks(30);
+                if (!context.computeOnClient(DrawingClientGameTest::screenName).endsWith(".Fullscreen")) {
+                    // 開いた直後に閉じられる場合は、JourneyMap の既定のキー（J）で開く
+                    context.getInput().pressKey(com.mojang.blaze3d.platform.InputConstants.KEY_J);
+                    context.waitTicks(30);
+                    // 開いている全画面マップを取り直す（開いていれば同じものが返る）
+                    context.runOnClient(client -> holder[0] = openFullscreen(client));
+                }
+                fullscreen = holder[0];
+            }
+            final Object fullscreenNow = fullscreen;
+            log("screen before test: " + context.computeOnClient(DrawingClientGameTest::screenName));
+
             // メモの窓口が使えるまで待つ（JourneyMap の MAPPING_STARTED で窓口ができる）
             boolean available;
             try {
@@ -110,6 +126,9 @@ public class DrawingClientGameTest implements FabricClientGameTest {
             }
 
             DrawingState state = ScribbleSession.state();
+            // 一筆の確定後は文字入力の画面が開く（作業6）。この試験は一筆の描画と取り消しだけを確かめるので、画面は開かせない
+            // （画面を含む確認は UiClientGameTest）
+            state.setDraftHandler(null);
             context.runOnClient(client -> {
                 state.setModeOn(true);
                 state.setTool(Tool.ENCLOSE);
@@ -121,8 +140,8 @@ public class DrawingClientGameTest implements FabricClientGameTest {
             log("window " + width + "x" + height + " guiScale="
                     + context.computeOnClient(client -> client.getWindow().getGuiScale()));
 
-            double cx0 = context.computeOnClient(client -> centerX(fullscreen));
-            double cz0 = context.computeOnClient(client -> centerZ(fullscreen));
+            double cx0 = context.computeOnClient(client -> centerX(fullscreenNow));
+            double cz0 = context.computeOnClient(client -> centerZ(fullscreenNow));
 
             // 斜めの三角形を一筆で囲む
             double[][] path = {
@@ -146,8 +165,8 @@ public class DrawingClientGameTest implements FabricClientGameTest {
             context.getInput().releaseMouse(0);
             context.waitTicks(10);
 
-            double cx1 = context.computeOnClient(client -> centerX(fullscreen));
-            double cz1 = context.computeOnClient(client -> centerZ(fullscreen));
+            double cx1 = context.computeOnClient(client -> centerX(fullscreenNow));
+            double cz1 = context.computeOnClient(client -> centerZ(fullscreenNow));
             log("map center moved by drag: dx=" + (cx1 - cx0) + " dz=" + (cz1 - cz0)
                     + " (0 なら、クリックの取り消しでマップが動かなかった)");
 
