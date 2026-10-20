@@ -1,0 +1,145 @@
+name: CurseForge
+
+# 既存の GitHub Release の jar を、Minecraft の版ごとに 1 ファイルずつ CurseForge へ上げる。
+# release.yml が公開した後に呼ぶ。古いタグは手動で実行する。
+# CURSEFORGE_TOKEN（Secret）と CURSEFORGE_PROJECT_ID（Variable）が無ければスキップする。
+# アップロード API は既存ファイルの一覧を取れないので、同じタグで 2 回実行すると二重に上がる。
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "上げるリリース済みのタグ。例: v0.1.0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+      CURSEFORGE_PROJECT: ${{ vars.CURSEFORGE_PROJECT_ID }}
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      API: https://minecraft.curseforge.com/api
+      UA: radishsprouts/MapScribble (GitHub Actions)
+    steps:
+      - name: 設定を確かめる
+        id: check
+        run: |
+          if [ -z "$CURSEFORGE_TOKEN" ] || [ -z "$CURSEFORGE_PROJECT" ]; then
+            echo "::notice::CurseForge へのアップロードをスキップしました。有効にするには CURSEFORGE_TOKEN（Secret）と CURSEFORGE_PROJECT_ID（Variable）を設定してください。"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.check.outputs.enabled == 'true'
+
+      - name: Release の jar をダウンロードする
+        if: steps.check.outputs.enabled == 'true'
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.jar' --dir jars
+
+      - name: CurseForge へアップロードする
+        if: steps.check.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          auth=(-H "User-Agent: $UA" -H "X-Api-Token: $CURSEFORGE_TOKEN")
+          curl -fsS "${auth[@]}" "$API/game/version-types" > version-types.json
+          curl -fsS "${auth[@]}" "$API/game/versions" > versions.json
+
+          # 型の slug が正規表現 $1 に合う、名前が $2 のゲームバージョンの ID
+          version_id() {
+            jq -r --arg type "$1" --arg name "$2" --slurpfile types version-types.json '
+              ($types[0] | map(select(.slug | test($type))) | map(.id)) as $ids
+              | map(select(.gameVersionTypeID as $t | any($ids[]; . == $t)) | select(.name == $name))
+              | first | .id // empty' versions.json
+          }
+
+          fabric=$(version_id '^modloader$' Fabric)
+          client=$(version_id '^environment$' Client)
+          java=$(version_id '^java$' 'Java 25')
+          for pair in "Fabric:$fabric" "Client:$client" "Java 25:$java"; do
+            if [ -z "${pair#*:}" ]; then
+              echo "::error::CurseForge に ${pair%%:*} というゲームバージョンがありません"
+              exit 1
+            fi
+          done
+
+          case "$TAG" in v0.*) release_type=beta ;; *) release_type=release ;; esac
+          release_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+          # CHANGELOG.md の "## <版>" の節（次の版の見出しの手前まで）。
+          # ファイルや節が無くても失敗させず、Release へのリンクだけにする
+          notes=""
+          if [ -f CHANGELOG.md ]; then
+            notes=$(awk -v v="${TAG#v}" '
+              /^## / { if (found) exit; if ($2 == v) { found = 1; next } }
+              found' CHANGELOG.md || true)
+          fi
+          if [ -z "$(tr -d '[:space:]' <<< "$notes")" ]; then
+            echo "::warning::CHANGELOG.md に ${TAG#v} の節がありません。変更履歴は Release へのリンクだけになります"
+            changelog=$(printf 'GitHub release: %s' "$release_url")
+          else
+            changelog=$(printf '%s\n\nGitHub release: %s' "$notes" "$release_url")
+          fi
+
+          shopt -s nullglob
+          jars=(jars/*.jar)
+          if [ ${#jars[@]} -eq 0 ]; then
+            echo "::error::Release $TAG に jar が添付されていません"
+            exit 1
+          fi
+          # 部分的に上がって再実行で二重になるのを防ぐため、
+          # アップロードの前に全 jar の Minecraft 版 ID を解決しておく
+          declare -A minecraft
+          for jar in "${jars[@]}"; do
+            # mapscribble-<MOD の版>+<Minecraft の版>.jar
+            mc=$(basename "$jar" .jar)
+            mc=${mc##*+}
+            minecraft[$mc]=$(version_id '^minecraft(-|$)' "$mc")
+            if [ -z "${minecraft[$mc]}" ]; then
+              echo "::error::CurseForge に Minecraft $mc がありません。既知の 26.x: $(jq -r '[.[] | select(.name | startswith("26.")) | .name] | unique | join(", ")' versions.json)"
+              exit 1
+            fi
+          done
+
+          for jar in "${jars[@]}"; do
+            version=$(basename "$jar" .jar)
+            version=${version#mapscribble-}
+            mc=${version##*+}
+            jq -n \
+              --arg version "$version" \
+              --arg type "$release_type" \
+              --arg changelog "$changelog" \
+              --argjson versions "[${minecraft[$mc]}, $fabric, $client, $java]" \
+              '{
+                displayName: "MapScribble \($version)",
+                changelog: $changelog,
+                changelogType: "markdown",
+                gameVersions: $versions,
+                releaseType: $type,
+                relations: {
+                  projects: [
+                    {slug: "fabric-api", type: "requiredDependency"},
+                    {slug: "journeymap", type: "requiredDependency"}
+                  ]
+                }
+              }' > metadata.json
+            status=$(curl -sS -o response.json -w '%{http_code}' -X POST \
+              "$API/projects/$CURSEFORGE_PROJECT/upload-file" \
+              "${auth[@]}" \
+              -F "metadata=<metadata.json;type=application/json" \
+              -F "file=@$jar;type=application/java-archive")
+            if [ "$status" != 200 ]; then
+              echo "::error::CurseForge が $version を拒否しました (HTTP $status): $(cat response.json)"
+              exit 1
+            fi
+            echo "$version をファイル $(jq -r .id response.json) としてアップロードしました"
+          done

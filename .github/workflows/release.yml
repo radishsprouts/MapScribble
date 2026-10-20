@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  # Actions タブからの手動リリース。選んだコミットにタグを作る
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "作成してリリースするタグ。例: v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: 全 Minecraft 版をビルドする
+        run: ./gradlew buildAndCollect --stacktrace
+
+      - name: GitHub Release を公開する
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          files: build/libs/*/*.jar
+          # 0.x はゲーム内での確認が済んでいないので prerelease にする
+          prerelease: ${{ startsWith(inputs.tag || github.ref_name, 'v0.') }}
+          generate_release_notes: true
+
+  curseforge:
+    needs: release
+    uses: ./.github/workflows/curseforge.yml
+    with:
+      tag: ${{ inputs.tag || github.ref_name }}
+    secrets: inherit
