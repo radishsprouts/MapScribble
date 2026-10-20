@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "${id}",
+  "version": "${version}",
+  "name": "${name}",
+  "description": "Handwritten notes on the JourneyMap fullscreen map. Draw around an area and write text on it. Client-side only.",
+  "authors": [
+    "radishsprouts"
+  ],
+  "contact": {
+    "sources": "https://github.com/radishsprouts/MapScribble",
+    "issues": "https://github.com/radishsprouts/MapScribble/issues",
+    "homepage": "https://github.com/radishsprouts/MapScribble"
+  },
+  "license": "MIT",
+  "icon": "assets/mapscribble/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "io.github.radishsprouts.mapscribble.MapScribble"
+    ],
+    "journeymap": [
+      "io.github.radishsprouts.mapscribble.jm.MapScribblePlugin"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${loader}",
+    "minecraft": "${minecraft}",
+    "java": ">=25",
+    "fabric-api": "*",
+    "journeymap": "*"
+  }
+}
