@@ -26,6 +26,14 @@ public class UiClientGameTest implements FabricClientGameTest {
         System.out.println("[MS-UI] " + message);
     }
 
+    /** 期待と違えば AssertionError で落とす（経過は [MS-UI] で出す）。 */
+    private static void check(boolean ok, String message) {
+        log((ok ? "OK   " : "FAIL ") + message);
+        if (!ok) {
+            throw new AssertionError(message);
+        }
+    }
+
     private static Object openFullscreen() {
         try {
             Class<?> ui = Class.forName("journeymap.client.ui.UIManager");
@@ -57,7 +65,7 @@ public class UiClientGameTest implements FabricClientGameTest {
     private static void clickGui(ClientGameTestContext context, double guiX, double guiY, double scale) {
         context.getInput().setCursorPos(guiX * scale, guiY * scale);
         context.waitTicks(3);
-        context.getInput().pressMouse(0);
+        context.getInput().pressMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);
         context.waitTicks(5);
     }
 
@@ -83,16 +91,20 @@ public class UiClientGameTest implements FabricClientGameTest {
         ensureFullscreen(context, holder);
     }
 
+    /** 単独で動かす入口（登録していない）。通常は AllClientGameTest が1つのワールドで続けて run を呼ぶ。 */
     @Override
     public void runTest(ClientGameTestContext context) {
-        try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
-            //? if >=26.2 {
-            /*singleplayer.getConnection().waitForChunksRender();
-            *///?} else {
-            singleplayer.getClientLevel().waitForChunksRender();
-            //?}
-            context.waitTicks(100);
+        TestSingleplayerContext singleplayer = TestWorlds.open(context);
+        try {
+            run(context);
+        } finally {
+            TestWorlds.close(context, singleplayer);
+        }
+    }
 
+    /** ワールドが開いて描画を待ち終わった状態から始める。 */
+    public static void run(ClientGameTestContext context) {
+        {
             Object[] holder = new Object[1];
             context.runOnClient(client -> holder[0] = openFullscreen());
             context.waitTicks(40);
@@ -107,7 +119,7 @@ public class UiClientGameTest implements FabricClientGameTest {
                 int h = context.computeOnClient(client -> client.getWindow().getHeight());
                 context.getInput().setCursorPos(w * 0.676, h * 0.9375);
                 context.waitTicks(3);
-                context.getInput().pressMouse(0);
+                context.getInput().pressMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);
                 context.waitTicks(20);
             }
 
@@ -155,20 +167,24 @@ public class UiClientGameTest implements FabricClientGameTest {
             context.runOnClient(client -> state.setTool(Tool.ENCLOSE));
             var lineCell = BandLayout.cells().get(1);
             clickGui(context, lineCell.x() + lineCell.w() / 2.0, lineCell.y() + lineCell.h() / 2.0, scale);
-            context.getInput().releaseMouse(0);
+            context.getInput().releaseMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);
             context.waitTicks(5);
             log("tool after band click (expect LINE): " + state.tool());
+            check(state.tool() == Tool.LINE, "帯の線ボタンのクリックでツールが線になる（今: " + state.tool() + "）");
             // 色（帯の下段の右側）も押してみる
             var colorCell = BandLayout.cells().stream().filter(c -> c.kind() == BandLayout.Kind.COLOR).skip(4)
                     .findFirst().orElseThrow();
             clickGui(context, colorCell.x() + colorCell.w() / 2.0, colorCell.y() + colorCell.h() / 2.0, scale);
-            context.getInput().releaseMouse(0);
+            context.getInput().releaseMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);
             context.waitTicks(5);
             log("color after band click (expect 32D2FF): " + Integer.toHexString(state.color()));
+            check(state.color() == 0x32D2FF, "帯の色ボタンのクリックで色が変わる（今: " + Integer.toHexString(state.color()) + "）");
             double cx1 = context.computeOnClient(client -> center(holder[0], "getCenterBlockX"));
             double cz1 = context.computeOnClient(client -> center(holder[0], "getCenterBlockZ"));
             log("map moved by band clicks (expect 0,0): dx=" + (cx1 - cx0) + " dz=" + (cz1 - cz0)
                     + " memos " + before + " -> " + StoreSession.repository().memos().size());
+            check(cx1 == cx0 && cz1 == cz0, "帯のクリックで地図が動かない");
+            check(StoreSession.repository().memos().size() == before, "帯のクリックでメモが増えない");
             shot(context, holder, "mapscribble-ui-band-after-click");
 
             // 3. 囲みを描くと文字入力の画面が開く
@@ -181,7 +197,7 @@ public class UiClientGameTest implements FabricClientGameTest {
             };
             context.getInput().setCursorPos(path[0][0], path[0][1]);
             context.waitTicks(2);
-            context.getInput().holdMouse(0);
+            context.getInput().holdMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);
             context.waitTicks(2);
             for (int i = 1; i < path.length; i++) {
                 double fx = path[i - 1][0];
@@ -191,10 +207,11 @@ public class UiClientGameTest implements FabricClientGameTest {
                     context.waitTicks(1);
                 }
             }
-            context.getInput().releaseMouse(0);
+            context.getInput().releaseMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);
             context.waitTicks(15);
             String screen = context.computeOnClient(UiClientGameTest::screenName);
             log("screen after stroke (expect NoteEditScreen): " + screen);
+            check(screen.endsWith(".NoteEditScreen"), "囲んだ後に文字入力の画面が開く（今: " + screen + "）");
             shot(context, holder, "mapscribble-ui-edit-new-region");
 
             // 4. 文字を入れて確定ボタンを押すとメモが増える（確定ボタンは配置の計算から座標を出す）
@@ -206,10 +223,12 @@ public class UiClientGameTest implements FabricClientGameTest {
             double saveY = layout.panelY() + layout.buttonsY() + EditLayout.BUTTON_HEIGHT / 2.0;
             int memosBeforeSave = StoreSession.repository().memos().size();
             clickGui(context, saveX, saveY, scale);
-            context.getInput().releaseMouse(0);
+            context.getInput().releaseMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);
             context.waitTicks(10);
             log("memos after save click: " + memosBeforeSave + " -> " + StoreSession.repository().memos().size()
                     + " screen=" + context.computeOnClient(UiClientGameTest::screenName));
+            check(StoreSession.repository().memos().size() == memosBeforeSave + 1, "確定でメモが 1 件増える");
+            check(context.computeOnClient(UiClientGameTest::screenName).endsWith(".Fullscreen"), "確定で全画面マップへ戻る");
             double cx2 = context.computeOnClient(client -> center(holder[0], "getCenterBlockX"));
             double cz2 = context.computeOnClient(client -> center(holder[0], "getCenterBlockZ"));
             log("map center after edit screen closed (compare with before, 0 means kept): dx=" + (cx2 - cx0)
@@ -221,14 +240,18 @@ public class UiClientGameTest implements FabricClientGameTest {
             context.getInput().setCursorPos(width * 0.50, height * 0.50);
             context.waitTicks(5);
             shot(context, holder, "mapscribble-ui-edit-hover");
-            context.getInput().pressMouse(0);
+            context.getInput().pressMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);
             context.waitTicks(10);
             log("screen after edit click: " + context.computeOnClient(UiClientGameTest::screenName));
+            check(context.computeOnClient(UiClientGameTest::screenName).endsWith(".NoteEditScreen"),
+                    "編集ツールでメモをクリックすると編集の画面が開く");
             shot(context, holder, "mapscribble-ui-edit-existing");
             // キャンセル（Esc）で閉じてもメモは変わらない
-            context.getInput().pressKey(256);
+            context.getInput().pressKey(com.mojang.blaze3d.platform.InputConstants.KEY_ESCAPE);
             context.waitTicks(10);
             log("screen after Esc: " + context.computeOnClient(UiClientGameTest::screenName));
+            check(context.computeOnClient(UiClientGameTest::screenName).endsWith(".Fullscreen"), "Esc で閉じると全画面マップへ戻る");
+            check(StoreSession.repository().memos().size() == memosBeforeSave + 1, "キャンセルでメモは変わらない");
 
             // 6. 非表示の見た目と、モードを抜ける
             context.runOnClient(client -> state.setVisible(false));
@@ -240,6 +263,9 @@ public class UiClientGameTest implements FabricClientGameTest {
             });
             context.waitTicks(5);
             shot(context, holder, "mapscribble-ui-mode-exit");
+            // 画面を開いたままワールドを閉じると、統合サーバーの停止待ちで gametest が止まる（26.1.2 で確認）ため、先に閉じる
+            context.setScreen(() -> null);
+            context.waitTicks(20);
         }
     }
 }
