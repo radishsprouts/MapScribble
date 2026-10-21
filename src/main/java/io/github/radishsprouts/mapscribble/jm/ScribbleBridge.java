@@ -242,6 +242,19 @@ public final class ScribbleBridge {
         ScreenMouseEvents.allowMouseClick(screen).register(this::allowMouseClick);
         ScreenMouseEvents.afterMouseRelease(screen).register(this::afterMouseRelease);
         ScreenKeyboardEvents.allowKeyPress(screen).register(this::allowKeyPress);
+        ScreenEvents.remove(screen).register(this::onScreenRemoved);
+    }
+
+    /**
+     * 全画面マップが閉じられた時に、描きかけの一筆を捨てる。ドラッグ中（ボタンを押したまま）に Esc で閉じると
+     * 離すイベントが来ないため。JourneyMap は同じ画面の実体を開き直すので、{@link #current()} の判定だけでは捨てられない。
+     * 何度呼ばれても無害（描きかけが無ければ何もしない）。確定済みの一筆は stroke が空なので、文字入力の画面への遷移に影響しない。
+     */
+    private void onScreenRemoved(Screen screen) {
+        IFullscreen fs = fullscreen;
+        if (fs != null && fs.getScreen() == screen) {
+            controller.cancelStroke();
+        }
     }
 
     // ---- 描画 ----
