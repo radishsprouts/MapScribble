@@ -167,7 +167,7 @@ Linux（CI を含む）で実行する場合は次のとおりです。
 `.github/workflows/` に3本あります。
 
 - `build.yml`: push・プルリクエスト・手動で、3版のビルドと単体テスト、jar に JourneyMap API のクラスが混ざっていないことの検査、3版の client gametest を実行します
-- `release.yml`: `v*` のタグ（または手動実行）で GitHub Release を作り、3つの jar を添付します
+- `release.yml`: `v*` のタグ（または手動実行）で GitHub Release を最新のリリースとして公開し（下書き・プレリリースにはしません）、3つの jar を添付します
 - `curseforge.yml`: リリースから呼ばれる、CurseForge へのアップロード用の定義です。必要な設定が無ければ何もせずに終わります
 
 ## ライセンス

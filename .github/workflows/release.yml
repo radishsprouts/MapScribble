@@ -36,8 +36,10 @@ jobs:
           tag_name: ${{ inputs.tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
           files: build/libs/*/*.jar
-          # 0.x はゲーム内での確認が済んでいないので prerelease にする
-          prerelease: ${{ startsWith(inputs.tag || github.ref_name, 'v0.') }}
+          # 下書き・プレリリースにせず、最新のリリースとして公開する
+          draft: false
+          prerelease: false
+          make_latest: true
           generate_release_notes: true
 
   curseforge:

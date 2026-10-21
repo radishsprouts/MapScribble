@@ -2,7 +2,7 @@
 
 このファイルの書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に従います。
 
-## [0.1.0] - 未リリース
+## [0.1.0] - 2026-10-21
 
 初版です。Minecraft 26.1.2 / 26.2 / 26.3（Fabric）に対応します。
 
