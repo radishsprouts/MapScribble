@@ -121,7 +121,11 @@ final class FullscreenRenderer {
         // 文字は GUI 座標で描く
         double guiW = projection.width() / guiScale;
         double guiH = projection.height() / guiScale;
+        boolean showRegionText = state.isRegionTextVisible();
         for (Memo memo : memos) {
+            if (memo.kind() == MemoKind.REGION && !showRegionText) {
+                continue;
+            }
             Cached c = cache.get(memo.id());
             if (c == null || c.lines.length == 0) {
                 continue;

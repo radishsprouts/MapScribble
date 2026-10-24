@@ -45,6 +45,7 @@ final class MinimapOverlays {
     private final IClientAPI api;
     private final Map<UUID, Entry> entries = new HashMap<>();
     private ResourceKey<Level> dimension;
+    private boolean regionTextVisible = true;
 
     MinimapOverlays(IClientAPI api) {
         this.api = api;
@@ -58,14 +59,20 @@ final class MinimapOverlays {
      * @return ディメンションが切り替わっていたら true（取り消しの履歴を捨てる合図）
      */
     boolean sync(List<Memo> memos, ResourceKey<Level> dimension) {
-        boolean switched = this.dimension != dimension;
-        if (switched) {
+        return sync(memos, dimension, true);
+    }
+
+    boolean sync(List<Memo> memos, ResourceKey<Level> dimension, boolean regionTextVisible) {
+        boolean dimSwitched = this.dimension != dimension;
+        boolean settingSwitched = this.regionTextVisible != regionTextVisible;
+        if (dimSwitched || settingSwitched) {
             api.removeAll(MapScribble.MOD_ID);
             entries.clear();
             this.dimension = dimension;
+            this.regionTextVisible = regionTextVisible;
         }
         if (dimension == null) {
-            return switched;
+            return dimSwitched;
         }
 
         Map<UUID, Memo> wanted = new HashMap<>();
@@ -93,7 +100,7 @@ final class MinimapOverlays {
             if (!memo.onMinimap() || entries.containsKey(memo.id())) {
                 continue;
             }
-            List<PolygonOverlay> overlays = build(memo, dimension, order);
+            List<PolygonOverlay> overlays = build(memo, dimension, order, regionTextVisible);
             List<PolygonOverlay> shown = new ArrayList<>();
             for (PolygonOverlay overlay : overlays) {
                 try {
@@ -105,7 +112,7 @@ final class MinimapOverlays {
             }
             entries.put(memo.id(), new Entry(memo, shown));
         }
-        return switched;
+        return dimSwitched;
     }
 
     /** 全部消す（MOD の終了・ワールドを出る時）。 */
@@ -123,7 +130,7 @@ final class MinimapOverlays {
         return n;
     }
 
-    private List<PolygonOverlay> build(Memo memo, ResourceKey<Level> dim, int order) {
+    private List<PolygonOverlay> build(Memo memo, ResourceKey<Level> dim, int order, boolean showRegionText) {
         List<PolygonOverlay> result = new ArrayList<>();
         boolean hasText = !memo.text().isBlank();
         switch (memo.kind()) {
@@ -132,7 +139,7 @@ final class MinimapOverlays {
                 if (blocks.size() >= 3) {
                     ShapeProperties shape = shape(memo, memo.fillOpacity());
                     PolygonOverlay overlay = polygon(dim, shape, blocks, order);
-                    if (hasText) {
+                    if (hasText && showRegionText) {
                         overlay.setLabel(label(memo.text()));
                         overlay.setTextProperties(textProperties(memo));
                     }

@@ -50,7 +50,7 @@ public final class ScribbleUi {
         UiPrefs.load(prefsFile, state);
         this.lastSavedPrefs = UiPrefs.toJson(state);
 
-        state.setBandHitTest((x, y) -> state.isModeOn() && BandLayout.contains(x, y));
+        state.setBandHitTest((x, y) -> state.isModeOn() && BandLayout.contains(x, y, state.bandX(), state.bandY()));
         state.setNoticeHandler(key -> notice.push(key, nowMs()));
         state.setDraftHandler(this::openNew);
         state.setEditHandler(this::openEdit);
@@ -100,6 +100,9 @@ public final class ScribbleUi {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
+        int screenW = mc.getWindow().getGuiScaledWidth();
+        int screenH = mc.getWindow().getGuiScaledHeight();
+        band.drag(mouseX, mouseY, screenW, screenH);
         long now = nowMs();
         MemoRepository repo = controller.repository();
         if (repo != null) {
@@ -112,7 +115,7 @@ public final class ScribbleUi {
         float alpha = noticeKey != null && noticeKey.equals(hint.translationKey()) ? notice.alpha(now) : 1f;
         band.render(g, mc.font, mouseX, mouseY, hint, alpha);
 
-        if (hoverMemo != null && !BandLayout.contains(mouseX, mouseY)) {
+        if (hoverMemo != null && !BandLayout.contains(mouseX, mouseY, state.bandX(), state.bandY())) {
             if (hoverMemo != tooltipMemo || state.tool() != tooltipTool) {
                 tooltipMemo = hoverMemo;
                 tooltipTool = state.tool();
@@ -145,6 +148,7 @@ public final class ScribbleUi {
 
     public void onMouseRelease() {
         band.release();
+        persistIfChanged();
     }
 
     /** 全画面マップでのキー。扱ったら true（地図へ渡さない）。 */

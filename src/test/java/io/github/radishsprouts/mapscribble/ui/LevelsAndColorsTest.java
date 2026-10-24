@@ -37,9 +37,9 @@ class LevelsAndColorsTest {
 
     @Test
     void 文字の大きさは最も近い段階に丸める() {
-        assertEquals(TextSize.SMALL, TextSize.nearest(0.5f));
-        assertEquals(TextSize.MEDIUM, TextSize.nearest(1.5f));
+        assertEquals(TextSize.SMALL, TextSize.nearest(0.3f));
+        assertEquals(TextSize.MEDIUM, TextSize.nearest(0.75f));
         assertEquals(TextSize.LARGE, TextSize.nearest(5f));
-        assertEquals(1.5f, TextSize.MEDIUM.scale());
+        assertEquals(0.75f, TextSize.MEDIUM.scale());
     }
 }

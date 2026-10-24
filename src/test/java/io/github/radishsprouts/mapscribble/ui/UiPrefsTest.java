@@ -24,6 +24,8 @@ class UiPrefsTest {
         a.setFillOpacity(FillLevel.STRONG.opacity());
         a.setTextScale(TextSize.LARGE.scale());
         a.setOnMinimap(!a.onMinimap());
+        a.setRegionTextVisible(false);
+        a.setBandPosition(150, 200);
         Path file = dir.resolve(UiPrefs.FILE_NAME);
         assertTrue(UiPrefs.save(file, a));
 
@@ -35,6 +37,9 @@ class UiPrefsTest {
         assertEquals(FillLevel.STRONG.opacity(), b.fillOpacity());
         assertEquals(TextSize.LARGE.scale(), b.textScale());
         assertEquals(a.onMinimap(), b.onMinimap());
+        assertEquals(false, b.isRegionTextVisible());
+        assertEquals(150, b.bandX());
+        assertEquals(200, b.bandY());
     }
 
     @Test

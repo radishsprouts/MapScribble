@@ -2,9 +2,9 @@ package io.github.radishsprouts.mapscribble.ui;
 
 /** 地図上の文字の大きさ（画面設計書 3.2「選択ボタンの中身」。倍率 1.0 / 1.5 / 2.0）。 */
 public enum TextSize {
-    SMALL("small", 1.0f),
-    MEDIUM("medium", 1.5f),
-    LARGE("large", 2.0f);
+    SMALL("small", 0.5f),
+    MEDIUM("medium", 0.75f),
+    LARGE("large", 1.0f);
 
     private final String key;
     private final float scale;

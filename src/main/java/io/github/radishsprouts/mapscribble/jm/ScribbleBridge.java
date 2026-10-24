@@ -456,7 +456,7 @@ public final class ScribbleBridge {
         ResourceKey<Level> dim = currentDimension();
         List<Memo> memos = repo == null || !state.isVisible() ? List.of() : repo.memos();
         minimapDimension = dim;
-        if (minimap.sync(memos, dim)) {
+        if (minimap.sync(memos, dim, state.isRegionTextVisible())) {
             controller.onDimensionChanged();
         }
     }

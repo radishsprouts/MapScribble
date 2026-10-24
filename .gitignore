@@ -40,3 +40,7 @@ replay_*.log
 *.jfr
 bench-mods/
 __pycache__/
+
+# logs
+logs/
+**/logs/

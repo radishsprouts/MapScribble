@@ -29,6 +29,9 @@ public final class UiPrefs {
         o.addProperty("fillOpacity", state.fillOpacity());
         o.addProperty("textScale", state.textScale());
         o.addProperty("onMinimap", state.onMinimap());
+        o.addProperty("regionTextVisible", state.isRegionTextVisible());
+        o.addProperty("bandX", state.bandX());
+        o.addProperty("bandY", state.bandY());
         return o.toString();
     }
 
@@ -61,6 +64,12 @@ public final class UiPrefs {
         }
         if (o.has("onMinimap") && o.get("onMinimap").isJsonPrimitive()) {
             state.setOnMinimap(o.get("onMinimap").getAsBoolean());
+        }
+        if (o.has("regionTextVisible") && o.get("regionTextVisible").isJsonPrimitive()) {
+            state.setRegionTextVisible(o.get("regionTextVisible").getAsBoolean());
+        }
+        if (isNumber(o, "bandX") && isNumber(o, "bandY")) {
+            state.setBandPosition(o.get("bandX").getAsInt(), o.get("bandY").getAsInt());
         }
     }
 

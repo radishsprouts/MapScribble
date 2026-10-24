@@ -82,5 +82,8 @@
   "mapscribble.minimap.shown": "Shown",
   "mapscribble.minimap.hidden": "Hidden",
   "mapscribble.screen.save": "Save",
-  "mapscribble.screen.delete": "Delete"
-}
+  "mapscribble.screen.delete": "Delete",
+  "mapscribble.region_text.hide": "Hide region text",
+  "mapscribble.region_text.show": "Show region text",
+  "mapscribble.text_size.tooltip": "Text size: %s"
+}

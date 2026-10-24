@@ -17,10 +17,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 /**
- * ツールの帯（画面設計書 3.1）。手書きモード中だけ、全画面マップの描画イベントの中で描く。
- * 配置は {@link BandLayout}（固定の座標・作ってある一覧）で、毎フレームの計算はマウスの位置から要素を引くだけ。
- * ホバー判定は、マウスが動いた時だけやり直す。画像は素材が揃うまで無い場合があり、その間は
- * Minecraft の「素材なし」の市松模様が出る（絵をコードで描いて埋めない）。
+ * ツールの帯。手書きモード中だけ、全画面マップの描画イベントの中で描く。
+ * 配置は {@link BandLayout} で、マウスドラッグにより画面内の任意の位置へ移動可能。
  */
 public final class ToolBand {
     static final int BG = 0xCC101418;
@@ -50,6 +48,8 @@ public final class ToolBand {
             GuiCompat.texture("textures/gui/tool/edit.png")};
     private static final Identifier UNDO_ICON = GuiCompat.texture("textures/gui/tool/undo.png");
     private static final Identifier REDO_ICON = GuiCompat.texture("textures/gui/tool/redo.png");
+    private static final Identifier REGION_TEXT_VISIBLE_ICON = GuiCompat.texture("textures/gui/tool/region_text_visible.png");
+    private static final Identifier REGION_TEXT_HIDDEN_ICON = GuiCompat.texture("textures/gui/tool/region_text_hidden.png");
     private static final Identifier VISIBLE_ICON = GuiCompat.texture("textures/gui/tool/visible.png");
     private static final Identifier HIDDEN_ICON = GuiCompat.texture("textures/gui/tool/hidden.png");
 
@@ -61,18 +61,17 @@ public final class ToolBand {
     private BandLayout.Cell hover;
     private BandLayout.Cell pressed;
 
+    private boolean dragging;
+    private double dragOffsetX;
+    private double dragOffsetY;
+
     private BandLayout.Cell tooltipCell;
     private boolean tooltipUndo;
     private boolean tooltipRedo;
     private boolean tooltipVisible;
+    private boolean tooltipRegionTextVisible;
     private String tooltipKeyLabel;
     private List<Component> tooltip = List.of();
-
-    /** 説明の行の、はみ出しを切った文字列の使い回し。 */
-    private String hintSource;
-    private String hintShown;
-    private boolean hintVisible;
-    private boolean widthsChecked;
 
     public ToolBand(DrawingState state, DrawingController controller) {
         this.state = state;
@@ -83,18 +82,25 @@ public final class ToolBand {
 
     /**
      * 帯の上のクリック。帯の上なら true を返し、地図へ渡さない。左ボタンだけが操作になる。
-     *
-     * @param gx GUI 座標
      */
     public boolean click(double gx, double gy, boolean leftButton) {
-        if (!BandLayout.contains(gx, gy)) {
+        int bx = state.bandX();
+        int by = state.bandY();
+        if (!BandLayout.contains(gx, gy, bx, by)) {
             return false;
         }
         if (!leftButton) {
             return true;
         }
-        BandLayout.Cell cell = BandLayout.cellAt(gx, gy);
-        if (cell == null || !isEnabled(cell)) {
+        BandLayout.Cell cell = BandLayout.cellAt(gx, gy, bx, by);
+        if (cell == null) {
+            // ボタン以外の余白をクリックした場合はドラッグ移動を開始
+            dragging = true;
+            dragOffsetX = gx - bx;
+            dragOffsetY = gy - by;
+            return true;
+        }
+        if (!isEnabled(cell)) {
             return true;
         }
         pressed = cell;
@@ -103,16 +109,34 @@ public final class ToolBand {
             case TOOL -> state.setTool(Tool.values()[cell.index()]);
             case UNDO -> controller.undo();
             case REDO -> controller.redo();
+            case REGION_TEXT_VISIBILITY -> state.toggleRegionTextVisible();
             case VISIBILITY -> state.setVisible(!state.isVisible());
             case WIDTH -> state.setWidth(cell.index());
+            case TEXT_SIZE -> state.setTextScale(TextSize.values()[cell.index()].scale());
             case COLOR -> state.setColor(NoteColor.values()[cell.index()].rgb());
         }
         return true;
     }
 
-    /** マウスのボタンを離した。押下中の見た目をやめる。 */
+    public void drag(double mouseX, double mouseY, int screenWidth, int screenHeight) {
+        if (!dragging) {
+            return;
+        }
+        int newX = (int) Math.round(mouseX - dragOffsetX);
+        int newY = (int) Math.round(mouseY - dragOffsetY);
+        newX = Math.max(0, Math.min(Math.max(0, screenWidth - BandLayout.WIDTH), newX));
+        newY = Math.max(0, Math.min(Math.max(0, screenHeight - BandLayout.HEIGHT), newY));
+        state.setBandPosition(newX, newY);
+    }
+
+    public boolean isDragging() {
+        return dragging;
+    }
+
+    /** マウスのボタンを離した。押下中・ドラッグ中の状態を解除。 */
     public void release() {
         pressed = null;
+        dragging = false;
     }
 
     private boolean isEnabled(BandLayout.Cell cell) {
@@ -125,63 +149,44 @@ public final class ToolBand {
 
     // ---- 描画 ----
 
-    /**
-     * @param hint      説明の行（文字列は翻訳キー）
-     * @param hintAlpha 説明の行の不透明度（一時のお知らせの最後の 0.5 秒で下がる）
-     */
     public void render(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY, HintResolver.Line hint,
                        float hintAlpha) {
-        updateHover(mouseX, mouseY);
-        checkHintWidths(font);
+        int bx = state.bandX();
+        int by = state.bandY();
+        updateHover(mouseX, mouseY, bx, by);
 
-        g.fill(BandLayout.X, BandLayout.Y, BandLayout.X + BandLayout.WIDTH, BandLayout.Y + BandLayout.HEIGHT, BG);
-        g.outline(BandLayout.X, BandLayout.Y, BandLayout.WIDTH, BandLayout.HEIGHT, EDGE);
-        for (BandLayout.Separator s : BandLayout.separators()) {
+        g.fill(bx, by, bx + BandLayout.WIDTH, by + BandLayout.HEIGHT, BG);
+        g.outline(bx, by, BandLayout.WIDTH, BandLayout.HEIGHT, EDGE);
+        for (BandLayout.Separator s : BandLayout.buildSeparators(bx, by)) {
             g.fill(s.x(), s.y(), s.x() + s.w(), s.y() + s.h(), SEPARATOR);
         }
 
         int rgb = 0xFF000000 | state.color();
-        for (BandLayout.Cell cell : BandLayout.cells()) {
+        for (BandLayout.Cell cell : BandLayout.buildCells(bx, by)) {
             switch (cell.kind()) {
                 case TOOL -> drawButton(g, cell, state.tool().ordinal() == cell.index(), true,
                         TOOL_ICONS[cell.index()]);
                 case UNDO -> drawButton(g, cell, false, controller.canUndo(), UNDO_ICON);
                 case REDO -> drawButton(g, cell, false, controller.canRedo(), REDO_ICON);
+                case REGION_TEXT_VISIBILITY -> drawButton(g, cell, false, true,
+                        state.isRegionTextVisible() ? REGION_TEXT_VISIBLE_ICON : REGION_TEXT_HIDDEN_ICON);
                 case VISIBILITY -> drawButton(g, cell, false, true, state.isVisible() ? VISIBLE_ICON : HIDDEN_ICON);
                 case WIDTH -> drawWidth(g, cell, rgb);
+                case TEXT_SIZE -> drawTextSize(g, font, cell);
                 case COLOR -> drawSwatch(g, cell);
             }
         }
 
-        drawHint(g, font, hint, hintAlpha);
-        showTooltip(g, font, mouseX, mouseY);
+        showTooltip(g, font, mouseX, mouseY, hint);
     }
 
-    /** 開発環境だけ、最初の描画で帯に出る全文言の幅を 1 回測り、長すぎるものを警告に出す（本番では測らない）。 */
-    private void checkHintWidths(Font font) {
-        if (widthsChecked) {
-            return;
-        }
-        widthsChecked = true;
-        if (!FabricLoader.getInstance().isDevelopmentEnvironment()) {
-            return;
-        }
-        for (String key : HintFit.bandKeys()) {
-            int width = font.width(I18n.get(key));
-            if (HintFit.tooWide(width)) {
-                MapScribble.LOGGER.warn("帯の説明が長すぎます key={} 幅={}（上限 {}、行の幅 {}）",
-                        key, width, HintFit.WARN_WIDTH, BandLayout.HINT_MAX_WIDTH);
-            }
-        }
-    }
-
-    private void updateHover(int mouseX, int mouseY) {
+    private void updateHover(int mouseX, int mouseY, int bx, int by) {
         if (mouseX == lastMouseX && mouseY == lastMouseY) {
             return;
         }
         lastMouseX = mouseX;
         lastMouseY = mouseY;
-        hover = BandLayout.cellAt(mouseX, mouseY);
+        hover = BandLayout.cellAt(mouseX, mouseY, bx, by);
     }
 
     private void drawButton(GuiGraphicsExtractor g, BandLayout.Cell cell, boolean selected, boolean enabled,
@@ -200,10 +205,28 @@ public final class ToolBand {
         int border = buttonBorder(cell, selected, true);
         g.fill(cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
         g.outline(cell.x(), cell.y(), cell.w(), cell.h(), border);
-        // 長さ 12・太さ 1 / 2 / 3 の横棒を、選択中の色で塗る（画像は使わない）
         int thickness = cell.index();
         int top = cell.y() + (cell.h() - thickness) / 2;
-        g.fill(cell.x() + 4, top, cell.x() + 16, top + thickness, rgb);
+        g.fill(cell.x() + 2, top, cell.x() + cell.w() - 2, top + thickness, rgb);
+    }
+
+    private void drawTextSize(GuiGraphicsExtractor g, Font font, BandLayout.Cell cell) {
+        TextSize size = TextSize.values()[cell.index()];
+        boolean selected = TextSize.nearest(state.textScale()) == size;
+        int face = buttonFace(cell, selected, true);
+        int border = buttonBorder(cell, selected, true);
+        g.fill(cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
+        g.outline(cell.x(), cell.y(), cell.w(), cell.h(), border);
+
+        String label = I18n.get(size.translationKey());
+        if (label.length() > 1 && !label.startsWith("小") && !label.startsWith("中") && !label.startsWith("大")) {
+            label = label.substring(0, 1);
+        }
+        int textW = font.width(label);
+        int textX = cell.x() + (cell.w() - textW) / 2;
+        int textY = cell.y() + (cell.h() - font.lineHeight) / 2 + 1;
+        int color = selected ? WHITE : (hover == cell ? WHITE : ICON_NORMAL);
+        g.text(font, label, textX, textY, color, true);
     }
 
     private void drawSwatch(GuiGraphicsExtractor g, BandLayout.Cell cell) {
@@ -211,7 +234,6 @@ public final class ToolBand {
         boolean selected = (state.color() & 0xFFFFFF) == color.rgb();
         boolean hovered = hover == cell;
         if (selected) {
-            // 外側 1px の白い枠（隣との 1px の隙間に収まる）
             g.outline(cell.x() - 1, cell.y() - 1, cell.w() + 2, cell.h() + 2, WHITE);
         } else if (hovered) {
             g.outline(cell.x() - 1, cell.y() - 1, cell.w() + 2, cell.h() + 2, SWATCH_HOVER_RING);
@@ -256,58 +278,34 @@ public final class ToolBand {
         return hover == cell ? WHITE : ICON_NORMAL;
     }
 
-    private void drawHint(GuiGraphicsExtractor g, Font font, HintResolver.Line hint, float alpha) {
-        int a = Math.round(Math.max(0f, Math.min(1f, alpha)) * 255f);
-        hintVisible = a > 4;
-        if (!hintVisible) {
-            return;
-        }
-        String text = I18n.get(hint.translationKey());
-        if (!text.equals(hintSource)) {
-            hintSource = text;
-            hintShown = fit(font, text);
-        }
-        g.text(font, hintShown, BandLayout.HINT_X, BandLayout.HINT_Y, (a << 24) | hint.rgb(), true);
-    }
-
-    /** 幅に収まらない時は、末尾を「…」で切る。 */
-    private static String fit(Font font, String text) {
-        if (font.width(text) <= BandLayout.HINT_MAX_WIDTH) {
-            return text;
-        }
-        String ellipsis = "…";
-        return font.plainSubstrByWidth(text, BandLayout.HINT_MAX_WIDTH - font.width(ellipsis)) + ellipsis;
-    }
-
     // ---- ツールチップ ----
 
-    private void showTooltip(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY) {
+    private void showTooltip(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY, HintResolver.Line hint) {
         BandLayout.Cell cell = hover;
         if (cell == null) {
-            if (hintVisible && HintFit.showFullText(hintSource, hintShown, mouseX, mouseY)) {
-                g.setComponentTooltipForNextFrame(font, List.of(Component.literal(hintSource)), mouseX, mouseY);
-            }
             return;
         }
         boolean undo = controller.canUndo();
         boolean redo = controller.canRedo();
         boolean visible = state.isVisible();
-        // 道具キーを操作設定で変えた直後も古い名前を出さないよう、キーの表示名も作り直しの条件に入れる
+        boolean regionTextVisible = state.isRegionTextVisible();
         String keyLabel = cell.kind() == BandLayout.Kind.TOOL ? ScribbleKeys.toolKeyLabel(Tool.values()[cell.index()]) : null;
         if (cell != tooltipCell || undo != tooltipUndo || redo != tooltipRedo || visible != tooltipVisible
+                || regionTextVisible != tooltipRegionTextVisible
                 || !java.util.Objects.equals(keyLabel, tooltipKeyLabel)) {
             tooltipKeyLabel = keyLabel;
             tooltipCell = cell;
             tooltipUndo = undo;
             tooltipRedo = redo;
             tooltipVisible = visible;
-            tooltip = buildTooltip(cell, undo, redo, visible);
+            tooltipRegionTextVisible = regionTextVisible;
+            tooltip = buildTooltip(cell, undo, redo, visible, regionTextVisible);
         }
         g.setComponentTooltipForNextFrame(font, tooltip, mouseX, mouseY);
     }
 
     private static List<Component> buildTooltip(BandLayout.Cell cell, boolean canUndo, boolean canRedo,
-                                                boolean visible) {
+                                                boolean visible, boolean regionTextVisible) {
         List<Component> lines = new ArrayList<>(2);
         switch (cell.kind()) {
             case TOOL -> {
@@ -330,6 +328,8 @@ public final class ToolBand {
                     lines.add(gray(Component.translatable("mapscribble.redo.none")));
                 }
             }
+            case REGION_TEXT_VISIBILITY -> lines.add(Component.translatable(
+                    regionTextVisible ? "mapscribble.region_text.hide" : "mapscribble.region_text.show"));
             case VISIBILITY -> lines.add(Component.translatable(
                     visible ? "mapscribble.visibility.hide" : "mapscribble.visibility.show"));
             case WIDTH -> lines.add(Component.translatable(switch (cell.index()) {
@@ -337,6 +337,8 @@ public final class ToolBand {
                 case 2 -> "mapscribble.width.medium";
                 default -> "mapscribble.width.thick";
             }));
+            case TEXT_SIZE -> lines.add(Component.translatable("mapscribble.text_size.tooltip",
+                    Component.translatable(TextSize.values()[cell.index()].translationKey())));
             case COLOR -> lines.add(Component.translatable("mapscribble.color.tooltip",
                     Component.translatable(NoteColor.values()[cell.index()].translationKey())));
         }

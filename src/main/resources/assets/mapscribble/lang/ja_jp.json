@@ -82,5 +82,8 @@
   "mapscribble.minimap.shown": "表示",
   "mapscribble.minimap.hidden": "非表示",
   "mapscribble.screen.save": "確定",
-  "mapscribble.screen.delete": "削除"
-}
+  "mapscribble.screen.delete": "削除",
+  "mapscribble.region_text.hide": "区画の文字を隠す",
+  "mapscribble.region_text.show": "区画の文字を表示する",
+  "mapscribble.text_size.tooltip": "文字の大きさ：%s"
+}

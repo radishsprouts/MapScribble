@@ -33,9 +33,12 @@ public final class DrawingState {
     /** 線の太さの段階（1〜3）。既定は中。 */
     private int width = 2;
     private boolean visible = true;
+    private boolean regionTextVisible = true;
+    private int bandX = 28;
+    private int bandY = 44;
     /** 新しいメモの既定（文字入力の画面が変えて、最後に使った値を覚える）。 */
     private float fillOpacity = 0.30f;
-    private float textScale = 1.5f;
+    private float textScale = 0.75f;
     private boolean onMinimap = true;
 
     private ScreenHit bandHitTest = (x, y) -> false;
@@ -114,6 +117,37 @@ public final class DrawingState {
     public void setVisible(boolean visible) {
         if (this.visible != visible) {
             this.visible = visible;
+            changed();
+        }
+    }
+
+    public boolean isRegionTextVisible() {
+        return regionTextVisible;
+    }
+
+    public void setRegionTextVisible(boolean regionTextVisible) {
+        if (this.regionTextVisible != regionTextVisible) {
+            this.regionTextVisible = regionTextVisible;
+            changed();
+        }
+    }
+
+    public void toggleRegionTextVisible() {
+        setRegionTextVisible(!regionTextVisible);
+    }
+
+    public int bandX() {
+        return bandX;
+    }
+
+    public int bandY() {
+        return bandY;
+    }
+
+    public void setBandPosition(int x, int y) {
+        if (this.bandX != x || this.bandY != y) {
+            this.bandX = x;
+            this.bandY = y;
             changed();
         }
     }
