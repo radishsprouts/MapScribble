@@ -55,8 +55,11 @@ import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.IExtensionPoint;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.network.NetworkConstants;
 import net.minecraft.resources.ResourceLocation;
 *///?}
 
@@ -184,13 +187,9 @@ implements ClientModInitializer
         forgeBus.addListener((ScreenEvent.Init.Post event) -> ScreenMapHost.onScreenInit(event.getScreen()));
         forgeBus.addListener((ScreenEvent.Closing event) -> ScreenMapHost.onScreenClose(event.getScreen()));
 
-        //? if >=26.1 {
-        forgeBus.addListener((ScreenEvent.Render.Post event) ->
-                ScreenMapHost.onScreenRender(event.getGuiGraphics(), event.getScreen(), event.getMouseX(), event.getMouseY(), 0));
-        //?} else {
+        // ScreenEvent.Render#getPartialTick は 1.21.1〜26.3 のすべてにあるので、版で分けずにそのまま渡す
         forgeBus.addListener((ScreenEvent.Render.Post event) ->
                 ScreenMapHost.onScreenRender(event.getGuiGraphics(), event.getScreen(), event.getMouseX(), event.getMouseY(), event.getPartialTick()));
-        //?}
 
         forgeBus.addListener((ScreenEvent.MouseButtonPressed.Pre event) -> {
             if (ScreenMapHost.onMouseClicked(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton())) {
@@ -219,6 +218,12 @@ implements ClientModInitializer
     }
     *///?} elif forge {
     /*public MapScribble() {
+        // Forge 47 の @Mod には dist 属性が無いので、クライアント専用であることをここで宣言する。
+        // サーバー側にこの MOD が無くても「バージョンが一致しない」として弾かれないようにする。
+        ModLoadingContext.get().registerExtensionPoint(IExtensionPoint.DisplayTest.class,
+                () -> new IExtensionPoint.DisplayTest(() -> NetworkConstants.IGNORESERVERONLY,
+                        (remoteVersion, isFromServer) -> true));
+
         initCommon();
         ScribbleKeys.register();
 

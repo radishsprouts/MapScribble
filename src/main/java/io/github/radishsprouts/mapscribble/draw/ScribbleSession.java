@@ -5,8 +5,8 @@ import io.github.radishsprouts.mapscribble.store.MemoRepository;
 import java.util.function.Supplier;
 
 /**
- * 手書きモードの共有の窓口。JourneyMap 連携（jm/）が {@link #install} で作り、画面（ui/）が
- * {@link #state()} と {@link #controller()} を使う。
+ * 手書きモードの共有の窓口。MOD の初期化（{@code MapScribble.initCommon}）と JourneyMap 連携（jm/）が
+ * {@link #install} で受け取り、画面（ui/・map/）が {@link #state()} と {@link #controller()} を使う。
  */
 public final class ScribbleSession {
     private static DrawingController controller;
@@ -14,9 +14,17 @@ public final class ScribbleSession {
     private ScribbleSession() {
     }
 
-    /** メモの窓口の取り方を渡して、共有のコントローラーを作る（JourneyMap のプラグインの初期化で 1 回）。 */
+    /**
+     * メモの窓口の取り方を渡して、共有のコントローラーを受け取る。
+     * 呼び出しは MOD の初期化と JourneyMap のプラグインの初期化の 2 か所にあるので、
+     * <strong>2 回目以降は最初に作ったものをそのまま返す</strong>。
+     * 作り直すと、先に受け取った側（描画・ミニマップ）と別の実体になり、
+     * 描きかけの一筆と取り消しの履歴が画面ごとに分かれてしまう。
+     */
     public static synchronized DrawingController install(Supplier<MemoRepository> repository) {
-        controller = new DrawingController(DrawingState.shared(), repository);
+        if (controller == null) {
+            controller = new DrawingController(DrawingState.shared(), repository);
+        }
         return controller;
     }
 
@@ -24,7 +32,7 @@ public final class ScribbleSession {
         return DrawingState.shared();
     }
 
-    /** まだ JourneyMap のプラグインが初期化されていなければ null。 */
+    /** まだ MOD の初期化が済んでいなければ null。 */
     public static synchronized DrawingController controller() {
         return controller;
     }
