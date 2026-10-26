@@ -34,6 +34,9 @@ public final class FtbChunksAdapter implements MapAdapter {
 
     private boolean reflectionInitialized;
     private boolean available;
+    /** 取得の失敗を記録したか。currentProjection は 1 フレームに複数回呼ばれるので、毎回出さない。 */
+    private boolean projectionWarned;
+    private boolean scrollWarned;
 
     public FtbChunksAdapter() {
         // 遅延初期化のため、コンストラクタではクラスロードを行わない
@@ -151,10 +154,12 @@ public final class FtbChunksAdapter implements MapAdapter {
 
             Minecraft mc = Minecraft.getInstance();
             double guiScale = mc.getWindow().getGuiScale();
-            int winW = mc.getWindow().getScreenWidth();
-            int winH = mc.getWindow().getScreenHeight();
-            double guiW = winW / guiScale;
-            double guiH = winH / guiScale;
+            // Projection は物理ピクセル前提なのでフレームバッファの大きさを、
+            // FTB の画面上の座標は GUI 座標なので GUI 換算の大きさを、それぞれ取る
+            int winW = mc.getWindow().getWidth();
+            int winH = mc.getWindow().getHeight();
+            double guiW = mc.getWindow().getGuiScaledWidth();
+            double guiH = mc.getWindow().getGuiScaledHeight();
 
             double scrollX = ((Number) getScrollXMethod.invoke(panel)).doubleValue() - ((Number) getXMethod.invoke(panel)).doubleValue();
             double scrollY = ((Number) getScrollYMethod.invoke(panel)).doubleValue() - ((Number) getYMethod.invoke(panel)).doubleValue();
@@ -168,7 +173,11 @@ public final class FtbChunksAdapter implements MapAdapter {
 
             return new Projection(centerWorldX, centerWorldZ, pixelsPerBlock, winW, winH);
         } catch (Exception e) {
-            MapScribble.LOGGER.warn("Failed to get FTB Chunks map projection: {}", e.getMessage());
+            if (!projectionWarned) {
+                projectionWarned = true;
+                MapScribble.LOGGER.warn("[MapScribble] FTB Chunks の表示範囲を取得できませんでした: {}",
+                        e.getMessage());
+            }
             return null;
         }
     }
@@ -206,7 +215,10 @@ public final class FtbChunksAdapter implements MapAdapter {
 
             scrollToMethod.invoke(panel, curScrollX - deltaGx, curScrollY - deltaGy);
         } catch (Exception e) {
-            MapScribble.LOGGER.warn("Failed to scroll FTB Chunks map: {}", e.getMessage());
+            if (!scrollWarned) {
+                scrollWarned = true;
+                MapScribble.LOGGER.warn("[MapScribble] FTB Chunks のスクロールに失敗しました: {}", e.getMessage());
+            }
         }
     }
 

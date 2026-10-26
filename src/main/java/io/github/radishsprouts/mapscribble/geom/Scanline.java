@@ -29,6 +29,21 @@ public final class Scanline {
      */
     public static List<int[]> fillRects(double[] xs, double[] ys, int n, int clipMinX, int clipMinY, int clipMaxX,
                                         int clipMaxY) {
+        return fillRects(xs, ys, n, clipMinX, clipMinY, clipMaxX, clipMaxY, 0, 0, -1);
+    }
+
+    /**
+     * 矩形に加えて円でも切り抜く版（円形のミニマップ用）。
+     *
+     * <p>行ごとに円が覆う横幅の半分 {@code sqrt(r² - dy²)} を求め、交点から作った x 範囲を円の弦で詰める。
+     * 円に掛からない行は帯を作らない。{@code sqrt} は行ごとに 1 回だけで、矩形ごと・点ごとには呼ばない。
+     *
+     * @param circleX 円の中心 x
+     * @param circleY 円の中心 y
+     * @param circleR 円の半径。0 以下なら円の制限なし（矩形だけ。全画面マップはこちら）
+     */
+    public static List<int[]> fillRects(double[] xs, double[] ys, int n, int clipMinX, int clipMinY, int clipMaxX,
+                                        int clipMaxY, double circleX, double circleY, double circleR) {
         List<int[]> result = new ArrayList<>();
         if (n < 3 || clipMaxY <= clipMinY || clipMaxX <= clipMinX) {
             return result;
@@ -90,15 +105,31 @@ public final class Scanline {
 
         // 行ごとに組にして矩形へ。同じ x 範囲が縦に続けば伸ばす
         Map<Long, int[]> open = new HashMap<>();
+        boolean circle = circleR > 0;
+        double radiusSquared = circleR * circleR;
         for (int r = 0; r < rows; r++) {
             int row = rowStart + r;
+            int rowClipMinX = clipMinX;
+            int rowClipMaxX = clipMaxX;
+            if (circle) {
+                double dy = row + 0.5 - circleY;
+                double halfSquared = radiusSquared - dy * dy;
+                if (halfSquared <= 0) {
+                    // 円に掛からない行。帯を作らず、縦のまとまりもここで切る
+                    open = new HashMap<>();
+                    continue;
+                }
+                double half = Math.sqrt(halfSquared);
+                rowClipMinX = Math.max(rowClipMinX, (int) Math.ceil(circleX - half - 0.5));
+                rowClipMaxX = Math.min(rowClipMaxX, (int) Math.ceil(circleX + half - 0.5));
+            }
             int lo = offsets[r];
             int hi = offsets[r + 1];
             Arrays.sort(crossings, lo, hi);
             Map<Long, int[]> next = new HashMap<>();
             for (int k = lo; k + 1 < hi; k += 2) {
-                int x0 = Math.max(clipMinX, (int) Math.ceil(crossings[k] - 0.5));
-                int x1 = Math.min(clipMaxX, (int) Math.ceil(crossings[k + 1] - 0.5));
+                int x0 = Math.max(rowClipMinX, (int) Math.ceil(crossings[k] - 0.5));
+                int x1 = Math.min(rowClipMaxX, (int) Math.ceil(crossings[k + 1] - 0.5));
                 if (x1 <= x0) {
                     continue;
                 }

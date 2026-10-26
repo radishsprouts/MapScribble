@@ -23,6 +23,9 @@ public final class XaeroMapAdapter implements MapAdapter {
     private Field mouseDownPosYField;
     private boolean reflectionInitialized;
     private boolean available;
+    /** 取得の失敗を記録したか。currentProjection は 1 フレームに複数回呼ばれるので、毎回出さない。 */
+    private boolean projectionWarned;
+    private boolean scrollWarned;
 
     public XaeroMapAdapter() {
         // 遅延初期化のため、コンストラクタではクラスロードを行わない
@@ -79,14 +82,20 @@ public final class XaeroMapAdapter implements MapAdapter {
         }
         try {
             Minecraft mc = Minecraft.getInstance();
-            int winW = mc.getWindow().getScreenWidth();
-            int winH = mc.getWindow().getScreenHeight();
+            // Projection は物理ピクセル前提なので、フレームバッファの大きさを使う
+            // （getScreenWidth / getScreenHeight は GUI 座標で、単位が合わない）
+            int winW = mc.getWindow().getWidth();
+            int winH = mc.getWindow().getHeight();
             double cx = cameraXField.getDouble(screen);
             double cz = cameraZField.getDouble(screen);
             double scale = scaleField.getDouble(screen);
             return new Projection(cx, cz, scale, winW, winH);
         } catch (Exception e) {
-            MapScribble.LOGGER.warn("Failed to get Xaero map projection: {}", e.getMessage());
+            if (!projectionWarned) {
+                projectionWarned = true;
+                MapScribble.LOGGER.warn("[MapScribble] Xaero's World Map の表示範囲を取得できませんでした: {}",
+                        e.getMessage());
+            }
             return null;
         }
     }
@@ -120,7 +129,11 @@ public final class XaeroMapAdapter implements MapAdapter {
             cameraXField.setDouble(screen, cx + deltaWorldX);
             cameraZField.setDouble(screen, cz + deltaWorldZ);
         } catch (Exception e) {
-            MapScribble.LOGGER.warn("Failed to scroll Xaero map: {}", e.getMessage());
+            if (!scrollWarned) {
+                scrollWarned = true;
+                MapScribble.LOGGER.warn("[MapScribble] Xaero's World Map のスクロールに失敗しました: {}",
+                        e.getMessage());
+            }
         }
     }
 

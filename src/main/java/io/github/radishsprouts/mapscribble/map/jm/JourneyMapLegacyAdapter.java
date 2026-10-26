@@ -19,6 +19,9 @@ public final class JourneyMapLegacyAdapter implements MapAdapter {
 
     private boolean reflectionInitialized;
     private boolean available;
+    /** 取得の失敗を記録したか。currentProjection は 1 フレームに複数回呼ばれるので、毎回出さない。 */
+    private boolean projectionWarned;
+    private boolean scrollWarned;
     private Field gridRendererField;
     private Method getCenterBlockXMethod;
     private Method getCenterBlockZMethod;
@@ -49,7 +52,11 @@ public final class JourneyMapLegacyAdapter implements MapAdapter {
                 getUiStateMethod = findMethod(gridClass, "getUIState");
             }
 
-            available = (centerOnMethod != null && gridRendererField != null);
+            // currentProjection が使うものすべてが揃って初めて「使える」。
+            // 1 つでも欠けた状態で available にすると、null の Method を呼んで NPE になる
+            available = centerOnMethod != null && gridRendererField != null
+                    && getCenterBlockXMethod != null && getCenterBlockZMethod != null
+                    && getUiStateMethod != null;
         } catch (Throwable ignored) {
             available = false;
         }
@@ -121,8 +128,9 @@ public final class JourneyMapLegacyAdapter implements MapAdapter {
             if (grid == null) {
                 return null;
             }
-            double cx = (double) getCenterBlockXMethod.invoke(grid);
-            double cz = (double) getCenterBlockZMethod.invoke(grid);
+            // 戻りの型（Integer / Double）が版によって違っても落ちないよう Number で受ける
+            double cx = ((Number) getCenterBlockXMethod.invoke(grid)).doubleValue();
+            double cz = ((Number) getCenterBlockZMethod.invoke(grid)).doubleValue();
 
             Object uiState = getUiState(screen);
             if (uiState == null) {
@@ -139,7 +147,11 @@ public final class JourneyMapLegacyAdapter implements MapAdapter {
             Window window = Minecraft.getInstance().getWindow();
             return new Projection(cx, cz, blockSize, window.getWidth(), window.getHeight());
         } catch (Exception e) {
-            MapScribble.LOGGER.warn("Failed to get JourneyMap legacy projection: {}", e.getMessage());
+            if (!projectionWarned) {
+                projectionWarned = true;
+                MapScribble.LOGGER.warn("[MapScribble] JourneyMap 5.10 系の表示範囲を取得できませんでした: {}",
+                        e.getMessage());
+            }
             return null;
         }
     }
@@ -174,7 +186,11 @@ public final class JourneyMapLegacyAdapter implements MapAdapter {
             double worldDz = proj.pixelsToWorld(deltaPy);
             centerOnMethod.invoke(screen, proj.centerX() - worldDx, proj.centerZ() - worldDz);
         } catch (Exception e) {
-            MapScribble.LOGGER.warn("Failed to scroll JourneyMap legacy: {}", e.getMessage());
+            if (!scrollWarned) {
+                scrollWarned = true;
+                MapScribble.LOGGER.warn("[MapScribble] JourneyMap 5.10 系のスクロールに失敗しました: {}",
+                        e.getMessage());
+            }
         }
     }
 
