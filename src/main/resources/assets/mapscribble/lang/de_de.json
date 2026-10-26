@@ -1,6 +1,7 @@
 {
   "mapscribble.name": "MapScribble",
   "key.category.mapscribble.main": "MapScribble",
+  "key.categories.mapscribble": "MapScribble",
   "key.mapscribble.toggle_mode": "Zeichenmodus umschalten",
   "mapscribble.button.toggle.on": "Zeichenmodus beenden",
   "mapscribble.button.toggle.on.desc": "Schließt die Werkzeugleiste und kehrt zur Karte zurück",

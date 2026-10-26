@@ -1,6 +1,7 @@
 {
   "mapscribble.name": "MapScribble",
   "key.category.mapscribble.main": "MapScribble",
+  "key.categories.mapscribble": "MapScribble",
   "key.mapscribble.toggle_mode": "낙서 모드 전환",
   "mapscribble.button.toggle.on": "낙서 모드 종료",
   "mapscribble.button.toggle.on.desc": "도구 막대를 닫고 지도 조작으로 돌아갑니다",

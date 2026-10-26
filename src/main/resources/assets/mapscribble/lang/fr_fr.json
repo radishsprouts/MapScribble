@@ -1,6 +1,7 @@
 {
   "mapscribble.name": "MapScribble",
   "key.category.mapscribble.main": "MapScribble",
+  "key.categories.mapscribble": "MapScribble",
   "key.mapscribble.toggle_mode": "Activer/désactiver le gribouillage",
   "mapscribble.button.toggle.on": "Quitter le mode gribouillage",
   "mapscribble.button.toggle.on.desc": "Ferme la barre d'outils et revient à la carte",

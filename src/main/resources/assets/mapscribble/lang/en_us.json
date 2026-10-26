@@ -1,6 +1,7 @@
 {
   "mapscribble.name": "MapScribble",
   "key.category.mapscribble.main": "MapScribble",
+  "key.categories.mapscribble": "MapScribble",
   "key.mapscribble.toggle_mode": "Toggle Scribble Mode",
   "mapscribble.button.toggle.on": "Exit Scribble Mode",
   "mapscribble.button.toggle.on.desc": "Closes the toolbar and returns to map controls",

@@ -1,6 +1,7 @@
 {
   "mapscribble.name": "MapScribble",
   "key.category.mapscribble.main": "MapScribble",
+  "key.categories.mapscribble": "MapScribble",
   "key.mapscribble.toggle_mode": "Режим рисования",
   "mapscribble.button.toggle.on": "Выйти из режима рисования",
   "mapscribble.button.toggle.on.desc": "Закрывает панель инструментов и возвращает к карте",

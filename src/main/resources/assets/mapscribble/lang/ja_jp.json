@@ -1,6 +1,7 @@
 {
   "mapscribble.name": "MapScribble",
   "key.category.mapscribble.main": "MapScribble",
+  "key.categories.mapscribble": "MapScribble",
   "key.mapscribble.toggle_mode": "手書きモードの切替",
   "mapscribble.button.toggle.on": "手書きモードを終える",
   "mapscribble.button.toggle.on.desc": "ツールの帯を閉じ、地図の操作に戻ります",

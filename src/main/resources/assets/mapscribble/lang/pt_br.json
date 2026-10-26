@@ -1,6 +1,7 @@
 {
   "mapscribble.name": "MapScribble",
   "key.category.mapscribble.main": "MapScribble",
+  "key.categories.mapscribble": "MapScribble",
   "key.mapscribble.toggle_mode": "Alternar modo de desenho",
   "mapscribble.button.toggle.on": "Sair do modo de desenho",
   "mapscribble.button.toggle.on.desc": "Fecha a barra de ferramentas e volta ao mapa",

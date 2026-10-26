@@ -1,6 +1,7 @@
 {
   "mapscribble.name": "MapScribble",
   "key.category.mapscribble.main": "MapScribble",
+  "key.categories.mapscribble": "MapScribble",
   "key.mapscribble.toggle_mode": "切换涂鸦模式",
   "mapscribble.button.toggle.on": "退出涂鸦模式",
   "mapscribble.button.toggle.on.desc": "关闭工具栏，返回地图操作",
