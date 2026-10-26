@@ -32,6 +32,7 @@
   "suggests": {
     "journeymap": "*",
     "xaeroworldmap": "*",
+    "xaerominimap": "*",
     "ftbchunks": "*"
   }
 }
