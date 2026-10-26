@@ -48,16 +48,31 @@ import net.neoforged.neoforge.common.NeoForge;
     //?}
 *///?} elif forge {
 /*import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.ScreenEvent;
-import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.IExtensionPoint;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraft.resources.ResourceLocation;
+    //? if >=1.21 {
+    import net.minecraft.resources.Identifier;
+    import net.minecraftforge.client.event.AddGuiOverlayLayersEvent;
+    import net.minecraftforge.client.gui.overlay.ForgeLayeredDraw;
+    //?} elif >=1.20.5 {
+    import net.minecraft.resources.ResourceLocation;
+    import net.minecraftforge.client.event.AddGuiOverlayLayersEvent;
+    import net.minecraftforge.client.gui.overlay.ForgeLayeredDraw;
+    import net.minecraftforge.common.MinecraftForge;
+    import net.minecraftforge.eventbus.api.IEventBus;
+    //?} else {
+    import net.minecraft.resources.ResourceLocation;
+    import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
+    import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
+    import net.minecraftforge.common.MinecraftForge;
+    import net.minecraftforge.eventbus.api.IEventBus;
+    import net.minecraftforge.fml.ModLoadingContext;
+    import net.minecraftforge.network.NetworkConstants;
+    //?}
 *///?}
 
 //? if neoforge {
@@ -218,21 +233,102 @@ implements ClientModInitializer
         LOGGER.info("MapScribble initialized (NeoForge)");
     }
     *///?} elif forge {
-    /*public MapScribble() {
+    /*// Forge: コンストラクタの形とイベントの登録方法が系統ごとに違う（1.20.1 / 1.20.6 / 1.21 以降）
+    //? if >=1.20.5 {
+    public MapScribble(FMLJavaModLoadingContext context) {
+    //?} else {
+    public MapScribble() {
+    //?}
         initCommon();
         ScribbleKeys.register();
 
+        // サーバー側に同じ MOD が無くても接続できるようにする（クライアント専用の宣言）
+        //? if >=1.20.5 {
+        context.registerDisplayTest(IExtensionPoint.DisplayTest.IGNORE_ALL_VERSION);
+        //?} else {
+        ModLoadingContext.get().registerExtensionPoint(IExtensionPoint.DisplayTest.class,
+                () -> new IExtensionPoint.DisplayTest(() -> NetworkConstants.IGNORESERVERONLY, (remote, isServer) -> true));
+        //?}
+
+        //? if >=1.21 {
+        // Forge 61 以降は EventBus 7: IEventBus が無く、各イベント型が持つ静的な BUS へ登録する。
+        // キャンセル可能なイベントのリスナーは Predicate で、true を返すとイベントを取り消す。
+        // Consumer との曖昧さを避けるため、値を返すラムダはブロックで書く。
+        RegisterKeyMappingsEvent.BUS.addListener((RegisterKeyMappingsEvent event) -> {
+            for (KeyMapping k : ScribbleKeys.allKeys()) {
+                event.register(k);
+            }
+        });
+
+        // HUD は POST_SLEEP_STACK の中の字幕の上へ描く。レイヤーのメソッドは 1.21.11 が render、26.1 以降が extract だが、
+        // ラムダの引数の型は推論されるので書き方は同じ。
+        AddGuiOverlayLayersEvent.BUS.addListener((AddGuiOverlayLayersEvent event) -> {
+            event.getLayeredDraw().addAbove(ForgeLayeredDraw.POST_SLEEP_STACK,
+                    Identifier.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
+                    ForgeLayeredDraw.SUBTITLE_OVERLAY,
+                    (graphics, deltaTracker) -> MinimapHudRenderer.render(graphics));
+        });
+
+        ClientPlayerNetworkEvent.LoggingIn.BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null) {
+                StoreSession.updateDimension(mc.level.dimension());
+            }
+        });
+        ClientPlayerNetworkEvent.LoggingOut.BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) ->
+                StoreSession.updateDimension(null));
+
+        // Post だけなので phase の判定は要らない
+        TickEvent.ClientTickEvent.Post.BUS.addListener((TickEvent.ClientTickEvent.Post event) -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null) {
+                StoreSession.updateDimension(mc.level.dimension());
+            }
+            ScreenMapHost.tick();
+        });
+
+        ScreenEvent.Init.Post.BUS.addListener((ScreenEvent.Init.Post event) -> ScreenMapHost.onScreenInit(event.getScreen()));
+        ScreenEvent.Closing.BUS.addListener((ScreenEvent.Closing event) -> ScreenMapHost.onScreenClose(event.getScreen()));
+        ScreenEvent.Render.Post.BUS.addListener((ScreenEvent.Render.Post event) ->
+                ScreenMapHost.onScreenRender(event.getGuiGraphics(), event.getScreen(), event.getMouseX(), event.getMouseY(), event.getPartialTick()));
+
+        ScreenEvent.MouseButtonPressed.Pre.BUS.addListener((ScreenEvent.MouseButtonPressed.Pre event) -> {
+            return ScreenMapHost.onMouseClicked(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton());
+        });
+
+        ScreenEvent.MouseButtonReleased.Post.BUS.addListener((ScreenEvent.MouseButtonReleased.Post event) ->
+                ScreenMapHost.onMouseReleased(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton()));
+
+        ScreenEvent.KeyPressed.Pre.BUS.addListener((ScreenEvent.KeyPressed.Pre event) -> {
+            return ScreenMapHost.onKeyPressed(event.getScreen(), event.getInfo());
+        });
+        //?} else {
+        // 1.20.1 / 1.20.6 は従来どおり IEventBus へ登録する。mod バスの取得方法だけが違う。
+        //? if >=1.20.5 {
+        IEventBus modBus = context.getModEventBus();
+        //?} else {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        //?}
         modBus.addListener((RegisterKeyMappingsEvent event) -> {
             for (KeyMapping k : ScribbleKeys.allKeys()) {
                 event.register(k);
             }
         });
 
+        //? if >=1.20.5 {
+        // 1.20.6: AddGuiOverlayLayersEvent は mod バスのイベント。POST_SLEEP_STACK の中の字幕の上へ描く。
+        modBus.addListener((AddGuiOverlayLayersEvent event) -> {
+            event.getLayeredDraw().addAbove(ForgeLayeredDraw.POST_SLEEP_STACK,
+                    ResourceLocation.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
+                    ForgeLayeredDraw.SUBTITLE_OVERLAY,
+                    (graphics, partialTick) -> MinimapHudRenderer.render(graphics));
+        });
+        //?} else {
         modBus.addListener((RegisterGuiOverlaysEvent event) -> {
             event.registerAbove(VanillaGuiOverlay.SLEEP_FADE.id(), "minimap_overlay",
                     (gui, graphics, partialTick, width, height) -> MinimapHudRenderer.render(graphics));
         });
+        //?}
 
         IEventBus forgeBus = MinecraftForge.EVENT_BUS;
         forgeBus.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> {
@@ -272,6 +368,7 @@ implements ClientModInitializer
                 event.setCanceled(true);
             }
         });
+        //?}
 
         LOGGER.info("MapScribble initialized (Forge)");
     }
