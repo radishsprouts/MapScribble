@@ -206,7 +206,7 @@ jobs:
                 relations: {
                   projects: (
                     (if $loader == "fabric" then [{slug: "fabric-api", type: "requiredDependency"}] else [] end)
-                    + [{slug: "journeymap", type: "requiredDependency"}]
+                    + [{slug: "journeymap", type: "optionalDependency"}]
                   )
                 }
               }' > metadata.json
