@@ -1,6 +1,6 @@
 # MapScribble
 
-JourneyMap の全画面マップに、手書きでメモを描ける Fabric MOD です（Minecraft 26.1.2 / 26.2 / 26.3）。[English summary is at the bottom.](#english-summary)
+JourneyMap の全画面マップに、手書きでメモを描ける Fabric / Forge / NeoForge 対応のクライアント MOD です（Minecraft 1.20.1 / 1.20.6 / 1.21.1 / 1.21.4 / 1.21.11 / 26.1.2 / 26.2 / 26.3）。[English summary is at the bottom.](#english-summary)
 
 主な機能は、**地図の区画を手書きで囲み、文字を付ける**ことです。ほかに、線を引く・文字だけを置くこともできます。メモは自分のクライアントにだけ保存され、ほかのプレイヤーとは共有されません。
 
@@ -19,16 +19,36 @@ JourneyMap の全画面マップに、手書きでメモを描ける Fabric MOD 
 
 ## 対応環境と必要な MOD
 
-- Minecraft 26.1.2 / 26.2 / 26.3（Fabric のみ。NeoForge には対応していません）
-- Java 25
-- Fabric Loader 0.19.5 以上
-- 次の MOD が必要です。開発とテストで使っている版は下表のとおりです
+- 対応する Minecraft とローダーの組み合わせは次の表のとおりです（全21構成）。Minecraft の版ごとに jar が別で、○の無い組み合わせの jar はありません
+- Java は Minecraft の版で決まります（表の右端）
+- Fabric 版は Fabric Loader 0.19.5 以上が必要です
+- Forge 版・NeoForge 版の jar は、表にある Minecraft の版だけで読み込まれます（たとえば 1.21.11 用の jar は 1.21.11 でのみ読み込まれます）
 
-| Minecraft | Fabric API | JourneyMap |
-|---|---|---|
-| 26.1.2 | 0.155.3+26.1.2 | 6.0.10（`26.1.2-6.0.10+fabric`） |
-| 26.2 | 0.161.0+26.2 | 6.0.10（`26.2-6.0.10+fabric`） |
-| 26.3 | 0.161.0+26.3 | 6.0.10（`26.3-6.0.10+fabric`） |
+| Minecraft | Fabric | Forge | NeoForge | Java |
+|---|:-:|:-:|:-:|:-:|
+| 1.20.1 | ○ | ○ | - | 17 |
+| 1.20.6 | ○ | ○ | ○ | 21 |
+| 1.21.1 | ○ | - | ○ | 21 |
+| 1.21.4 | ○ | - | ○ | 21 |
+| 1.21.11 | ○ | ○ | ○ | 21 |
+| 26.1.2 | ○ | ○ | ○ | 25 |
+| 26.2 | ○ | ○ | ○ | 25 |
+| 26.3 | ○ | ○ | ○ | 25 |
+
+次の MOD が必要です（Fabric API は Fabric 版だけ）。開発とテストで使っている版は下表のとおりです。
+
+| Minecraft | Fabric API | Forge | NeoForge | JourneyMap |
+|---|---|---|---|---|
+| 1.20.1 | 0.92.12+1.20.1 | 47.4.28 | - | 6.0.7 |
+| 1.20.6 | 0.100.8+1.20.6 | 50.2.14 | 20.6.144 | 5.10.0 |
+| 1.21.1 | 0.116.17+1.21.1 | - | 21.1.264 | 6.0.9 |
+| 1.21.4 | 0.119.4+1.21.4 | - | 21.4.161 | 6.0.0-beta.47 |
+| 1.21.11 | 0.141.6+1.21.11 | 61.2.4 | 21.11.48 | 6.0.0 |
+| 26.1.2 | 0.155.3+26.1.2 | 64.1.5 | 26.1.2.122 | 6.0.10 |
+| 26.2 | 0.161.0+26.2 | 65.1.5 | 26.2.0.93 | 6.0.10 |
+| 26.3 | 0.165.0+26.3 | 66.1.0 | 26.3.0.97 | 6.0.10 |
+
+Forge・NeoForge の列は、その構成のビルドに使う Forge・NeoForge 自体の版です。JourneyMap は、使うローダー用の jar を入れてください。
 
 - **クライアントだけに入れる MOD です。サーバー側の導入は要りません**（Velocity 配下のサーバーでも同じです）
 - JourneyMap の API は MapScribble の jar に同梱していません。JourneyMap 本体が入っていれば動きます
@@ -116,7 +136,7 @@ MapScribble は独自のサーバー判定を持たず、JourneyMap がサーバ
 
 ## 開発（ビルド）
 
-Gradle を動かす JDK は 25 です。各構成のコンパイルと実行に使う JDK（Minecraft 1.20.1 は 17、1.21.x は 21、26.x は 25）は、無ければ Gradle の toolchain が自動で取得します。複数の Minecraft 版・ローダーを1つのソースからビルドするために [Stonecutter](https://stonecutter.kikugie.dev/) を使っています。開発機は Windows なので、コマンドは PowerShell の形を主に書きます。
+Gradle を動かす JDK は 25 です。各構成のコンパイルと実行に使う JDK（Minecraft 1.20.1 は 17、1.20.6 と 1.21.x は 21、26.x は 25）は、無ければ Gradle の toolchain が自動で取得します。複数の Minecraft 版・ローダーを1つのソースからビルドするために [Stonecutter](https://stonecutter.kikugie.dev/) を使っています。開発機は Windows なので、コマンドは PowerShell の形を主に書きます。
 
 構成の一覧は `settings.gradle.kts` に、構成ごとの依存の版は `versions/<構成>/gradle.properties` にあります（`fabric_api_version` / `neoforge_version` / `forge_version` / `jm_api_version`、開発用クライアントへ入れる JourneyMap 本体の `jm_version`、Forge・NeoForge の `mods.toml` へ差し込む Minecraft の対応範囲 `mc_version_range`）。`versions/` の下はビルド結果と実行ディレクトリだけを git から除外し、この `gradle.properties` は git で管理します（無いとビルドが構成の版を解決できません）。依存を上げる時はこのファイルを直します。
 
@@ -124,15 +144,29 @@ Gradle を動かす JDK は 25 です。各構成のコンパイルと実行に�
 .\gradlew.bat buildAndCollect
 ```
 
-14構成（Minecraft 1.20.1 は Fabric 版と旧 Forge 版、1.21.1 / 1.21.4 / 1.21.11 / 26.1.2 / 26.2 / 26.3 は Fabric 版と NeoForge 版）の jar が、すべて `build/libs/<MOD版>/` に集まります。jar 名は `mapscribble-<MOD版>+<Minecraft版>-<ローダー>.jar` なので、同じ Minecraft 版の Fabric 版と NeoForge 版が上書きし合うことはありません。
+21構成（上の「対応環境と必要な MOD」の表のとおり。Fabric 8・Forge 6・NeoForge 7）の jar が、すべて `build/libs/<MOD版>/` に集まります。jar 名は `mapscribble-<MOD版>+<Minecraft版>-<ローダー>.jar` なので、同じ Minecraft 版のローダー違いの jar が上書きし合うことはありません。
 
 ```
 build/libs/0.2.0/mapscribble-0.2.0+1.20.1-fabric.jar
 build/libs/0.2.0/mapscribble-0.2.0+1.20.1-forge.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.20.6-fabric.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.20.6-forge.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.20.6-neoforge.jar
 build/libs/0.2.0/mapscribble-0.2.0+1.21.1-fabric.jar
 build/libs/0.2.0/mapscribble-0.2.0+1.21.1-neoforge.jar
-（以下、1.21.4 / 1.21.11 / 26.1.2 / 26.2 の同じ形が続く）
+build/libs/0.2.0/mapscribble-0.2.0+1.21.4-fabric.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.21.4-neoforge.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.21.11-fabric.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.21.11-forge.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.21.11-neoforge.jar
+build/libs/0.2.0/mapscribble-0.2.0+26.1.2-fabric.jar
+build/libs/0.2.0/mapscribble-0.2.0+26.1.2-forge.jar
+build/libs/0.2.0/mapscribble-0.2.0+26.1.2-neoforge.jar
+build/libs/0.2.0/mapscribble-0.2.0+26.2-fabric.jar
+build/libs/0.2.0/mapscribble-0.2.0+26.2-forge.jar
+build/libs/0.2.0/mapscribble-0.2.0+26.2-neoforge.jar
 build/libs/0.2.0/mapscribble-0.2.0+26.3-fabric.jar
+build/libs/0.2.0/mapscribble-0.2.0+26.3-forge.jar
 build/libs/0.2.0/mapscribble-0.2.0+26.3-neoforge.jar
 ```
 
@@ -172,8 +206,8 @@ Linux（CI を含む）で実行する場合は次のとおりです。
 
 `.github/workflows/` に3本あります。
 
-- `build.yml`: push・プルリクエスト・手動で、14構成のビルドと単体テスト、jar に JourneyMap API のクラスが混ざっていないことの検査、Fabric 版 26.1.2 / 26.2 / 26.3 の client gametest を実行します
-- `release.yml`: `v*` のタグ（または手動実行）で GitHub Release を最新のリリースとして公開し（下書き・プレリリースにはしません）、14個の jar を添付します
+- `build.yml`: push・プルリクエスト・手動で、21構成のビルドと単体テスト、jar に JourneyMap API のクラスが混ざっていないことの検査、Fabric 版 26.1.2 / 26.2 / 26.3 の client gametest を実行します
+- `release.yml`: `v*` のタグ（または手動実行）で GitHub Release を最新のリリースとして公開し（下書き・プレリリースにはしません）、21個の jar を添付します
 - `curseforge.yml`: リリースから呼ばれる、CurseForge へのアップロード用の定義です。必要な設定が無ければ何もせずに終わります
 
 ## ライセンス
@@ -184,7 +218,7 @@ MIT（[LICENSE](LICENSE)）。JourneyMap の API は MapScribble の jar に同�
 
 MapScribble lets you draw handwritten notes on the JourneyMap fullscreen map: outline an area by hand and attach text to it (the main feature), draw lines, or place text. Notes are stored only on your own client, per dimension and per server, under JourneyMap's `addon-data/mapscribble/` folder.
 
-- Minecraft 26.1.2 / 26.2 / 26.3, Fabric only, Java 25. Requires Fabric API and JourneyMap (client side only; nothing to install on the server).
+- Minecraft 1.20.1 / 1.20.6 / 1.21.1 / 1.21.4 / 1.21.11 / 26.1.2 / 26.2 / 26.3 on Fabric, Forge and NeoForge (21 combinations; see the support table above), Java 17 / 21 / 25 depending on the Minecraft version. Requires JourneyMap, plus Fabric API on Fabric (client side only; nothing to install on the server).
 - Turn on scribble mode with the pencil button in the right column of the fullscreen map. Tool keys are 1 to 5 (outline, line, text, eraser, edit), and Ctrl+Z / Ctrl+Y undo and redo. The mode-toggle key is unassigned by default (Controls, category MapScribble).
 - Known limitation: on a Velocity network, moving from the resource server to the general server can leave JourneyMap unaware of the switch, so the resource server's notes are shown on the general server (JourneyMap's own map stays on the old folder too). Reconnecting fixes it. This is JourneyMap's behavior and is not worked around in this mod.
-- Build: `./gradlew buildAndCollect` produces one jar per Minecraft version and loader (14 configurations) in `build/libs/<mod version>/`. License: MIT.
+- Build: `./gradlew buildAndCollect` produces one jar per Minecraft version and loader (21 configurations) in `build/libs/<mod version>/`. License: MIT.
