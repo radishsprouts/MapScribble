@@ -74,7 +74,10 @@ tasks.processResources {
     exclude("META-INF/mods.toml", "META-INF/neoforge.mods.toml")
     val props = mapOf(
         "version" to rootProject.version.toString(),
-        "minecraft" to minecraftVersion,
+        // fabric.mod.json の depends.minecraft へ入れる範囲。Fabric の `~x.y.z` は
+        // 「>=x.y.z かつ次のマイナー未満」なので、この構成のパッチ更新では読み込めるが、
+        // 別のマイナー版では読み込まれない（版そのものを入れると、1.20.2 のようなパッチ版で弾かれる）
+        "minecraft" to "~$minecraftVersion",
         "loader" to providers.gradleProperty("loader_version").get(),
         "java" to javaVer.toString()
     )

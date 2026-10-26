@@ -45,8 +45,13 @@ __pycache__/
 logs/
 **/logs/
 
-# stonecutter の生成物（各バージョンのソースの写し）
-versions/
+# stonecutter の生成物（各バージョンのソースの写し・ビルド結果・実行ディレクトリ）は除外するが、
+# 各構成の設定（versions/<構成>/gradle.properties）は git で管理する。
+# これが無いと、クローンした CI では fabric_api_version / neoforge_version / forge_version /
+# jm_api_version / jm_version が解決できず、14構成すべてのビルドが失敗する
+versions/**
+!versions/*/
+!versions/*/gradle.properties
 
 # 解析用の一時物（javap の出力・展開した class）
 temp_*/

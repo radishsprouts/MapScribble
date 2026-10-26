@@ -118,6 +118,8 @@ MapScribble は独自のサーバー判定を持たず、JourneyMap がサーバ
 
 Gradle を動かす JDK は 25 です。各構成のコンパイルと実行に使う JDK（Minecraft 1.20.1 は 17、1.21.x は 21、26.x は 25）は、無ければ Gradle の toolchain が自動で取得します。複数の Minecraft 版・ローダーを1つのソースからビルドするために [Stonecutter](https://stonecutter.kikugie.dev/) を使っています。開発機は Windows なので、コマンドは PowerShell の形を主に書きます。
 
+構成の一覧は `settings.gradle.kts` に、構成ごとの依存の版は `versions/<構成>/gradle.properties` にあります（`fabric_api_version` / `neoforge_version` / `forge_version` / `jm_api_version`、開発用クライアントへ入れる JourneyMap 本体の `jm_version`、Forge・NeoForge の `mods.toml` へ差し込む Minecraft の対応範囲 `mc_version_range`）。`versions/` の下はビルド結果と実行ディレクトリだけを git から除外し、この `gradle.properties` は git で管理します（無いとビルドが構成の版を解決できません）。依存を上げる時はこのファイルを直します。
+
 ```powershell
 .\gradlew.bat buildAndCollect
 ```
