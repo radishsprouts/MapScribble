@@ -30,6 +30,20 @@ val forgeVersion: String = project.property("forge_version").toString()
 // mods.toml の loaderVersion / forge の versionRange に差し込むメジャー版（1.21.11-61.2.4 → 61）
 val fmlMajor: String = forgeVersion.substringAfterLast('-').substringBefore('.')
 
+// JourneyMap API 2.0 系（journeymap.api.v2）の配布が無い構成（1.20.6 等）は jm_api_version を置かない。
+// その構成では v2 API を使う jm/ パッケージと compat/JmCompat.java をコンパイルから外す
+// （JourneyMap との連携は map/jm の JourneyMapLegacyAdapter がリフレクションで担うので、機能は落ちない）
+if (project.findProperty("jm_api_version") == null) {
+    sourceSets.main {
+        java {
+            exclude(
+                "io/github/radishsprouts/mapscribble/jm/**",
+                "io/github/radishsprouts/mapscribble/compat/JmCompat.java"
+            )
+        }
+    }
+}
+
 base.archivesName.set("mapscribble")
 version = "${rootProject.version}+$minecraftVersion-forge"
 

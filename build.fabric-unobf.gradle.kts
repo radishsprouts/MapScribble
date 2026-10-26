@@ -1,4 +1,7 @@
 // Fabric (26.1+ 非難読化) クライアント MOD
+import groovy.json.JsonGenerator
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
 import java.util.Properties
 
 plugins {
@@ -21,6 +24,21 @@ sc.constants["forge"] = false
 
 val minecraftVersion: String = sc.current.version
 val javaVer = 25
+
+// JourneyMap API 2.0 系（journeymap.api.v2）の配布が無い構成は jm_api_version を置かない。
+// その構成では v2 API を使う jm/ パッケージと compat/JmCompat.java をコンパイルから外す
+// （JourneyMap との連携は map/jm の JourneyMapLegacyAdapter がリフレクションで担うので、機能は落ちない）
+val hasJmApi = project.findProperty("jm_api_version") != null
+if (!hasJmApi) {
+    sourceSets.main {
+        java {
+            exclude(
+                "io/github/radishsprouts/mapscribble/jm/**",
+                "io/github/radishsprouts/mapscribble/compat/JmCompat.java"
+            )
+        }
+    }
+}
 
 base.archivesName.set("mapscribble")
 version = "${rootProject.version}+$minecraftVersion-fabric"
@@ -54,8 +72,12 @@ dependencies {
     // client gametest はフルの Fabric API で動かす
     "gametestImplementation"("net.fabricmc.fabric-api:fabric-api:${project.property("fabric_api_version")}")
 
-    // JourneyMap API: compile time only. Never bundled in the jar
-    compileOnly("info.journeymap:journeymap-api-fabric:${project.property("jm_api_version")}") { isTransitive = false }
+    // JourneyMap API: compile time only. Never bundled in the jar.
+    // jm_api_version は versions/<構成>/gradle.properties に置く。
+    // API 2.0 系の配布が無い構成は置かず、この行を飛ばす
+    project.findProperty("jm_api_version")?.let {
+        compileOnly("info.journeymap:journeymap-api-fabric:$it") { isTransitive = false }
+    }
 
     // JourneyMap 本体: 開発用クライアントと client gametest でだけ読み込む（jar には入らない）。
     // jm_version は versions/<構成>/gradle.properties に置く。JourneyMap の配布が無い構成は置かず、この行を飛ばす
@@ -102,7 +124,24 @@ tasks.processResources {
         "java" to javaVer.toString()
     )
     props.forEach { (key, value) -> inputs.property(key, value) }
+    inputs.property("has_jm_api", hasJmApi)
     filesMatching("fabric.mod.json") {
         expand(props)
+    }
+    // fabric.mod.json は厳密な JSON なので条件付きの記述を置けない。JourneyMap API 2.0 系を使わない構成では
+    // journeymap エントリポイントのクラス（jm/MapScribblePlugin）がコンパイルされず、残すと JourneyMap 側から
+    // 呼ばれて落ちる。そこで展開後の fabric.mod.json から journeymap エントリポイントを取り除く。
+    // jm_api_version が有る構成では何もしない（出力は今までと一字も変わらない）
+    if (!hasJmApi) {
+        doLast {
+            val modJson = File(destinationDir, "fabric.mod.json")
+            @Suppress("UNCHECKED_CAST")
+            val root = JsonSlurper().parseText(modJson.readText(Charsets.UTF_8)) as MutableMap<String, Any?>
+            @Suppress("UNCHECKED_CAST")
+            val entrypoints = root["entrypoints"] as? MutableMap<String, Any?>
+            entrypoints?.remove("journeymap")
+            val generator = JsonGenerator.Options().disableUnicodeEscaping().build()
+            modJson.writeText(JsonOutput.prettyPrint(generator.toJson(root)) + "\n", Charsets.UTF_8)
+        }
     }
 }

@@ -1,4 +1,4 @@
-// NeoForge (1.21.1〜26.3) クライアント MOD
+// NeoForge (1.20.6〜26.3) クライアント MOD
 import java.util.Properties
 
 plugins {
@@ -21,6 +21,20 @@ sc.constants["forge"] = false
 
 val minecraftVersion: String = sc.current.version
 val javaVer = if (sc.eval(minecraftVersion, ">=26.1")) 25 else 21
+
+// JourneyMap API 2.0 系（journeymap.api.v2）の配布が無い構成（1.20.6 等）は jm_api_version を置かない。
+// その構成では v2 API を使う jm/ パッケージと compat/JmCompat.java をコンパイルから外す
+// （JourneyMap との連携は map/jm の JourneyMapLegacyAdapter がリフレクションで担うので、機能は落ちない）
+if (project.findProperty("jm_api_version") == null) {
+    sourceSets.main {
+        java {
+            exclude(
+                "io/github/radishsprouts/mapscribble/jm/**",
+                "io/github/radishsprouts/mapscribble/compat/JmCompat.java"
+            )
+        }
+    }
+}
 
 base.archivesName.set("mapscribble")
 version = "${rootProject.version}+$minecraftVersion-neoforge"
@@ -46,8 +60,12 @@ neoForge {
 }
 
 dependencies {
-    // JourneyMap API: compile time only. Never bundled in the jar
-    compileOnly("info.journeymap:journeymap-api-neoforge:${project.property("jm_api_version")}") { isTransitive = false }
+    // JourneyMap API: compile time only. Never bundled in the jar.
+    // jm_api_version は versions/<構成>/gradle.properties に置く。
+    // API 2.0 系の配布が無い構成（1.20.6 等）は置かず、この行を飛ばす
+    project.findProperty("jm_api_version")?.let {
+        compileOnly("info.journeymap:journeymap-api-neoforge:$it") { isTransitive = false }
+    }
     // JourneyMap 本体: 開発用クライアントでだけ読み込む（mod の jar なので runtimeOnly で run に載る。MOD の jar には入らない）。
     // jm_version は versions/<構成>/gradle.properties に置く。JourneyMap の配布が無い構成は置かず、この行を飛ばす
     project.findProperty("jm_version")?.let { runtimeOnly("maven.modrinth:journeymap:$it") }
