@@ -116,18 +116,22 @@ MapScribble は独自のサーバー判定を持たず、JourneyMap がサーバ
 
 ## 開発（ビルド）
 
-Java 25 が必要です。複数の Minecraft 版を1つのソースからビルドするために [Stonecutter](https://stonecutter.kikugie.dev/) を使っています。開発機は Windows なので、コマンドは PowerShell の形を主に書きます。
+Gradle を動かす JDK は 25 です。各構成のコンパイルと実行に使う JDK（Minecraft 1.20.1 は 17、1.21.x は 21、26.x は 25）は、無ければ Gradle の toolchain が自動で取得します。複数の Minecraft 版・ローダーを1つのソースからビルドするために [Stonecutter](https://stonecutter.kikugie.dev/) を使っています。開発機は Windows なので、コマンドは PowerShell の形を主に書きます。
 
 ```powershell
 .\gradlew.bat buildAndCollect
 ```
 
-3つの jar が `build/libs/<MOD版>/` に集まります。
+14構成（Minecraft 1.20.1 は Fabric 版と旧 Forge 版、1.21.1 / 1.21.4 / 1.21.11 / 26.1.2 / 26.2 / 26.3 は Fabric 版と NeoForge 版）の jar が、すべて `build/libs/<MOD版>/` に集まります。jar 名は `mapscribble-<MOD版>+<Minecraft版>-<ローダー>.jar` なので、同じ Minecraft 版の Fabric 版と NeoForge 版が上書きし合うことはありません。
 
 ```
-build/libs/0.1.0/mapscribble-0.1.0+26.1.2.jar
-build/libs/0.1.0/mapscribble-0.1.0+26.2.jar
-build/libs/0.1.0/mapscribble-0.1.0+26.3.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.20.1-fabric.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.20.1-forge.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.21.1-fabric.jar
+build/libs/0.2.0/mapscribble-0.2.0+1.21.1-neoforge.jar
+（以下、1.21.4 / 1.21.11 / 26.1.2 / 26.2 の同じ形が続く）
+build/libs/0.2.0/mapscribble-0.2.0+26.3-fabric.jar
+build/libs/0.2.0/mapscribble-0.2.0+26.3-neoforge.jar
 ```
 
 単体テスト（JUnit）は次のとおりです。
@@ -136,25 +140,25 @@ build/libs/0.1.0/mapscribble-0.1.0+26.3.jar
 .\gradlew.bat test
 ```
 
-実際のクライアントを起動する client gametest は、版ごとに実行します。
+実際のクライアントを起動する client gametest は、Fabric 版の 26.1.2 / 26.2 / 26.3 で、版ごとに実行します（Fabric API の client gametest API を使うので、ほかの構成では動かしません）。タスクはプロジェクト名 `<Minecraft版>-fabric` で指定します。実行ディレクトリは `versions/<構成>/build/run/clientGameTest/` で、スクリーンショットは同じ場所の `screenshots/` に出ます。
 
 ```powershell
-.\gradlew.bat :26.1.2:runClientGameTest
-.\gradlew.bat :26.2:runClientGameTest
-.\gradlew.bat :26.3:runClientGameTest
+.\gradlew.bat :26.1.2-fabric:runClientGameTest
+.\gradlew.bat :26.2-fabric:runClientGameTest
+.\gradlew.bat :26.3-fabric:runClientGameTest
 ```
 
 gametest を回すときは、メモリを絞らないと足りなくなることがあるので、Gradle の JVM のメモリを指定します（他の重い処理と同時に動かさないでください）。
 
 ```powershell
-.\gradlew.bat :26.1.2:runClientGameTest '-Dorg.gradle.jvmargs=-Xms64m -Xmx700m'
+.\gradlew.bat :26.1.2-fabric:runClientGameTest '-Dorg.gradle.jvmargs=-Xms64m -Xmx700m'
 ```
 
 Linux（CI を含む）で実行する場合は次のとおりです。
 
 ```bash
 ./gradlew buildAndCollect test
-./gradlew :26.1.2:runClientGameTest
+./gradlew :26.1.2-fabric:runClientGameTest
 ```
 
 ## 開発（検証の構成）
@@ -166,8 +170,8 @@ Linux（CI を含む）で実行する場合は次のとおりです。
 
 `.github/workflows/` に3本あります。
 
-- `build.yml`: push・プルリクエスト・手動で、3版のビルドと単体テスト、jar に JourneyMap API のクラスが混ざっていないことの検査、3版の client gametest を実行します
-- `release.yml`: `v*` のタグ（または手動実行）で GitHub Release を最新のリリースとして公開し（下書き・プレリリースにはしません）、3つの jar を添付します
+- `build.yml`: push・プルリクエスト・手動で、14構成のビルドと単体テスト、jar に JourneyMap API のクラスが混ざっていないことの検査、Fabric 版 26.1.2 / 26.2 / 26.3 の client gametest を実行します
+- `release.yml`: `v*` のタグ（または手動実行）で GitHub Release を最新のリリースとして公開し（下書き・プレリリースにはしません）、14個の jar を添付します
 - `curseforge.yml`: リリースから呼ばれる、CurseForge へのアップロード用の定義です。必要な設定が無ければ何もせずに終わります
 
 ## ライセンス
@@ -181,4 +185,4 @@ MapScribble lets you draw handwritten notes on the JourneyMap fullscreen map: ou
 - Minecraft 26.1.2 / 26.2 / 26.3, Fabric only, Java 25. Requires Fabric API and JourneyMap (client side only; nothing to install on the server).
 - Turn on scribble mode with the pencil button in the right column of the fullscreen map. Tool keys are 1 to 5 (outline, line, text, eraser, edit), and Ctrl+Z / Ctrl+Y undo and redo. The mode-toggle key is unassigned by default (Controls, category MapScribble).
 - Known limitation: on a Velocity network, moving from the resource server to the general server can leave JourneyMap unaware of the switch, so the resource server's notes are shown on the general server (JourneyMap's own map stays on the old folder too). Reconnecting fixes it. This is JourneyMap's behavior and is not worked around in this mod.
-- Build: `./gradlew buildAndCollect` produces one jar per Minecraft version in `build/libs/<mod version>/`. License: MIT.
+- Build: `./gradlew buildAndCollect` produces one jar per Minecraft version and loader (14 configurations) in `build/libs/<mod version>/`. License: MIT.

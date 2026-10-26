@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "${id}",
+  "id": "mapscribble",
   "version": "${version}",
-  "name": "${name}",
-  "description": "Handwritten notes on the JourneyMap fullscreen map. Draw around an area and write text on it. Client-side only.",
+  "name": "MapScribble",
+  "description": "Handwritten notes and scribbles on full-screen and mini maps (JourneyMap, Xaero's World Map, FTB Chunks). Client-side only.",
   "authors": [
     "radishsprouts"
   ],
@@ -24,10 +24,14 @@
     ]
   },
   "depends": {
-    "fabricloader": ">=${loader}",
+    "fabricloader": ">=0.15.0",
     "minecraft": "${minecraft}",
-    "java": ">=25",
-    "fabric-api": "*",
-    "journeymap": "*"
+    "java": ">=${java}",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "journeymap": "*",
+    "xaeroworldmap": "*",
+    "ftbchunks": "*"
   }
 }

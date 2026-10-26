@@ -1,6 +1,6 @@
 package io.github.radishsprouts.mapscribble.compat;
 
-//? if >=26.2 {
+//? if >=26.2 || <=1.20.1 {
 /*import journeymap.api.v2.common.Context;
 *///?} else {
 import journeymap.api.v2.client.display.Context;

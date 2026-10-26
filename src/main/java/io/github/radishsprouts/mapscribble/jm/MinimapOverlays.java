@@ -32,6 +32,9 @@ final class MinimapOverlays {
     /** JourneyMap の多角形の y。地図は y を使わないので固定。 */
     private static final int Y = 64;
 
+    /** 文字メモの印（菱形）の、中心から各方向への大きさ（ブロック）。対角で 4 ブロック。 */
+    private static final int MARK_HALF_BLOCKS = 2;
+
     private static final class Entry {
         final Memo memo;
         final List<PolygonOverlay> overlays;
@@ -45,7 +48,7 @@ final class MinimapOverlays {
     private final IClientAPI api;
     private final Map<UUID, Entry> entries = new HashMap<>();
     private ResourceKey<Level> dimension;
-    private boolean regionTextVisible = true;
+    private boolean textVisible = true;
 
     MinimapOverlays(IClientAPI api) {
         this.api = api;
@@ -62,14 +65,17 @@ final class MinimapOverlays {
         return sync(memos, dimension, true);
     }
 
-    boolean sync(List<Memo> memos, ResourceKey<Level> dimension, boolean regionTextVisible) {
+    /**
+     * @param textVisible 文字（囲み・線・文字メモのすべて）を出すか。false の間、文字メモは文字の代わりに菱形の印を出す
+     */
+    boolean sync(List<Memo> memos, ResourceKey<Level> dimension, boolean textVisible) {
         boolean dimSwitched = this.dimension != dimension;
-        boolean settingSwitched = this.regionTextVisible != regionTextVisible;
+        boolean settingSwitched = this.textVisible != textVisible;
         if (dimSwitched || settingSwitched) {
             api.removeAll(MapScribble.MOD_ID);
             entries.clear();
             this.dimension = dimension;
-            this.regionTextVisible = regionTextVisible;
+            this.textVisible = textVisible;
         }
         if (dimension == null) {
             return dimSwitched;
@@ -100,7 +106,7 @@ final class MinimapOverlays {
             if (!memo.onMinimap() || entries.containsKey(memo.id())) {
                 continue;
             }
-            List<PolygonOverlay> overlays = build(memo, dimension, order, regionTextVisible);
+            List<PolygonOverlay> overlays = build(memo, dimension, order, textVisible);
             List<PolygonOverlay> shown = new ArrayList<>();
             for (PolygonOverlay overlay : overlays) {
                 try {
@@ -130,7 +136,7 @@ final class MinimapOverlays {
         return n;
     }
 
-    private List<PolygonOverlay> build(Memo memo, ResourceKey<Level> dim, int order, boolean showRegionText) {
+    private List<PolygonOverlay> build(Memo memo, ResourceKey<Level> dim, int order, boolean showText) {
         List<PolygonOverlay> result = new ArrayList<>();
         boolean hasText = !memo.text().isBlank();
         switch (memo.kind()) {
@@ -139,7 +145,7 @@ final class MinimapOverlays {
                 if (blocks.size() >= 3) {
                     ShapeProperties shape = shape(memo, memo.fillOpacity());
                     PolygonOverlay overlay = polygon(dim, shape, blocks, order);
-                    if (hasText && showRegionText) {
+                    if (hasText && showText) {
                         overlay.setLabel(label(memo.text()));
                         overlay.setTextProperties(textProperties(memo));
                     }
@@ -153,14 +159,17 @@ final class MinimapOverlays {
                 if (loop.size() >= 3) {
                     result.add(polygon(dim, shape(memo, 0f), loop, order));
                 }
-                if (hasText) {
+                if (hasText && showText) {
                     result.add(labelOverlay(memo, dim, order));
                 }
                 break;
             }
             case TEXT:
             default:
-                if (hasText) {
+                if (!showText) {
+                    // 文字を隠している間も、文字メモの場所が分かるよう菱形の印を残す
+                    result.add(markOverlay(memo, dim, order));
+                } else if (hasText) {
                     result.add(labelOverlay(memo, dim, order));
                 }
                 break;
@@ -188,6 +197,25 @@ final class MinimapOverlays {
         overlay.setLabel(label(memo.text()));
         overlay.setTextProperties(textProperties(memo));
         return overlay;
+    }
+
+    /**
+     * 文字を隠している間の文字メモの印。文字の位置を中心に、ワールド座標で対角 4 ブロックの菱形（中心から各方向 2 ブロック）。
+     * 線の太さ 1.0・線の色と塗りの色はメモの色、塗りの不透明度 0.8。文字（TextProperties）は付けない。
+     */
+    private static PolygonOverlay markOverlay(Memo memo, ResourceKey<Level> dim, int order) {
+        MapPoint anchor = MemoStyle.anchor(memo);
+        int x = (int) Math.floor(anchor.x());
+        int z = (int) Math.floor(anchor.z());
+        List<int[]> diamond = List.of(new int[] {x, z - MARK_HALF_BLOCKS}, new int[] {x + MARK_HALF_BLOCKS, z},
+                new int[] {x, z + MARK_HALF_BLOCKS}, new int[] {x - MARK_HALF_BLOCKS, z});
+        ShapeProperties shape = new ShapeProperties()
+                .setStrokeColor(memo.color() & 0xFFFFFF)
+                .setFillColor(memo.color() & 0xFFFFFF)
+                .setStrokeOpacity(1f)
+                .setFillOpacity(0.8f)
+                .setStrokeWidth(1.0f);
+        return polygon(dim, shape, diamond, order);
     }
 
     private static PolygonOverlay polygon(ResourceKey<Level> dim, ShapeProperties shape, List<int[]> blocks, int order) {

@@ -24,7 +24,7 @@ class UiPrefsTest {
         a.setFillOpacity(FillLevel.STRONG.opacity());
         a.setTextScale(TextSize.LARGE.scale());
         a.setOnMinimap(!a.onMinimap());
-        a.setRegionTextVisible(false);
+        a.setTextVisible(false);
         a.setBandPosition(150, 200);
         Path file = dir.resolve(UiPrefs.FILE_NAME);
         assertTrue(UiPrefs.save(file, a));
@@ -37,9 +37,23 @@ class UiPrefsTest {
         assertEquals(FillLevel.STRONG.opacity(), b.fillOpacity());
         assertEquals(TextSize.LARGE.scale(), b.textScale());
         assertEquals(a.onMinimap(), b.onMinimap());
-        assertEquals(false, b.isRegionTextVisible());
+        assertEquals(false, b.isTextVisible());
         assertEquals(150, b.bandX());
         assertEquals(200, b.bandY());
+    }
+
+    @Test
+    void 旧バージョンの設定ファイルの文字の表示設定を引き継ぐ() {
+        DrawingState s = new DrawingState();
+        UiPrefs.apply("{\"regionTextVisible\":false}", s);
+        assertFalse(s.isTextVisible());
+    }
+
+    @Test
+    void 新旧両方のキーがあれば新しいキーを優先する() {
+        DrawingState s = new DrawingState();
+        UiPrefs.apply("{\"regionTextVisible\":false,\"textVisible\":true}", s);
+        assertTrue(s.isTextVisible());
     }
 
     @Test

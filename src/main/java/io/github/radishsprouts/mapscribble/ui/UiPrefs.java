@@ -29,7 +29,7 @@ public final class UiPrefs {
         o.addProperty("fillOpacity", state.fillOpacity());
         o.addProperty("textScale", state.textScale());
         o.addProperty("onMinimap", state.onMinimap());
-        o.addProperty("regionTextVisible", state.isRegionTextVisible());
+        o.addProperty("textVisible", state.isTextVisible());
         o.addProperty("bandX", state.bandX());
         o.addProperty("bandY", state.bandY());
         return o.toString();
@@ -65,12 +65,19 @@ public final class UiPrefs {
         if (o.has("onMinimap") && o.get("onMinimap").isJsonPrimitive()) {
             state.setOnMinimap(o.get("onMinimap").getAsBoolean());
         }
-        if (o.has("regionTextVisible") && o.get("regionTextVisible").isJsonPrimitive()) {
-            state.setRegionTextVisible(o.get("regionTextVisible").getAsBoolean());
+        // 新しいキーを優先し、旧バージョンの設定ファイル（regionTextVisible）の値も引き継ぐ
+        if (isBoolean(o, "textVisible")) {
+            state.setTextVisible(o.get("textVisible").getAsBoolean());
+        } else if (isBoolean(o, "regionTextVisible")) {
+            state.setTextVisible(o.get("regionTextVisible").getAsBoolean());
         }
         if (isNumber(o, "bandX") && isNumber(o, "bandY")) {
             state.setBandPosition(o.get("bandX").getAsInt(), o.get("bandY").getAsInt());
         }
+    }
+
+    private static boolean isBoolean(JsonObject o, String key) {
+        return o.has(key) && o.get(key).isJsonPrimitive() && o.get(key).getAsJsonPrimitive().isBoolean();
     }
 
     private static boolean isNumber(JsonObject o, String key) {

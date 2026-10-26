@@ -1,20 +1,25 @@
 package io.github.radishsprouts.mapscribble.ui;
 
-import io.github.radishsprouts.mapscribble.MapScribble;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
 import io.github.radishsprouts.mapscribble.draw.DrawingState;
 import io.github.radishsprouts.mapscribble.draw.Tool;
 import java.util.ArrayList;
 import java.util.List;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
+//? if >=26.1 {
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.AbstractWidget;
+//?} else {
+/*import net.minecraft.client.gui.GuiGraphics;
+*///?}
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
+//? if >=1.21.11 {
 import net.minecraft.resources.Identifier;
+//?} else {
+/*import net.minecraft.resources.ResourceLocation;
+*///?}
 
 /**
  * ツールの帯。手書きモード中だけ、全画面マップの描画イベントの中で描く。
@@ -40,6 +45,7 @@ public final class ToolBand {
     private static final int SWATCH_HOVER_RING = 0xFFA0A0A0;
     private static final int GRAY = 0xA0A0A0;
 
+    //? if >=1.21.11 {
     private static final Identifier[] TOOL_ICONS = {
             GuiCompat.texture("textures/gui/tool/enclose.png"),
             GuiCompat.texture("textures/gui/tool/line.png"),
@@ -48,10 +54,26 @@ public final class ToolBand {
             GuiCompat.texture("textures/gui/tool/edit.png")};
     private static final Identifier UNDO_ICON = GuiCompat.texture("textures/gui/tool/undo.png");
     private static final Identifier REDO_ICON = GuiCompat.texture("textures/gui/tool/redo.png");
-    private static final Identifier REGION_TEXT_VISIBLE_ICON = GuiCompat.texture("textures/gui/tool/region_text_visible.png");
-    private static final Identifier REGION_TEXT_HIDDEN_ICON = GuiCompat.texture("textures/gui/tool/region_text_hidden.png");
+    private static final Identifier TEXT_VISIBLE_ICON = GuiCompat.texture("textures/gui/tool/text_visible.png");
+    private static final Identifier TEXT_HIDDEN_ICON = GuiCompat.texture("textures/gui/tool/text_hidden.png");
     private static final Identifier VISIBLE_ICON = GuiCompat.texture("textures/gui/tool/visible.png");
     private static final Identifier HIDDEN_ICON = GuiCompat.texture("textures/gui/tool/hidden.png");
+    private static final Identifier EXIT_ICON = GuiCompat.texture("textures/gui/tool/exit.png");
+    //?} else {
+    /*private static final ResourceLocation[] TOOL_ICONS = {
+            GuiCompat.texture("textures/gui/tool/enclose.png"),
+            GuiCompat.texture("textures/gui/tool/line.png"),
+            GuiCompat.texture("textures/gui/tool/text.png"),
+            GuiCompat.texture("textures/gui/tool/eraser.png"),
+            GuiCompat.texture("textures/gui/tool/edit.png")};
+    private static final ResourceLocation UNDO_ICON = GuiCompat.texture("textures/gui/tool/undo.png");
+    private static final ResourceLocation REDO_ICON = GuiCompat.texture("textures/gui/tool/redo.png");
+    private static final ResourceLocation TEXT_VISIBLE_ICON = GuiCompat.texture("textures/gui/tool/text_visible.png");
+    private static final ResourceLocation TEXT_HIDDEN_ICON = GuiCompat.texture("textures/gui/tool/text_hidden.png");
+    private static final ResourceLocation VISIBLE_ICON = GuiCompat.texture("textures/gui/tool/visible.png");
+    private static final ResourceLocation HIDDEN_ICON = GuiCompat.texture("textures/gui/tool/hidden.png");
+    private static final ResourceLocation EXIT_ICON = GuiCompat.texture("textures/gui/tool/exit.png");
+    *///?}
 
     private final DrawingState state;
     private final DrawingController controller;
@@ -69,7 +91,7 @@ public final class ToolBand {
     private boolean tooltipUndo;
     private boolean tooltipRedo;
     private boolean tooltipVisible;
-    private boolean tooltipRegionTextVisible;
+    private boolean tooltipTextVisible;
     private String tooltipKeyLabel;
     private List<Component> tooltip = List.of();
 
@@ -104,13 +126,18 @@ public final class ToolBand {
             return true;
         }
         pressed = cell;
-        AbstractWidget.playButtonClickSound(Minecraft.getInstance().getSoundManager());
+        GuiCompat.playButtonClickSound();
         switch (cell.kind()) {
             case TOOL -> state.setTool(Tool.values()[cell.index()]);
             case UNDO -> controller.undo();
             case REDO -> controller.redo();
-            case REGION_TEXT_VISIBILITY -> state.toggleRegionTextVisible();
+            case TEXT_VISIBILITY -> state.toggleTextVisible();
             case VISIBILITY -> state.setVisible(!state.isVisible());
+            case EXIT -> {
+                // 描きかけの線は地図に残さず捨ててから、手書きモードを終える
+                controller.cancelStroke();
+                state.toggleMode();
+            }
             case WIDTH -> state.setWidth(cell.index());
             case TEXT_SIZE -> state.setTextScale(TextSize.values()[cell.index()].scale());
             case COLOR -> state.setColor(NoteColor.values()[cell.index()].rgb());
@@ -149,16 +176,21 @@ public final class ToolBand {
 
     // ---- 描画 ----
 
+    //? if >=26.1 {
     public void render(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY, HintResolver.Line hint,
                        float hintAlpha) {
+    //?} else {
+    /*public void render(GuiGraphics g, Font font, int mouseX, int mouseY, HintResolver.Line hint,
+                       float hintAlpha) {
+    *///?}
         int bx = state.bandX();
         int by = state.bandY();
         updateHover(mouseX, mouseY, bx, by);
 
-        g.fill(bx, by, bx + BandLayout.WIDTH, by + BandLayout.HEIGHT, BG);
-        g.outline(bx, by, BandLayout.WIDTH, BandLayout.HEIGHT, EDGE);
+        GuiCompat.fill(g, bx, by, bx + BandLayout.WIDTH, by + BandLayout.HEIGHT, BG);
+        GuiCompat.outline(g, bx, by, BandLayout.WIDTH, BandLayout.HEIGHT, EDGE);
         for (BandLayout.Separator s : BandLayout.buildSeparators(bx, by)) {
-            g.fill(s.x(), s.y(), s.x() + s.w(), s.y() + s.h(), SEPARATOR);
+            GuiCompat.fill(g, s.x(), s.y(), s.x() + s.w(), s.y() + s.h(), SEPARATOR);
         }
 
         int rgb = 0xFF000000 | state.color();
@@ -168,9 +200,10 @@ public final class ToolBand {
                         TOOL_ICONS[cell.index()]);
                 case UNDO -> drawButton(g, cell, false, controller.canUndo(), UNDO_ICON);
                 case REDO -> drawButton(g, cell, false, controller.canRedo(), REDO_ICON);
-                case REGION_TEXT_VISIBILITY -> drawButton(g, cell, false, true,
-                        state.isRegionTextVisible() ? REGION_TEXT_VISIBLE_ICON : REGION_TEXT_HIDDEN_ICON);
+                case TEXT_VISIBILITY -> drawButton(g, cell, false, true,
+                        state.isTextVisible() ? TEXT_VISIBLE_ICON : TEXT_HIDDEN_ICON);
                 case VISIBILITY -> drawButton(g, cell, false, true, state.isVisible() ? VISIBLE_ICON : HIDDEN_ICON);
+                case EXIT -> drawButton(g, cell, false, true, EXIT_ICON);
                 case WIDTH -> drawWidth(g, cell, rgb);
                 case TEXT_SIZE -> drawTextSize(g, font, cell);
                 case COLOR -> drawSwatch(g, cell);
@@ -189,35 +222,69 @@ public final class ToolBand {
         hover = BandLayout.cellAt(mouseX, mouseY, bx, by);
     }
 
+    /** アイコンを置く y。終了ボタンだけ縦長（35）なので、上 9・下 10 の位置（ボタン内で上下中央）に置く。 */
+    private static int iconY(BandLayout.Cell cell) {
+        return cell.kind() == BandLayout.Kind.EXIT ? cell.y() + 9 : cell.y() + 2;
+    }
+
+    //? if >=26.1 {
     private void drawButton(GuiGraphicsExtractor g, BandLayout.Cell cell, boolean selected, boolean enabled,
                             Identifier icon) {
         int face = buttonFace(cell, selected, enabled);
         int border = buttonBorder(cell, selected, enabled);
         int tint = buttonIcon(cell, selected, enabled);
-        g.fill(cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
-        g.outline(cell.x(), cell.y(), cell.w(), cell.h(), border);
-        GuiCompat.blitIcon(g, icon, cell.x() + 2, cell.y() + 2, 16, tint);
+        GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
+        GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), border);
+        GuiCompat.blitIcon(g, icon, cell.x() + 2, iconY(cell), 16, tint);
     }
+    //?} elif >=1.21.11 {
+    /*private void drawButton(GuiGraphics g, BandLayout.Cell cell, boolean selected, boolean enabled,
+                            Identifier icon) {
+        int face = buttonFace(cell, selected, enabled);
+        int border = buttonBorder(cell, selected, enabled);
+        int tint = buttonIcon(cell, selected, enabled);
+        GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
+        GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), border);
+        GuiCompat.blitIcon(g, icon, cell.x() + 2, iconY(cell), 16, tint);
+    }
+    *///?} else {
+    /*private void drawButton(GuiGraphics g, BandLayout.Cell cell, boolean selected, boolean enabled,
+                            ResourceLocation icon) {
+        int face = buttonFace(cell, selected, enabled);
+        int border = buttonBorder(cell, selected, enabled);
+        int tint = buttonIcon(cell, selected, enabled);
+        GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
+        GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), border);
+        GuiCompat.blitIcon(g, icon, cell.x() + 2, iconY(cell), 16, tint);
+    }
+    *///?}
 
+    //? if >=26.1 {
     private void drawWidth(GuiGraphicsExtractor g, BandLayout.Cell cell, int rgb) {
+    //?} else {
+    /*private void drawWidth(GuiGraphics g, BandLayout.Cell cell, int rgb) {
+    *///?}
         boolean selected = state.width() == cell.index();
         int face = buttonFace(cell, selected, true);
         int border = buttonBorder(cell, selected, true);
-        g.fill(cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
-        g.outline(cell.x(), cell.y(), cell.w(), cell.h(), border);
+        GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
+        GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), border);
         int thickness = cell.index();
         int top = cell.y() + (cell.h() - thickness) / 2;
-        g.fill(cell.x() + 2, top, cell.x() + cell.w() - 2, top + thickness, rgb);
+        GuiCompat.fill(g, cell.x() + 2, top, cell.x() + cell.w() - 2, top + thickness, rgb);
     }
 
+    //? if >=26.1 {
     private void drawTextSize(GuiGraphicsExtractor g, Font font, BandLayout.Cell cell) {
+    //?} else {
+    /*private void drawTextSize(GuiGraphics g, Font font, BandLayout.Cell cell) {
+    *///?}
         TextSize size = TextSize.values()[cell.index()];
         boolean selected = TextSize.nearest(state.textScale()) == size;
         int face = buttonFace(cell, selected, true);
         int border = buttonBorder(cell, selected, true);
-        g.fill(cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
-        g.outline(cell.x(), cell.y(), cell.w(), cell.h(), border);
-
+        GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
+        GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), border);
         String label = I18n.get(size.translationKey());
         if (label.length() > 1 && !label.startsWith("小") && !label.startsWith("中") && !label.startsWith("大")) {
             label = label.substring(0, 1);
@@ -226,20 +293,24 @@ public final class ToolBand {
         int textX = cell.x() + (cell.w() - textW) / 2;
         int textY = cell.y() + (cell.h() - font.lineHeight) / 2 + 1;
         int color = selected ? WHITE : (hover == cell ? WHITE : ICON_NORMAL);
-        g.text(font, label, textX, textY, color, true);
+        GuiCompat.text(g, font, Component.literal(label), textX, textY, color, true);
     }
 
+    //? if >=26.1 {
     private void drawSwatch(GuiGraphicsExtractor g, BandLayout.Cell cell) {
+    //?} else {
+    /*private void drawSwatch(GuiGraphics g, BandLayout.Cell cell) {
+    *///?}
         NoteColor color = NoteColor.list().get(cell.index());
         boolean selected = (state.color() & 0xFFFFFF) == color.rgb();
         boolean hovered = hover == cell;
         if (selected) {
-            g.outline(cell.x() - 1, cell.y() - 1, cell.w() + 2, cell.h() + 2, WHITE);
+            GuiCompat.outline(g, cell.x() - 1, cell.y() - 1, cell.w() + 2, cell.h() + 2, WHITE);
         } else if (hovered) {
-            g.outline(cell.x() - 1, cell.y() - 1, cell.w() + 2, cell.h() + 2, SWATCH_HOVER_RING);
+            GuiCompat.outline(g, cell.x() - 1, cell.y() - 1, cell.w() + 2, cell.h() + 2, SWATCH_HOVER_RING);
         }
-        g.fill(cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), 0xFF000000 | color.rgb());
-        g.outline(cell.x(), cell.y(), cell.w(), cell.h(), selected ? 0xFF000000 : SWATCH_BORDER);
+        GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), 0xFF000000 | color.rgb());
+        GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), selected ? 0xFF000000 : SWATCH_BORDER);
     }
 
     private int buttonFace(BandLayout.Cell cell, boolean selected, boolean enabled) {
@@ -280,7 +351,11 @@ public final class ToolBand {
 
     // ---- ツールチップ ----
 
+    //? if >=26.1 {
     private void showTooltip(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY, HintResolver.Line hint) {
+    //?} else {
+    /*private void showTooltip(GuiGraphics g, Font font, int mouseX, int mouseY, HintResolver.Line hint) {
+    *///?}
         BandLayout.Cell cell = hover;
         if (cell == null) {
             return;
@@ -288,24 +363,24 @@ public final class ToolBand {
         boolean undo = controller.canUndo();
         boolean redo = controller.canRedo();
         boolean visible = state.isVisible();
-        boolean regionTextVisible = state.isRegionTextVisible();
+        boolean textVisible = state.isTextVisible();
         String keyLabel = cell.kind() == BandLayout.Kind.TOOL ? ScribbleKeys.toolKeyLabel(Tool.values()[cell.index()]) : null;
         if (cell != tooltipCell || undo != tooltipUndo || redo != tooltipRedo || visible != tooltipVisible
-                || regionTextVisible != tooltipRegionTextVisible
+                || textVisible != tooltipTextVisible
                 || !java.util.Objects.equals(keyLabel, tooltipKeyLabel)) {
             tooltipKeyLabel = keyLabel;
             tooltipCell = cell;
             tooltipUndo = undo;
             tooltipRedo = redo;
             tooltipVisible = visible;
-            tooltipRegionTextVisible = regionTextVisible;
-            tooltip = buildTooltip(cell, undo, redo, visible, regionTextVisible);
+            tooltipTextVisible = textVisible;
+            tooltip = buildTooltip(cell, undo, redo, visible, textVisible);
         }
-        g.setComponentTooltipForNextFrame(font, tooltip, mouseX, mouseY);
+        GuiCompat.drawTooltip(g, font, tooltip, mouseX, mouseY);
     }
 
     private static List<Component> buildTooltip(BandLayout.Cell cell, boolean canUndo, boolean canRedo,
-                                                boolean visible, boolean regionTextVisible) {
+                                                boolean visible, boolean textVisible) {
         List<Component> lines = new ArrayList<>(2);
         switch (cell.kind()) {
             case TOOL -> {
@@ -328,10 +403,17 @@ public final class ToolBand {
                     lines.add(gray(Component.translatable("mapscribble.redo.none")));
                 }
             }
-            case REGION_TEXT_VISIBILITY -> lines.add(Component.translatable(
-                    regionTextVisible ? "mapscribble.region_text.hide" : "mapscribble.region_text.show"));
+            case TEXT_VISIBILITY -> {
+                String key = textVisible ? "mapscribble.text_visibility.hide" : "mapscribble.text_visibility.show";
+                lines.add(Component.translatable(key));
+                lines.add(gray(Component.translatable(key + ".desc")));
+            }
             case VISIBILITY -> lines.add(Component.translatable(
                     visible ? "mapscribble.visibility.hide" : "mapscribble.visibility.show"));
+            case EXIT -> {
+                lines.add(Component.translatable("mapscribble.button.toggle.on"));
+                lines.add(gray(Component.translatable("mapscribble.button.toggle.on.desc")));
+            }
             case WIDTH -> lines.add(Component.translatable(switch (cell.index()) {
                 case 1 -> "mapscribble.width.thin";
                 case 2 -> "mapscribble.width.medium";
@@ -346,6 +428,6 @@ public final class ToolBand {
     }
 
     private static Component gray(Component c) {
-        return c.copy().withColor(GRAY);
+        return GuiCompat.withColor(c.copy(), GRAY);
     }
 }

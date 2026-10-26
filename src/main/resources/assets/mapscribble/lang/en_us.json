@@ -3,7 +3,9 @@
   "key.category.mapscribble.main": "MapScribble",
   "key.mapscribble.toggle_mode": "Toggle Scribble Mode",
   "mapscribble.button.toggle.on": "Exit Scribble Mode",
+  "mapscribble.button.toggle.on.desc": "Closes the toolbar and returns to map controls",
   "mapscribble.button.toggle.off": "Scribble on Map",
+  "mapscribble.button.toggle.off.desc": "Opens the toolbar so you can draw on the map",
   "mapscribble.tool.enclose": "Outline",
   "mapscribble.tool.enclose.desc": "Drag around an area to outline it and add a note",
   "mapscribble.tool.line": "Line",
@@ -83,7 +85,9 @@
   "mapscribble.minimap.hidden": "Hidden",
   "mapscribble.screen.save": "Save",
   "mapscribble.screen.delete": "Delete",
-  "mapscribble.region_text.hide": "Hide region text",
-  "mapscribble.region_text.show": "Show region text",
+  "mapscribble.text_visibility.hide": "Hide Text",
+  "mapscribble.text_visibility.hide.desc": "Hides the text on outlines, lines and text notes",
+  "mapscribble.text_visibility.show": "Show Text",
+  "mapscribble.text_visibility.show.desc": "Shows all hidden text again",
   "mapscribble.text_size.tooltip": "Text size: %s"
-}
+}

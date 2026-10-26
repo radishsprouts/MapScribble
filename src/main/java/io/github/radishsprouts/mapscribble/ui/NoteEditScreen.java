@@ -6,14 +6,20 @@ import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.model.MemoKind;
 import java.util.Arrays;
 import java.util.Locale;
+import net.minecraft.client.Minecraft;
+//? if >=26.1 {
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+//?} else {
+/*import net.minecraft.client.gui.GuiGraphics;
+*///?}
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.screens.Screen;
+//? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
+//?}
 import net.minecraft.network.chat.Component;
-import org.jspecify.annotations.Nullable;
 
 /**
  * 文字入力・編集の画面（画面設計書 3.2）。背後に親の画面（全画面マップ）を描き、黒 50% の幕とパネルを重ねる。
@@ -36,55 +42,47 @@ public final class NoteEditScreen extends Screen {
 
         void cancel();
 
-        /** 編集の時だけ呼ばれる。 */
         void delete();
     }
 
-    static final int MAX_CHARS = 200;
+    private static final int MAX_CHARS = 1000;
     private static final int CURTAIN = 0x80000000;
-    private static final int PANEL_BG = 0xF0202428;
-    private static final int PANEL_EDGE = 0xFF50565E;
+    private static final int PANEL_BG = 0xEE181818;
+    private static final int PANEL_EDGE = 0xFF555555;
     private static final int TEXT_WHITE = 0xFFFFFFFF;
-    private static final int TEXT_LABEL = 0xFFE0E0E0;
     private static final int TEXT_GRAY = 0xFFA0A0A0;
-    private static final int TEXT_ERROR = 0xFFFF8080;
+    private static final int TEXT_ERROR = 0xFFFF5555;
+    private static final int TEXT_LABEL = 0xFFDDDDDD;
 
     private final Screen parent;
     private final Spec spec;
     private final Callbacks callbacks;
 
-    // 画面を作り直しても（ウィンドウの大きさ変更）値を失わないよう、部品とは別に持つ
+    private EditLayout layout;
+    private MultiLineEditBox box;
+    private Button saveButton;
+    private boolean parentFailed;
+
     private String text;
     private int colorRgb;
     private FillLevel fill;
     private TextSize size;
     private boolean onMinimap;
 
-    private EditLayout layout;
-    private MultiLineEditBox box;
-    private Button saveButton;
-    /** 親の画面を描けなかった時は、以後バニラの背景に切り替える。 */
-    private boolean parentFailed;
-
     public NoteEditScreen(Screen parent, Spec spec, Callbacks callbacks) {
-        super(Component.translatable(titleKey(spec)));
+        super(Component.translatable(spec.edit()
+                ? "mapscribble.screen.title.edit"
+                : (spec.kind() == MemoKind.TEXT
+                ? "mapscribble.screen.title.new_text"
+                : (spec.kind() == MemoKind.REGION ? "mapscribble.screen.title.new_enclose" : "mapscribble.screen.title.new_line"))));
         this.parent = parent;
         this.spec = spec;
         this.callbacks = callbacks;
-        this.text = spec.text();
-        this.colorRgb = spec.color() & 0xFFFFFF;
+        this.text = spec.text() == null ? "" : spec.text();
+        this.colorRgb = spec.color();
         this.fill = spec.fill();
         this.size = spec.size();
         this.onMinimap = spec.onMinimap();
-    }
-
-    static String titleKey(Spec spec) {
-        String kind = spec.kind().name().toLowerCase(Locale.ROOT);
-        // 囲み（REGION）の翻訳キーは設計書で enclose
-        if (spec.kind() == MemoKind.REGION) {
-            kind = "enclose";
-        }
-        return "mapscribble.screen.title." + (spec.edit() ? "edit." : "") + kind;
     }
 
     @Override
@@ -93,10 +91,14 @@ public final class NoteEditScreen extends Screen {
         int px = layout.panelX(width);
         int py = layout.panelY();
 
+        //? if >=1.21.11 {
         box = MultiLineEditBox.builder()
                 .setX(px + EditLayout.MARGIN)
                 .setY(py + layout.boxY())
                 .build(font, EditLayout.BOX_WIDTH, layout.boxHeight(), Component.translatable("mapscribble.screen.label.text"));
+        //?} else {
+        /*box = new MultiLineEditBox(font, px + EditLayout.MARGIN, py + layout.boxY(), EditLayout.BOX_WIDTH, layout.boxHeight(), Component.empty(), Component.translatable("mapscribble.screen.label.text"));
+        *///?}
         box.setCharacterLimit(MAX_CHARS);
         box.setValueListener(value -> {
             text = value;
@@ -112,10 +114,18 @@ public final class NoteEditScreen extends Screen {
         int left = px + EditLayout.CYCLE_LEFT_X;
         int right = px + EditLayout.CYCLE_RIGHT_X;
         if (layout.hasFill()) {
+            //? if >=1.21.11 {
             addRenderableWidget(CycleButton.<FillLevel>builder(l -> Component.translatable(l.translationKey()), fill)
                     .withValues(FillLevel.values())
                     .create(left, row1, EditLayout.CYCLE_WIDTH, EditLayout.BUTTON_HEIGHT,
                             Component.translatable("mapscribble.screen.fill"), (b, v) -> fill = v));
+            //?} else {
+            /*addRenderableWidget(CycleButton.<FillLevel>builder(l -> Component.translatable(l.translationKey()))
+                    .withValues(FillLevel.values())
+                    .withInitialValue(fill)
+                    .create(left, row1, EditLayout.CYCLE_WIDTH, EditLayout.BUTTON_HEIGHT,
+                            Component.translatable("mapscribble.screen.fill"), (b, v) -> fill = v));
+            *///?}
             addRenderableWidget(sizeButton(right, row1));
             addRenderableWidget(minimapButton(left, py + layout.cycleRow2Y()));
         } else {
@@ -125,7 +135,7 @@ public final class NoteEditScreen extends Screen {
 
         int buttonsY = py + layout.buttonsY();
         if (spec.edit()) {
-            addRenderableWidget(Button.builder(Component.translatable("mapscribble.screen.delete").withColor(0xFF5555),
+            addRenderableWidget(Button.builder(GuiCompat.withColor(Component.translatable("mapscribble.screen.delete"), 0xFF5555),
                             b -> delete())
                     .bounds(px + layout.deleteX(), buttonsY, layout.deleteWidth(), EditLayout.BUTTON_HEIGHT).build());
         }
@@ -139,24 +149,40 @@ public final class NoteEditScreen extends Screen {
     }
 
     private CycleButton<TextSize> sizeButton(int x, int y) {
+        //? if >=1.21.11 {
         return CycleButton.<TextSize>builder(s -> Component.translatable(s.translationKey()), size)
                 .withValues(TextSize.values())
                 .create(x, y, EditLayout.CYCLE_WIDTH, EditLayout.BUTTON_HEIGHT,
                         Component.translatable("mapscribble.screen.size"), (b, v) -> size = v);
+        //?} else {
+        /*return CycleButton.<TextSize>builder(s -> Component.translatable(s.translationKey()))
+                .withValues(TextSize.values())
+                .withInitialValue(size)
+                .create(x, y, EditLayout.CYCLE_WIDTH, EditLayout.BUTTON_HEIGHT,
+                        Component.translatable("mapscribble.screen.size"), (b, v) -> size = v);
+        *///?}
     }
 
     private CycleButton<Boolean> minimapButton(int x, int y) {
+        //? if >=1.21.11 {
         return CycleButton.<Boolean>builder(
                         shown -> Component.translatable(shown ? "mapscribble.minimap.shown" : "mapscribble.minimap.hidden"),
                         onMinimap)
                 .withValues(Arrays.asList(Boolean.TRUE, Boolean.FALSE))
                 .create(x, y, EditLayout.CYCLE_WIDTH, EditLayout.BUTTON_HEIGHT,
                         Component.translatable("mapscribble.screen.minimap"), (b, v) -> onMinimap = v);
+        //?} else {
+        /*return CycleButton.<Boolean>builder(
+                        shown -> Component.translatable(shown ? "mapscribble.minimap.shown" : "mapscribble.minimap.hidden"))
+                .withValues(Arrays.asList(Boolean.TRUE, Boolean.FALSE))
+                .withInitialValue(onMinimap)
+                .create(x, y, EditLayout.CYCLE_WIDTH, EditLayout.BUTTON_HEIGHT,
+                        Component.translatable("mapscribble.screen.minimap"), (b, v) -> onMinimap = v);
+        *///?}
     }
 
     // ---- 確定・取り消し ----
 
-    /** 文字のメモは文字が要る（空白だけも不可）。囲み・線は空でも確定できる。 */
     boolean canConfirm() {
         return spec.kind() != MemoKind.TEXT || !text.isBlank();
     }
@@ -171,7 +197,7 @@ public final class NoteEditScreen extends Screen {
         if (!canConfirm()) {
             return;
         }
-        callbacks.confirm(new Result(text.isBlank() ? "" : text, colorRgb, fill, size, onMinimap));
+        callbacks.confirm(new Result(text, colorRgb, fill, size, onMinimap));
         close();
     }
 
@@ -185,15 +211,16 @@ public final class NoteEditScreen extends Screen {
         close();
     }
 
-    private void close() {
-        ScreenCompat.setScreen(parent);
-    }
-
     @Override
     public void onClose() {
         cancel();
     }
 
+    private void close() {
+        ScreenCompat.setScreen(parent);
+    }
+
+    //? if >=1.21.11 {
     @Override
     public boolean keyPressed(KeyEvent event) {
         if (event.isConfirmation() && GuiCompat.isControlDown(event)) {
@@ -202,31 +229,91 @@ public final class NoteEditScreen extends Screen {
         }
         return super.keyPressed(event);
     }
+    //?} else {
+    /*@Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if ((keyCode == 257 || keyCode == 335) && GuiCompat.isControlDown(modifiers)) {
+            confirm();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+    *///?}
 
+    //? if >=1.21.11 {
     @Override
     public void resize(int newWidth, int newHeight) {
-        // 背後の親の画面も、新しい大きさに合わせておく
         parent.resize(newWidth, newHeight);
         super.resize(newWidth, newHeight);
     }
+    //?} else {
+    /*@Override
+    public void resize(Minecraft mc, int newWidth, int newHeight) {
+        parent.resize(mc, newWidth, newHeight);
+        super.resize(mc, newWidth, newHeight);
+    }
+    *///?}
 
     // ---- 描画 ----
 
+    //? if >=26.1 {
     @Override
     public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        if (!renderParent(g, partialTick)) {
-            super.extractBackground(g, mouseX, mouseY, partialTick);
-        }
-        // 親の画面（JourneyMap）が後ろの層に描く部品（右下のキー一覧など）より、幕を手前にするため層を進める
-        g.nextStratum();
-        g.fill(0, 0, width, height, CURTAIN);
-        int px = layout.panelX(width);
-        int py = layout.panelY();
-        g.fill(px, py, px + EditLayout.PANEL_WIDTH, py + layout.panelHeight(), PANEL_BG);
-        g.outline(px, py, EditLayout.PANEL_WIDTH, layout.panelHeight(), PANEL_EDGE);
+        renderCurtainAndPanelBg(g, partialTick);
     }
 
-    /** 親の画面を、マウスの位置に画面外を渡して（ホバー表示を出さずに）描く。描けなければ false。 */
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+        super.extractRenderState(g, mouseX, mouseY, partialTick);
+        renderPanelForeground(g);
+    }
+    //?} elif >=1.21 {
+    /*@Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        renderCurtainAndPanelBg(g, partialTick);
+    }
+
+    @Override
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        super.render(g, mouseX, mouseY, partialTick);
+        renderPanelForeground(g);
+    }
+    *///?} else {
+    /*@Override
+    public void renderBackground(GuiGraphics g) {
+        renderCurtainAndPanelBg(g, 0f);
+    }
+
+    @Override
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        super.render(g, mouseX, mouseY, partialTick);
+        renderPanelForeground(g);
+    }
+    *///?}
+
+    //? if >=26.1 {
+    private void renderCurtainAndPanelBg(GuiGraphicsExtractor g, float partialTick) {
+    //?} else {
+    /*private void renderCurtainAndPanelBg(GuiGraphics g, float partialTick) {
+    *///?}
+        if (!renderParent(g, partialTick)) {
+            //? if >=26.1 {
+            super.extractBackground(g, -1, -1, partialTick);
+            //?} elif >=1.21 {
+            /*super.renderBackground(g, -1, -1, partialTick);*/
+            //?} else {
+            /*super.renderBackground(g);*/
+            //?}
+        }
+        GuiCompat.nextLayer(g);
+        GuiCompat.fill(g, 0, 0, width, height, CURTAIN);
+        int px = layout.panelX(width);
+        int py = layout.panelY();
+        GuiCompat.fill(g, px, py, px + EditLayout.PANEL_WIDTH, py + layout.panelHeight(), PANEL_BG);
+        GuiCompat.outline(g, px, py, EditLayout.PANEL_WIDTH, layout.panelHeight(), PANEL_EDGE);
+    }
+
+    //? if >=26.1 {
     private boolean renderParent(GuiGraphicsExtractor g, float partialTick) {
         if (parentFailed) {
             return false;
@@ -240,27 +327,42 @@ public final class NoteEditScreen extends Screen {
             return false;
         }
     }
+    //?} else {
+    /*private boolean renderParent(GuiGraphics g, float partialTick) {
+        if (parentFailed) {
+            return false;
+        }
+        try {
+            parent.render(g, -1, -1, partialTick);
+            return true;
+        } catch (RuntimeException e) {
+            parentFailed = true;
+            MapScribble.LOGGER.warn("MapScribble: 親の全画面マップを背後に描けなかったため、バニラの背景に切り替えます", e);
+            return false;
+        }
+    }
+    *///?}
 
-    @Override
-    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        super.extractRenderState(g, mouseX, mouseY, partialTick);
+    //? if >=26.1 {
+    private void renderPanelForeground(GuiGraphicsExtractor g) {
+    //?} else {
+    /*private void renderPanelForeground(GuiGraphics g) {
+    *///?}
         int px = layout.panelX(width);
         int py = layout.panelY();
         int left = px + EditLayout.MARGIN;
 
-        g.centeredText(font, title, px + EditLayout.PANEL_WIDTH / 2, py + layout.titleY(), TEXT_WHITE);
-        g.text(font, Component.translatable("mapscribble.screen.label.text"), left, py + layout.labelY(), TEXT_LABEL, false);
+        GuiCompat.centeredText(g, font, title, px + EditLayout.PANEL_WIDTH / 2, py + layout.titleY(), TEXT_WHITE, false);
+        GuiCompat.text(g, font, Component.translatable("mapscribble.screen.label.text"), left, py + layout.labelY(), TEXT_LABEL, false);
 
-        // 文字数「n/200」はバニラの MultiLineEditBox（setCharacterLimit）が欄の右下に描く。MOD は描かず、
-        // 左のヒントの y をそのカウンタの行に揃える（2重に描くと 1px ずれて重なって読みにくい）
         int hintY = py + layout.counterY();
         if (spec.kind() == MemoKind.TEXT && text.isBlank()) {
-            g.text(font, Component.translatable("mapscribble.screen.error.text_required"), left, hintY, TEXT_ERROR, false);
+            GuiCompat.text(g, font, Component.translatable("mapscribble.screen.error.text_required"), left, hintY, TEXT_ERROR, false);
         } else {
-            g.text(font, Component.translatable("mapscribble.screen.hint.keys"), left, hintY, TEXT_GRAY, false);
+            GuiCompat.text(g, font, Component.translatable("mapscribble.screen.hint.keys"), left, hintY, TEXT_GRAY, false);
         }
 
-        g.text(font, Component.translatable("mapscribble.screen.label.color", colorName()), left,
+        GuiCompat.text(g, font, Component.translatable("mapscribble.screen.label.color", colorName()), left,
                 py + layout.colorLabelY(), TEXT_LABEL, false);
     }
 
@@ -277,8 +379,7 @@ public final class NoteEditScreen extends Screen {
         return false;
     }
 
-    /** 検証用: 今の文字の欄の値。 */
-    public @Nullable String currentText() {
+    public String currentText() {
         return box == null ? null : box.getValue();
     }
 }

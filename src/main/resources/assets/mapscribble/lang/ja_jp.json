@@ -3,7 +3,9 @@
   "key.category.mapscribble.main": "MapScribble",
   "key.mapscribble.toggle_mode": "手書きモードの切替",
   "mapscribble.button.toggle.on": "手書きモードを終える",
+  "mapscribble.button.toggle.on.desc": "ツールの帯を閉じ、地図の操作に戻ります",
   "mapscribble.button.toggle.off": "手書きモードにする",
+  "mapscribble.button.toggle.off.desc": "ツールの帯を出して、地図に手書きできます",
   "mapscribble.tool.enclose": "囲み",
   "mapscribble.tool.enclose.desc": "ドラッグして範囲を囲み、文字を付けます",
   "mapscribble.tool.line": "線",
@@ -83,7 +85,9 @@
   "mapscribble.minimap.hidden": "非表示",
   "mapscribble.screen.save": "確定",
   "mapscribble.screen.delete": "削除",
-  "mapscribble.region_text.hide": "区画の文字を隠す",
-  "mapscribble.region_text.show": "区画の文字を表示する",
+  "mapscribble.text_visibility.hide": "文字を隠す",
+  "mapscribble.text_visibility.hide.desc": "囲み・線・文字メモの文字をすべて隠します",
+  "mapscribble.text_visibility.show": "文字を表示する",
+  "mapscribble.text_visibility.show.desc": "隠している文字をすべて表示します",
   "mapscribble.text_size.tooltip": "文字の大きさ：%s"
-}
+}

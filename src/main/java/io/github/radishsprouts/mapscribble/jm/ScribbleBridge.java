@@ -3,12 +3,16 @@ package io.github.radishsprouts.mapscribble.jm;
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.radishsprouts.mapscribble.MapScribble;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
+import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
 import io.github.radishsprouts.mapscribble.draw.DrawingState;
 import io.github.radishsprouts.mapscribble.draw.HitTester;
 import io.github.radishsprouts.mapscribble.draw.ScribbleSession;
 import io.github.radishsprouts.mapscribble.draw.Tool;
 import io.github.radishsprouts.mapscribble.geom.Projection;
+import io.github.radishsprouts.mapscribble.map.MidDragHandler;
+import io.github.radishsprouts.mapscribble.map.PrimaryMapBridge;
+import io.github.radishsprouts.mapscribble.map.ScreenMapHost;
 import io.github.radishsprouts.mapscribble.model.Memo;
 import io.github.radishsprouts.mapscribble.store.MemoRepository;
 import io.github.radishsprouts.mapscribble.store.StoreSession;
@@ -25,34 +29,44 @@ import java.util.Set;
 import java.util.function.Supplier;
 import journeymap.api.v2.client.IClientAPI;
 import journeymap.api.v2.client.event.FullscreenMapEvent;
+//? if >=26.1 {
 import journeymap.api.v2.client.event.FullscreenRenderEvent;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+//?} else {
+/*import net.minecraft.client.gui.GuiGraphics;
+*///?}
 import journeymap.api.v2.client.fullscreen.IFullscreen;
 import journeymap.api.v2.client.fullscreen.IThemeButton;
 import journeymap.api.v2.client.fullscreen.ThemeButtonDisplay;
 import journeymap.api.v2.common.event.FullscreenEventRegistry;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
-import net.fabricmc.loader.api.FabricLoader;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+
+//? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.resources.Identifier;
+//?} else {
+/*import net.minecraft.resources.ResourceLocation;
+*///?}
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
 /**
  * JourneyMap 連携の本体。入力（ドラッグ・クリック・離す・Ctrl+Z/Y）、全画面マップの自前の描画、
  * ミニマップのオーバーレイを、JourneyMap のプラグイン（{@link MapScribblePlugin}）から 1 か所で配線する。
- * このクラスの先は JourneyMap のプラグインクラスを参照しない。
  */
-public final class ScribbleBridge {
+public final class ScribbleBridge implements PrimaryMapBridge {
+    private static ScribbleBridge INSTANCE;
+
     /** 左ボタン。26.3 は SDL のボタン番号で値が違うので、定数を使う。 */
     private static final int MOUSE_LEFT = InputConstants.MOUSE_BUTTON_LEFT;
+    //? if >=1.21.11 {
     private static final Identifier TOGGLE_ICON = GuiCompat.texture("textures/gui/toggle.png");
+    //?} else {
+    /*private static final ResourceLocation TOGGLE_ICON = GuiCompat.texture("textures/gui/toggle.png");
+    *///?}
 
     private final IClientAPI api;
     private final Supplier<MemoRepository> repositorySupplier;
@@ -76,6 +90,7 @@ public final class ScribbleBridge {
     private Projection hoverProjection;
     private List<Memo> hoverMemos;
     private Tool hoverTool;
+    private boolean hoverTextVisible = true;
     private Memo hoverResult;
 
     /** 今開いている JourneyMap の全画面マップ（開いていなければ null）。 */
@@ -97,22 +112,32 @@ public final class ScribbleBridge {
     };
 
     public ScribbleBridge(IClientAPI api, Supplier<MemoRepository> repositorySupplier) {
+        INSTANCE = this;
         this.api = api;
         this.repositorySupplier = repositorySupplier;
         this.controller = ScribbleSession.install(repositorySupplier);
         this.state = controller.state();
         this.renderer = new FullscreenRenderer(controller);
         this.minimap = new MinimapOverlays(api);
-        this.ui = new ScribbleUi(controller, FabricLoader.getInstance().getConfigDir().resolve(UiPrefs.FILE_NAME));
+        this.ui = new ScribbleUi(controller, ScreenCompat.gameDirectory().resolve("config").resolve(UiPrefs.FILE_NAME));
         // メモのファイルを読めなかった時は、帯の説明の行に出す
         StoreSession.setNotifier(message -> ui.onLoadFailed());
         // メモを保存できなかった時（と、その後に保存できた時）も、同じ行に出す・消す
         StoreSession.setSaveNotifier(ui::onSaveStateChanged);
+
+        // ScreenMapHost にプライマリブリッジとして登録
+        ScreenMapHost.setPrimaryBridge(this);
+    }
+
+    public static ScribbleBridge instance() {
+        return INSTANCE;
     }
 
     /** イベントを購読する。 */
     public void register() {
+        //? if >=26.1 {
         FullscreenEventRegistry.FULLSCREEN_RENDER_EVENT.subscribe(MapScribble.MOD_ID, this::onRender);
+        //?}
         FullscreenEventRegistry.FULLSCREEN_MAP_CLICK_EVENT.subscribe(MapScribble.MOD_ID, this::onClick);
         FullscreenEventRegistry.FULLSCREEN_MAP_DRAG_EVENT.subscribe(MapScribble.MOD_ID, this::onDrag);
         FullscreenEventRegistry.ADDON_BUTTON_DISPLAY_EVENT.subscribe(MapScribble.MOD_ID, event -> {
@@ -120,11 +145,6 @@ public final class ScribbleBridge {
             addToggleButton(event.getThemeButtonDisplay());
         });
 
-        // 画面ごとの離す・キーのイベントは、画面の初期化の後に登録する（全画面マップかどうかは実行時に同一性で見る）
-        ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> hook(screen));
-
-        // ミニマップの同期。窓口の切り替わり・ディメンションの切り替わりを毎 tick の比較で拾う（比較だけで軽い）
-        ClientTickEvents.END_CLIENT_TICK.register(client -> tick());
         state.addChangeListener(this::syncMinimap);
     }
 
@@ -144,13 +164,6 @@ public final class ScribbleBridge {
         toggleDedupePending = true;
     }
 
-    /**
-     * JourneyMap（6.0.10・26.1.2 / 26.2 / 26.3 で確認）は、アドオンのボタンを同じ実体のまま画面へ2回登録する
-     * （CustomEventDispatcher.getAddonToolbar が各ボタンを Fullscreen.addButtonWidget で登録し、続けて
-     * Fullscreen.initButtons が addonToolbar.addAllButtons で同じボタンを登録し直す）。
-     * そのままだと同じ座標に同じボタンが2回描かれ、2つ重なって見える。イベントの購読と呼び出しは1回ずつで、
-     * こちらが2回足しているのではない。足したボタンの二重登録を1つにする（足した直後の1回だけ見る）。
-     */
     private void dedupeToggleButton(Screen screen) {
         IThemeButton button = toggleButton;
         if (!toggleDedupePending || button == null || screen == null) {
@@ -181,12 +194,18 @@ public final class ScribbleBridge {
     private List<?> renderablesOf(Screen screen) {
         if (!renderablesFieldTried) {
             renderablesFieldTried = true;
-            try {
-                Field field = Screen.class.getDeclaredField("renderables");
-                field.setAccessible(true);
-                renderablesField = field;
-            } catch (ReflectiveOperationException | RuntimeException e) {
-                MapScribble.LOGGER.warn("Screen.renderables を読めないため、切替ボタンの二重登録を直せません", e);
+            String[] candidateNames = {"renderables", "field_33816", "f_169369_"};
+            for (String name : candidateNames) {
+                try {
+                    Field field = Screen.class.getDeclaredField(name);
+                    field.setAccessible(true);
+                    renderablesField = field;
+                    break;
+                } catch (NoSuchFieldException ignored) {
+                }
+            }
+            if (renderablesField == null) {
+                MapScribble.LOGGER.warn("Screen.renderables を読めないため、切替ボタンの二重登録を直せません");
             }
         }
         if (renderablesField == null) {
@@ -213,61 +232,102 @@ public final class ScribbleBridge {
         if (fs == null) {
             return null;
         }
-        //? if >=26.2 {
-        /*Screen shown = Minecraft.getInstance().gui.screen();
-        *///?} else {
-        Screen shown = Minecraft.getInstance().screen;
-        //?}
+        Screen shown = ScreenCompat.currentScreen();
         if (shown != fs.getScreen()) {
             fullscreen = null;
             controller.cancelStroke();
+            MidDragHandler.reset();
             return null;
         }
         return fs;
     }
 
-    /**
-     * 離す・キーのイベントを画面へ登録する。Fabric は画面が（再）初期化されるたびに、画面ごとのイベントを
-     * 初期状態へ戻す（ウィンドウのサイズ変更や、JourneyMap の別の画面から戻った時など）。
-     * そのため重複を恐れず、初期化のたびに登録し直す（実機で、登録を1回で済ませると離すイベントが来なくなることを確認した）。
-     */
-    private void hook(Screen screen) {
+    @Override
+    public boolean handles(Screen screen) {
         if (screen == null) {
-            return;
+            return false;
+        }
+        if (fullscreen != null && fullscreen.getScreen() == screen) {
+            return true;
+        }
+        return screen instanceof IFullscreen;
+    }
+
+    @Override
+    public void onScreenInit(Screen screen) {
+        if (screen instanceof IFullscreen fs) {
+            track(fs);
         }
         IFullscreen fs = fullscreen;
         if (fs != null && fs.getScreen() == screen) {
             dedupeToggleButton(screen);
         }
-        ScreenMouseEvents.allowMouseClick(screen).register(this::allowMouseClick);
-        ScreenMouseEvents.afterMouseRelease(screen).register(this::afterMouseRelease);
-        ScreenKeyboardEvents.allowKeyPress(screen).register(this::allowKeyPress);
-        ScreenEvents.remove(screen).register(this::onScreenRemoved);
     }
 
-    /**
-     * 全画面マップが閉じられた時に、描きかけの一筆を捨てる。ドラッグ中（ボタンを押したまま）に Esc で閉じると
-     * 離すイベントが来ないため。JourneyMap は同じ画面の実体を開き直すので、{@link #current()} の判定だけでは捨てられない。
-     * 何度呼ばれても無害（描きかけが無ければ何もしない）。確定済みの一筆は stroke が空なので、文字入力の画面への遷移に影響しない。
-     */
-    private void onScreenRemoved(Screen screen) {
+    @Override
+    public void onScreenClose(Screen screen) {
         IFullscreen fs = fullscreen;
         if (fs != null && fs.getScreen() == screen) {
             controller.cancelStroke();
+            MidDragHandler.reset();
+            fullscreen = null;
         }
     }
 
     // ---- 描画 ----
 
+    //? if >=26.1 {
     private void onRender(FullscreenRenderEvent event) {
         track(event.getFullscreen());
-        // テーマの切り替え等で JourneyMap が画面の部品を作り直した時は、AFTER_INIT が来ないので描画で直す
         dedupeToggleButton(event.getFullscreen().getScreen());
         renderer.render(event);
         syncToggleButton();
         int mouseX = event.getMouseX();
         int mouseY = event.getMouseY();
         ui.render(event.getGraphics(), mouseX, mouseY, hoverMemo(event.getFullscreen(), mouseX, mouseY));
+
+        // 中ボタンドラッグ中のスクロール追従
+        if (MidDragHandler.isDragging()) {
+            IFullscreen fs = event.getFullscreen();
+            Projection projection = MapProjection.of(fs);
+            int guiScale = MapProjection.guiScale();
+            MidDragHandler.onMouseMove(mouseX * guiScale, mouseY * guiScale, (dx, dy) -> {
+                double worldDx = projection.pixelsToWorld(dx);
+                double worldDy = projection.pixelsToWorld(dy);
+                fs.centerOn(MapProjection.getCenterBlockX(fs) - worldDx, MapProjection.getCenterBlockZ(fs) - worldDy);
+            });
+        }
+    }
+    //?}
+
+    //? if >=26.1 {
+    @Override
+    public void onScreenRender(GuiGraphicsExtractor gfx, Screen screen, int mouseX, int mouseY) {
+    //?} else {
+    /*@Override
+    public void onScreenRender(GuiGraphics gfx, Screen screen, int mouseX, int mouseY) {
+    *///?}
+        IFullscreen fs = current();
+        if (fs == null || fs.getScreen() != screen) {
+            return;
+        }
+        //? if <26.1 {
+        /*dedupeToggleButton(screen);
+        renderer.render(gfx, fs);
+        syncToggleButton();
+        ui.render(gfx, mouseX, mouseY, hoverMemo(fs, mouseX, mouseY));
+
+        // 中ボタンドラッグ中のスクロール追従
+        if (MidDragHandler.isDragging()) {
+            Projection projection = MapProjection.of(fs);
+            int guiScale = MapProjection.guiScale();
+            MidDragHandler.onMouseMove(mouseX * guiScale, mouseY * guiScale, (dx, dy) -> {
+                double worldDx = projection.pixelsToWorld(dx);
+                double worldDy = projection.pixelsToWorld(dy);
+                fs.centerOn(MapProjection.getCenterBlockX(fs) - worldDx, MapProjection.getCenterBlockZ(fs) - worldDy);
+            });
+        }
+        *///?}
     }
 
     /** 消しゴム・編集で、カーソルの下にあるメモ。条件が合わなければ null。同じ入力なら前の答えを使い回す。 */
@@ -283,8 +343,9 @@ public final class ScribbleBridge {
         }
         Projection projection = MapProjection.of(fs);
         List<Memo> memos = repo.memos();
+        boolean textVisible = state.isTextVisible();
         if (guiX == hoverX && guiY == hoverY && tool == hoverTool && memos == hoverMemos
-                && projection.equals(hoverProjection)) {
+                && textVisible == hoverTextVisible && projection.equals(hoverProjection)) {
             return hoverResult;
         }
         int guiScale = MapProjection.guiScale();
@@ -294,9 +355,10 @@ public final class ScribbleBridge {
         hoverY = guiY;
         hoverTool = tool;
         hoverMemos = memos;
+        hoverTextVisible = textVisible;
         hoverProjection = projection;
         hoverResult = HitTester.find(memos, projection.toWorldX(px), projection.toWorldZ(py),
-                projection.pixelsToWorld(1.0), guiScale, measure);
+                projection.pixelsToWorld(1.0), guiScale, measure, textVisible);
         return hoverResult;
     }
 
@@ -307,15 +369,28 @@ public final class ScribbleBridge {
             return;
         }
         IFullscreen fs = current();
-        if (fs == null || !controller.isActive()) {
+        if (fs == null) {
             return;
         }
         Point2D.Double pos = event.getMousePosition();
+
+        // ミドルボタン押下でドラッグスクロール開始（手書きモードON/OFF問わず動作）
+        if (event.getButton() == 2) {
+            MidDragHandler.onMouseDown(2, pos.x, pos.y);
+            cancel(event);
+            return;
+        }
+
+        if (!controller.isActive()) {
+            return;
+        }
+
         int guiScale = MapProjection.guiScale();
         if (state.isOverBand(pos.x / guiScale, pos.y / guiScale)) {
             cancel(event);
             return;
         }
+
         if (event.getButton() != MOUSE_LEFT) {
             return;
         }
@@ -324,7 +399,6 @@ public final class ScribbleBridge {
         switch (tool) {
             case ENCLOSE:
             case LINE:
-                // 一筆の始点。ドラッグが来なければ、離した時に「小さすぎる」として捨てられる
                 controller.beginStroke(pos.x, pos.y, projection);
                 cancel(event);
                 break;
@@ -353,7 +427,7 @@ public final class ScribbleBridge {
         }
         List<Memo> memos = repo.memos();
         Memo hit = HitTester.find(memos, projection.toWorldX(pos.x), projection.toWorldZ(pos.y),
-                projection.pixelsToWorld(1.0), MapProjection.guiScale(), measure);
+                projection.pixelsToWorld(1.0), MapProjection.guiScale(), measure, state.isTextVisible());
         if (tool == Tool.ERASER) {
             controller.erase(hit);
         } else {
@@ -366,15 +440,33 @@ public final class ScribbleBridge {
             return;
         }
         IFullscreen fs = current();
-        if (fs == null || !controller.isActive()) {
+        if (fs == null) {
             return;
         }
         Point2D.Double pos = event.getMousePosition();
+
+        // ミドルボタン押下中ドラッグによるマップスクロール（パン）
+        if (event.getButton() == 2 || MidDragHandler.isDragging()) {
+            cancel(event);
+            Projection projection = MapProjection.of(fs);
+            MidDragHandler.onMouseMove(pos.x, pos.y, (dx, dy) -> {
+                double worldDx = projection.pixelsToWorld(dx);
+                double worldDy = projection.pixelsToWorld(dy);
+                fs.centerOn(MapProjection.getCenterBlockX(fs) - worldDx, MapProjection.getCenterBlockZ(fs) - worldDy);
+            });
+            return;
+        }
+
+        if (!controller.isActive()) {
+            return;
+        }
+
         int guiScale = MapProjection.guiScale();
         if (state.isOverBand(pos.x / guiScale, pos.y / guiScale)) {
             cancel(event);
             return;
         }
+
         if (!state.tool().isStrokeTool()) {
             return;
         }
@@ -383,37 +475,62 @@ public final class ScribbleBridge {
         controller.extendStroke(pos.x, pos.y, MapProjection.of(fs));
     }
 
-    /**
-     * 帯の上のクリックは、画面の段階で止めて地図（JourneyMap）へ渡さない。
-     * 手書きモードがオンの間は、メモを使えない状態（地図の準備中など）でも帯のボタンは押せる。
-     */
-    private boolean allowMouseClick(Screen screen, MouseButtonEvent event) {
+    @Override
+    public boolean onMouseClicked(Screen screen, double mouseX, double mouseY, int button) {
         IFullscreen fs = current();
         if (fs == null || fs.getScreen() != screen) {
+            return false;
+        }
+        int guiScale = MapProjection.guiScale();
+        if (button == 2) {
+            MidDragHandler.onMouseDown(2, mouseX * guiScale, mouseY * guiScale);
             return true;
         }
-        return !ui.onMouseClick(event.x(), event.y(), event.button() == MOUSE_LEFT);
+        return ui.onMouseClick(mouseX, mouseY, button);
     }
 
-    private boolean afterMouseRelease(Screen screen, MouseButtonEvent event, boolean consumed) {
+    @Override
+    public boolean onMouseReleased(Screen screen, double mouseX, double mouseY, int button) {
         IFullscreen fs = current();
-        if (fs != null && fs.getScreen() == screen) {
-            ui.onMouseRelease();
-            if (event.button() == MOUSE_LEFT && controller.activeStroke() != null) {
-                controller.finishStroke(MapProjection.of(fs));
-            }
+        if (fs == null || fs.getScreen() != screen) {
+            return false;
         }
-        return consumed;
+        ui.onMouseRelease(mouseX, mouseY, button);
+        if (button == 2) {
+            MidDragHandler.onMouseUp(2);
+            return true;
+        }
+        if (button == MOUSE_LEFT && controller.activeStroke() != null) {
+            controller.finishStroke(MapProjection.of(fs));
+        }
+        return true;
     }
 
+    //? if >=1.21.11 {
     /** 全画面マップでのキー（切替・ツール・Ctrl+Z/Y）。文字の入力欄にフォーカスがある時は何も奪わない。 */
-    private boolean allowKeyPress(Screen screen, KeyEvent event) {
+    @Override
+    public boolean onKeyPressed(Screen screen, KeyEvent event) {
         IFullscreen fs = current();
         if (fs == null || fs.getScreen() != screen || screen.getFocused() instanceof EditBox) {
-            return true;
+            return false;
         }
-        return !ui.onKey(event);
+        return ui.onKey(event);
     }
+
+    @Override
+    public boolean onKeyPressed(Screen screen, int keyCode, int scanCode, int modifiers) {
+        return onKeyPressed(screen, new KeyEvent(keyCode, scanCode, modifiers));
+    }
+    //?} else {
+    /*@Override
+    public boolean onKeyPressed(Screen screen, int keyCode, int scanCode, int modifiers) {
+        IFullscreen fs = current();
+        if (fs == null || fs.getScreen() != screen || screen.getFocused() instanceof EditBox) {
+            return false;
+        }
+        return ui.onKey(keyCode, scanCode, modifiers);
+    }
+    *///?}
 
     private static void cancel(FullscreenMapEvent.ClickEvent event) {
         if (event.isCancellable()) {
@@ -429,7 +546,8 @@ public final class ScribbleBridge {
 
     // ---- ミニマップの同期 ----
 
-    private void tick() {
+    @Override
+    public void tick() {
         MemoRepository repo = repositorySupplier.get();
         if (repo != lastRepository) {
             lastRepository = repo;
@@ -456,7 +574,7 @@ public final class ScribbleBridge {
         ResourceKey<Level> dim = currentDimension();
         List<Memo> memos = repo == null || !state.isVisible() ? List.of() : repo.memos();
         minimapDimension = dim;
-        if (minimap.sync(memos, dim, state.isRegionTextVisible())) {
+        if (minimap.sync(memos, dim, state.isTextVisible())) {
             controller.onDimensionChanged();
         }
     }

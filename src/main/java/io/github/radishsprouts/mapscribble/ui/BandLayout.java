@@ -12,7 +12,7 @@ public final class BandLayout {
     public static final int DEFAULT_Y = 44;
     public static final int X = DEFAULT_X;
     public static final int Y = DEFAULT_Y;
-    public static final int WIDTH = 208;
+    public static final int WIDTH = 235;
     public static final int HEIGHT = 41;
 
     public static final int HINT_X = X + 3;
@@ -21,7 +21,7 @@ public final class BandLayout {
 
     /** ボタンの種類。 */
     public enum Kind {
-        TOOL, UNDO, REDO, REGION_TEXT_VISIBILITY, VISIBILITY, WIDTH, TEXT_SIZE, COLOR
+        TOOL, UNDO, REDO, TEXT_VISIBILITY, VISIBILITY, EXIT, WIDTH, TEXT_SIZE, COLOR
     }
 
     /**
@@ -50,8 +50,10 @@ public final class BandLayout {
         }
         cells.add(new Cell(Kind.UNDO, 0, bx + 118, by + 3, 20, 20));
         cells.add(new Cell(Kind.REDO, 0, bx + 140, by + 3, 20, 20));
-        cells.add(new Cell(Kind.REGION_TEXT_VISIBILITY, 0, bx + 165, by + 3, 20, 20));
+        cells.add(new Cell(Kind.TEXT_VISIBILITY, 0, bx + 165, by + 3, 20, 20));
         cells.add(new Cell(Kind.VISIBILITY, 0, bx + 186, by + 3, 20, 20));
+        // 終了ボタン: 上下 2 段にまたがる縦長（手書きモードの出口）
+        cells.add(new Cell(Kind.EXIT, 0, bx + 212, by + 3, 20, 35));
 
         // 下段 (y+25, 高さ 13)
         for (int i = 0; i < 3; i++) {
@@ -71,7 +73,8 @@ public final class BandLayout {
                 new Separator(bx + 114, by + 5, 1, 16),
                 new Separator(bx + 163, by + 5, 1, 16),
                 new Separator(bx + 57, by + 25, 1, 13),
-                new Separator(bx + 115, by + 25, 1, 13));
+                new Separator(bx + 115, by + 25, 1, 13),
+                new Separator(bx + 210, by + 5, 1, 31));
     }
 
     public static List<Cell> cells() {

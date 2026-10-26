@@ -1,40 +1,54 @@
 package io.github.radishsprouts.mapscribble.ui;
 
+import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import java.util.List;
-import java.util.function.IntConsumer;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
+import java.util.function.Consumer;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.network.chat.Component;
+
+//? if >=26.1 {
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+//?} else {
+/*import net.minecraft.client.gui.GuiGraphics;
+*///?}
+
+//? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.network.chat.Component;
-import net.minecraft.client.gui.components.AbstractWidget;
+//?}
 
 /**
- * 文字入力の画面の色の見本（画面設計書 3.2）。16×16 が 10 個、間隔 2。
- * Tab の止まり場所は 10 個で 1 つで、フォーカス中は ←→ で色を選ぶ。
+ * 編集ダイアログの色を選ぶ行。
  */
-final class ColorSwatchRow extends AbstractWidget {
-    private static final int FOCUS_RING = 0xFFFFFF55;
-    private static final int HOVER_RING = 0xFFA0A0A0;
+public final class ColorSwatchRow extends AbstractWidget {
+    private static final int FOCUS_RING = 0xFFFFFFFF;
+    private static final int SELECTED_BORDER = 0xFF000000;
+    private static final int HOVER_BORDER = 0xFFA0A0A0;
+    private static final int NORMAL_BORDER = 0xFF303030;
 
-    private final IntConsumer onChange;
     private int selectedRgb;
+    private final Consumer<Integer> onChange;
 
-    ColorSwatchRow(int x, int y, int selectedRgb, IntConsumer onChange) {
-        super(x, y, EditLayout.SWATCH_STEP * NoteColor.values().length - 2, EditLayout.SWATCH_SIZE,
-                Component.translatable("mapscribble.screen.label.color", ""));
-        this.selectedRgb = selectedRgb & 0xFFFFFF;
+    public ColorSwatchRow(int x, int y, int initialRgb, Consumer<Integer> onChange) {
+        super(x, y, EditLayout.SWATCH_STEP * NoteColor.values().length, EditLayout.SWATCH_SIZE,
+                Component.translatable("mapscribble.screen.swatch.narration"));
+        this.selectedRgb = initialRgb;
         this.onChange = onChange;
     }
 
-    int selectedRgb() {
+    public int selectedRgb() {
         return selectedRgb;
     }
 
     private int indexAt(double mouseX) {
-        int i = (int) ((mouseX - getX()) / EditLayout.SWATCH_STEP);
-        int within = (int) (mouseX - getX()) - i * EditLayout.SWATCH_STEP;
-        if (i < 0 || i >= NoteColor.values().length || within >= EditLayout.SWATCH_SIZE) {
+        int rel = (int) Math.round(mouseX) - getX();
+        if (rel < 0) {
+            return -1;
+        }
+        int i = rel / EditLayout.SWATCH_STEP;
+        int rem = rel % EditLayout.SWATCH_STEP;
+        if (i < 0 || i >= NoteColor.values().length || rem >= EditLayout.SWATCH_SIZE) {
             return -1;
         }
         return i;
@@ -45,8 +59,23 @@ final class ColorSwatchRow extends AbstractWidget {
         onChange.accept(selectedRgb);
     }
 
+    //? if >=26.1 {
     @Override
     protected void extractWidgetRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+        renderSwatches(g, mouseX, mouseY);
+    }
+    //?} else {
+    /*@Override
+    protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        renderSwatches(g, mouseX, mouseY);
+    }
+    *///?}
+
+    //? if >=26.1 {
+    private void renderSwatches(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+    //?} else {
+    /*private void renderSwatches(GuiGraphics g, int mouseX, int mouseY) {
+    *///?}
         int hovered = isHovered() ? indexAt(mouseX) : -1;
         List<NoteColor> colors = NoteColor.list();
         for (int i = 0; i < colors.size(); i++) {
@@ -55,16 +84,17 @@ final class ColorSwatchRow extends AbstractWidget {
             int size = EditLayout.SWATCH_SIZE;
             boolean selected = colors.get(i).rgb() == selectedRgb;
             if (isFocused() && selected) {
-                // フォーカス中は外側 1px を黄色にする
-                g.outline(x - 1, y - 1, size + 2, size + 2, FOCUS_RING);
-            } else if (selected) {
-                g.outline(x - 1, y - 1, size + 2, size + 2, ToolBand.WHITE);
-            } else if (i == hovered) {
-                g.outline(x - 1, y - 1, size + 2, size + 2, HOVER_RING);
+                GuiCompat.outline(g, x - 1, y - 1, size + 2, size + 2, FOCUS_RING);
             }
-            g.fill(x, y, x + size, y + size, 0xFF000000 | colors.get(i).rgb());
-            g.outline(x, y, size, size, selected ? 0xFF000000 : 0x99000000);
+            int border = selected ? SELECTED_BORDER : (i == hovered ? HOVER_BORDER : NORMAL_BORDER);
+            GuiCompat.fill(g, x, y, x + size, y + size, 0xFF000000 | colors.get(i).rgb());
+            GuiCompat.outline(g, x, y, size, size, border);
         }
+    }
+
+    @Override
+    protected void updateWidgetNarration(NarrationElementOutput out) {
+        defaultButtonNarrationText(out);
     }
 
     @Override
@@ -72,6 +102,7 @@ final class ColorSwatchRow extends AbstractWidget {
         return active && visible && indexAt(mouseX) >= 0 && mouseY >= getY() && mouseY < getY() + EditLayout.SWATCH_SIZE;
     }
 
+    //? if >=1.21.11 {
     @Override
     public void onClick(MouseButtonEvent event, boolean doubleClick) {
         int i = indexAt(event.x());
@@ -79,7 +110,17 @@ final class ColorSwatchRow extends AbstractWidget {
             select(i);
         }
     }
+    //?} else {
+    /*@Override
+    public void onClick(double mouseX, double mouseY) {
+        int i = indexAt(mouseX);
+        if (i >= 0) {
+            select(i);
+        }
+    }
+    *///?}
 
+    //? if >=1.21.11 {
     @Override
     public boolean keyPressed(KeyEvent event) {
         if (!isFocused()) {
@@ -102,9 +143,28 @@ final class ColorSwatchRow extends AbstractWidget {
         }
         return false;
     }
-
-    @Override
-    protected void updateWidgetNarration(NarrationElementOutput output) {
-        defaultButtonNarrationText(output);
+    //?} else {
+    /*@Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!isFocused()) {
+            return false;
+        }
+        NoteColor[] colors = NoteColor.values();
+        int current = 0;
+        for (int i = 0; i < colors.length; i++) {
+            if (colors[i].rgb() == selectedRgb) {
+                current = i;
+            }
+        }
+        if (keyCode == 263) { // GLFW_KEY_LEFT
+            select((current + colors.length - 1) % colors.length);
+            return true;
+        }
+        if (keyCode == 262) { // GLFW_KEY_RIGHT
+            select((current + 1) % colors.length);
+            return true;
+        }
+        return false;
     }
+    *///?}
 }

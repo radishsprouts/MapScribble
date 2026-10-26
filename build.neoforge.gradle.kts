@@ -1,0 +1,95 @@
+// NeoForge (1.21.1〜26.3) クライアント MOD
+import java.util.Properties
+
+plugins {
+    `java`
+    id("net.neoforged.moddev") version "2.0.148"
+}
+
+val localProps = file("gradle.properties")
+if (localProps.exists()) {
+    val props = Properties()
+    localProps.reader(Charsets.UTF_8).use { props.load(it) }
+    for (name in props.stringPropertyNames()) {
+        project.extensions.extraProperties.set(name.trim('\uFEFF'), props.getProperty(name))
+    }
+}
+
+sc.constants["fabric"] = false
+sc.constants["neoforge"] = true
+sc.constants["forge"] = false
+
+val minecraftVersion: String = sc.current.version
+val javaVer = if (sc.eval(minecraftVersion, ">=26.1")) 25 else 21
+
+base.archivesName.set("mapscribble")
+version = "${rootProject.version}+$minecraftVersion-neoforge"
+
+repositories {
+    mavenCentral()
+    maven("https://maven.blamejared.com") { name = "BlameJared" }
+    maven("https://api.modrinth.com/maven") { name = "Modrinth" }
+}
+
+neoForge {
+    version = project.property("neoforge_version").toString()
+    runs {
+        create("client") {
+            client()
+        }
+    }
+    mods {
+        create("mapscribble") {
+            sourceSet(sourceSets.main.get())
+        }
+    }
+}
+
+dependencies {
+    // JourneyMap API: compile time only. Never bundled in the jar
+    compileOnly("info.journeymap:journeymap-api-neoforge:${project.property("jm_api_version")}") { isTransitive = false }
+    // JourneyMap 本体: 開発用クライアントでだけ読み込む（mod の jar なので runtimeOnly で run に載る。MOD の jar には入らない）。
+    // jm_version は versions/<構成>/gradle.properties に置く。JourneyMap の配布が無い構成は置かず、この行を飛ばす
+    project.findProperty("jm_version")?.let { runtimeOnly("maven.modrinth:journeymap:$it") }
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("com.google.code.gson:gson:2.10.1")
+    testImplementation("org.slf4j:slf4j-api:2.0.12")
+    testRuntimeOnly("org.slf4j:slf4j-simple:2.0.12")
+}
+
+java {
+    withSourcesJar()
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(javaVer))
+    }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(javaVer)
+}
+
+tasks.withType<JavaExec>().matching { it.name == "runClient" }.configureEach {
+    javaLauncher.set(javaToolchains.launcherFor {
+        languageVersion.set(JavaLanguageVersion.of(javaVer))
+    })
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
+tasks.processResources {
+    filteringCharset = "UTF-8"
+    exclude("META-INF/mods.toml", "fabric.mod.json")
+    val props = mapOf(
+        "version" to rootProject.version.toString(),
+        "minecraft" to minecraftVersion,
+        "loader" to project.property("neoforge_version").toString()
+    )
+    props.forEach { (key, value) -> inputs.property(key, value) }
+    filesMatching("META-INF/neoforge.mods.toml") {
+        expand(props)
+    }
+}

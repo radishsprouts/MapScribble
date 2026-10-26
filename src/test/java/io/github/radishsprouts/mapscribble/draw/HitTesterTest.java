@@ -75,6 +75,29 @@ class HitTesterTest {
     }
 
     @Test
+    void 文字を隠している間の文字メモは印の中心から12GUIピクセル四方に当たる() {
+        Memo text = memo(MemoKind.TEXT, "hello", new MapPoint(50, 50));
+        List<Memo> memos = List.of(text);
+        // GUI 1px = 0.5 ブロック（worldPerPx 0.25 × guiScale 2）なので、12 GUI ピクセル = 6 ブロック
+        assertSame(text, HitTester.find(memos, 50, 50, 0.25, 2.0, MEASURE, false));
+        assertSame(text, HitTester.find(memos, 50 + 5.5, 50 - 5.5, 0.25, 2.0, MEASURE, false));
+        assertNull(HitTester.find(memos, 50 + 6.5, 50, 0.25, 2.0, MEASURE, false));
+        // 文字が見えていたときの矩形（左右 11 ブロック）の外側部分には反応しない
+        assertNull(HitTester.find(memos, 50 + 11, 50, 0.25, 2.0, MEASURE, false));
+        // 文字が見えている間は従来どおり
+        assertSame(text, HitTester.find(memos, 50 + 11, 50, 0.25, 2.0, MEASURE, true));
+    }
+
+    @Test
+    void 文字を隠しても囲みと線の当たり判定は変わらない() {
+        Memo region = square();
+        Memo line = memo(MemoKind.LINE, "x", new MapPoint(100, 0), new MapPoint(200, 0));
+        List<Memo> memos = List.of(region, line);
+        assertSame(region, HitTester.find(memos, 10, 10, 1.0, 2.0, MEASURE, false));
+        assertSame(line, HitTester.find(memos, 150, 3, 1.0, 2.0, MEASURE, false));
+    }
+
+    @Test
     void 複数行の文字は一番長い行の幅と行数で範囲が決まる() {
         Memo text = memo(MemoKind.TEXT, "a\nabcdef\nab", new MapPoint(0, 0));
         List<Memo> memos = List.of(text);

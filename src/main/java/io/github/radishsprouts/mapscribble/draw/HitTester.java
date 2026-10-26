@@ -1,6 +1,7 @@
 package io.github.radishsprouts.mapscribble.draw;
 
 import io.github.radishsprouts.mapscribble.geom.Distance;
+import io.github.radishsprouts.mapscribble.geom.Rect;
 import io.github.radishsprouts.mapscribble.geom.Shapes;
 import io.github.radishsprouts.mapscribble.geom.TextBox;
 import io.github.radishsprouts.mapscribble.model.MapPoint;
@@ -11,6 +12,9 @@ import java.util.List;
 public final class HitTester {
     /** 線・輪郭の近くとみなす距離（画面上の物理ピクセル）。 */
     public static final double TOLERANCE_PIXELS = 6.0;
+
+    /** 文字を隠している間の文字メモの当たり判定: 印の中心から各方向へ（GUI ピクセル）。 */
+    public static final double HIDDEN_TEXT_HIT_HALF_GUI = 12.0;
 
     /** 文字の幅の測り方（Minecraft のフォント）。純粋な計算にするため、描画側から渡す。 */
     public interface TextMeasure {
@@ -34,10 +38,19 @@ public final class HitTester {
      */
     public static Memo find(List<Memo> memos, double wx, double wz, double worldPerPx, double guiScale,
                             TextMeasure measure) {
+        return find(memos, wx, wz, worldPerPx, guiScale, measure, true);
+    }
+
+    /**
+     * @param textVisible 文字を出しているか。隠している間、文字メモは文字の矩形ではなく、印（菱形）の位置を中心にした
+     *                    {@link #HIDDEN_TEXT_HIT_HALF_GUI} GUI ピクセル四方で当たりを取る（見えない矩形に当たらないように）
+     */
+    public static Memo find(List<Memo> memos, double wx, double wz, double worldPerPx, double guiScale,
+                            TextMeasure measure, boolean textVisible) {
         double tolerance = TOLERANCE_PIXELS * worldPerPx;
         for (int i = memos.size() - 1; i >= 0; i--) {
             Memo memo = memos.get(i);
-            if (hits(memo, wx, wz, tolerance, worldPerPx * guiScale, measure)) {
+            if (hits(memo, wx, wz, tolerance, worldPerPx * guiScale, measure, textVisible)) {
                 return memo;
             }
         }
@@ -45,7 +58,7 @@ public final class HitTester {
     }
 
     private static boolean hits(Memo memo, double wx, double wz, double tolerance, double worldPerGuiPx,
-                                TextMeasure measure) {
+                                TextMeasure measure, boolean textVisible) {
         List<MapPoint> points = memo.points();
         switch (memo.kind()) {
             case REGION:
@@ -58,12 +71,17 @@ public final class HitTester {
                 if (points.isEmpty()) {
                     return false;
                 }
+                MapPoint anchor = points.get(0);
+                if (!textVisible) {
+                    double half = HIDDEN_TEXT_HIT_HALF_GUI * worldPerGuiPx;
+                    return new Rect(anchor.x() - half, anchor.z() - half, anchor.x() + half, anchor.z() + half)
+                            .contains(wx, wz);
+                }
                 String[] lines = MemoStyle.lines(memo.text());
                 int maxWidth = 0;
                 for (String line : lines) {
                     maxWidth = Math.max(maxWidth, measure.width(line));
                 }
-                MapPoint anchor = points.get(0);
                 return TextBox.bounds(anchor.x(), anchor.z(), maxWidth, lines.length, measure.lineHeight(),
                         memo.textScale(), worldPerGuiPx).contains(wx, wz);
         }

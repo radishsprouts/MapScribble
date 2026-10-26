@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="MIT"
+
+[[mods]]
+modId="mapscribble"
+version="${version}"
+displayName="MapScribble"
+description="Handwritten notes and scribbles on full-screen and mini maps (JourneyMap, Xaero's World Map, FTB Chunks). Client-side only."
+authors="radishsprouts"
+
+[[dependencies.mapscribble]]
+modId="neoforge"
+type="required"
+versionRange="[${loader},)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.mapscribble]]
+modId="minecraft"
+type="required"
+versionRange="[${minecraft},)"
+ordering="NONE"
+side="CLIENT"

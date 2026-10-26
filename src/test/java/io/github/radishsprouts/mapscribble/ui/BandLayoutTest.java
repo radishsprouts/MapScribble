@@ -18,8 +18,9 @@ class BandLayoutTest {
         assertEquals(5, count(BandLayout.Kind.TOOL));
         assertEquals(1, count(BandLayout.Kind.UNDO));
         assertEquals(1, count(BandLayout.Kind.REDO));
-        assertEquals(1, count(BandLayout.Kind.REGION_TEXT_VISIBILITY));
+        assertEquals(1, count(BandLayout.Kind.TEXT_VISIBILITY));
         assertEquals(1, count(BandLayout.Kind.VISIBILITY));
+        assertEquals(1, count(BandLayout.Kind.EXIT));
         assertEquals(3, count(BandLayout.Kind.WIDTH));
         assertEquals(3, count(BandLayout.Kind.TEXT_SIZE));
         assertEquals(10, count(BandLayout.Kind.COLOR));
@@ -81,6 +82,37 @@ class BandLayoutTest {
         assertNotNull(hit);
         assertEquals(first, hit);
         assertNull(BandLayout.cellAt(0, 0));
+    }
+
+    @Test
+    void 帯の大きさは235x41() {
+        assertEquals(235, BandLayout.WIDTH);
+        assertEquals(41, BandLayout.HEIGHT);
+    }
+
+    @Test
+    void 終了ボタンは帯の右端に縦長で_区切り線がその左にある() {
+        var exit = BandLayout.buildCells(0, 0).stream().filter(c -> c.kind() == BandLayout.Kind.EXIT).findFirst().orElseThrow();
+        assertEquals(212, exit.x());
+        assertEquals(3, exit.y());
+        assertEquals(20, exit.w());
+        assertEquals(35, exit.h());
+        assertTrue(BandLayout.buildSeparators(0, 0).contains(new BandLayout.Separator(210, 5, 1, 31)));
+    }
+
+    @Test
+    void 既存のボタンと区切り線の座標は変わらない() {
+        var cells = BandLayout.buildCells(0, 0);
+        assertTrue(cells.contains(new BandLayout.Cell(BandLayout.Kind.UNDO, 0, 118, 3, 20, 20)));
+        assertTrue(cells.contains(new BandLayout.Cell(BandLayout.Kind.REDO, 0, 140, 3, 20, 20)));
+        assertTrue(cells.contains(new BandLayout.Cell(BandLayout.Kind.TEXT_VISIBILITY, 0, 165, 3, 20, 20)));
+        assertTrue(cells.contains(new BandLayout.Cell(BandLayout.Kind.VISIBILITY, 0, 186, 3, 20, 20)));
+        assertTrue(cells.contains(new BandLayout.Cell(BandLayout.Kind.COLOR, 9, 199, 25, 8, 13)));
+        var separators = BandLayout.buildSeparators(0, 0);
+        assertTrue(separators.contains(new BandLayout.Separator(114, 5, 1, 16)));
+        assertTrue(separators.contains(new BandLayout.Separator(163, 5, 1, 16)));
+        assertTrue(separators.contains(new BandLayout.Separator(57, 25, 1, 13)));
+        assertTrue(separators.contains(new BandLayout.Separator(115, 25, 1, 13)));
     }
 
     @Test

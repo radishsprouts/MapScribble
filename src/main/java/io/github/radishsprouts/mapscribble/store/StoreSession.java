@@ -1,25 +1,26 @@
 package io.github.radishsprouts.mapscribble.store;
 
 import io.github.radishsprouts.mapscribble.MapScribble;
+import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.function.Consumer;
-import journeymap.api.v2.client.IClientAPI;
-import journeymap.api.v2.common.event.ClientEventRegistry;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.storage.LevelResource;
 
 /**
- * JourneyMap のサーバー・ディメンションの切り替わりに、メモの手持ちを追従させる（04章）。
- * 全体で1つだけ持つ。呼び出しは主スレッドから。
+ * 地図MOD非依存のメモ保存セッション管理。
+ * 保存先は .minecraft/mapscribble/saves/<ワールド名>/ または servers/<ホスト_ポート>/。
+ * 旧 JourneyMap フォルダからの自動データ移行にも対応する。
  */
 public final class StoreSession {
     private static final MemoStore STORE = new MemoStore();
     private static final SessionController CONTROLLER = new SessionController(STORE);
-    private static IClientAPI api;
-    private static boolean attached;
 
     private StoreSession() {
     }
@@ -28,70 +29,79 @@ public final class StoreSession {
         return STORE;
     }
 
-    /** ファイルを読めなかった時などの通知先。画面の担当がつなぐ。 */
     public static void setNotifier(Consumer<String> notifier) {
         STORE.setProblemHandler(notifier);
     }
 
-    /**
-     * 保存に失敗した時に true、その後の保存が成功した時に false を渡す。呼ばれるのは Minecraft の主スレッド。
-     * 書き込みは主スレッドの外で行うので、ここで主スレッドへ戻している。
-     */
     public static void setSaveNotifier(Consumer<Boolean> notifier) {
         STORE.setSaveStateHandler(failed -> Minecraft.getInstance().execute(() -> notifier.accept(failed)));
     }
 
-    /** JourneyMap プラグインの initialize から1回だけ呼ぶ。 */
-    public static void attach(IClientAPI clientApi) {
-        if (attached) {
+    /** ディメンション切り替え時や接続時に呼ぶ。 */
+    public static void updateDimension(ResourceKey<Level> dimension) {
+        if (dimension == null) {
+            CONTROLLER.stopped();
             return;
         }
-        attached = true;
-        api = clientApi;
-
-        ClientEventRegistry.MAPPING_EVENT.subscribe(MapScribble.MOD_ID, event -> {
-            switch (event.getStage()) {
-                case MAPPING_STARTED -> CONTROLLER.started(keyOf(event.dimension, event.getWorldId()));
-                case MAPPING_STOPPED -> CONTROLLER.stopped();
-                default -> { }
-            }
-        });
-
-        ClientEventRegistry.DISPLAY_UPDATE_EVENT.subscribe(MapScribble.MOD_ID, event -> {
-            // 全画面マップの時だけ比べ直す（Context の型は版で場所が違うので名前で見る）
-            if ("Fullscreen".equals(event.uiState.ui.name())) {
-                CONTROLLER.recheck(currentKey());
-            }
-        });
-
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> CONTROLLER.recheck(currentKey()));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> CONTROLLER.flush());
-        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
-            CONTROLLER.flush();
-            STORE.shutdown();
-        });
+        SessionKey key = createKey(dimension);
+        if (key != null) {
+            CONTROLLER.started(key);
+        } else {
+            CONTROLLER.stopped();
+        }
     }
 
-    private static SessionKey keyOf(ResourceKey<Level> dimension, String worldId) {
-        if (dimension == null || api == null) {
-            return null;
-        }
-        File dir = api.getDataPath(MapScribble.MOD_ID);
-        if (dir == null) {
-            return null;
-        }
-        return new SessionKey(dir.toPath(), worldId, dimension.identifier().toString());
+    public static void flush() {
+        CONTROLLER.flush();
     }
 
-    /** 今の JourneyMap の値と今いるディメンションから鍵を作る。取れなければ null。 */
-    private static SessionKey currentKey() {
-        if (api == null) {
-            return null;
-        }
+    public static void shutdown() {
+        CONTROLLER.flush();
+        STORE.shutdown();
+    }
+
+    private static SessionKey createKey(ResourceKey<Level> dimension) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) {
-            return null;
+        Path baseDir = ScreenCompat.gameDirectory().resolve("mapscribble");
+        String worldFolder;
+        try {
+            if (mc.hasSingleplayerServer() && mc.getSingleplayerServer() != null) {
+                worldFolder = "saves/" + mc.getSingleplayerServer().getWorldPath(LevelResource.ROOT).getParent().getFileName().toString();
+            } else if (mc.getCurrentServer() != null) {
+                String ip = mc.getCurrentServer().ip.replace(':', '_').replaceAll("[^a-zA-Z0-9._-]", "_");
+                worldFolder = "servers/" + ip;
+            } else {
+                worldFolder = "saves/unknown";
+            }
+        } catch (Exception e) {
+            worldFolder = "saves/unknown";
         }
-        return keyOf(mc.level.dimension(), api.getWorldId());
+
+        Path saveDir = baseDir.resolve(worldFolder);
+        String dimId = ScreenCompat.dimensionId(dimension);
+
+        // 旧 JourneyMap データからの自動移行（もし存在すれば）
+        migrateFromJourneyMapIfNeeded(saveDir, dimId);
+
+        return new SessionKey(saveDir, worldFolder, dimId);
+    }
+
+    private static void migrateFromJourneyMapIfNeeded(Path targetDir, String dimId) {
+        try {
+            Path jmAddonDir = ScreenCompat.gameDirectory().resolve("journeymap").resolve("addon-data").resolve(MapScribble.MOD_ID);
+            if (!Files.exists(jmAddonDir)) {
+                return;
+            }
+            String fileName = MemoFile.fileName(dimId);
+            Path oldFile = jmAddonDir.resolve(fileName);
+            Path newFile = targetDir.resolve(fileName);
+            if (Files.exists(oldFile) && !Files.exists(newFile)) {
+                Files.createDirectories(targetDir);
+                Files.copy(oldFile, newFile, StandardCopyOption.COPY_ATTRIBUTES);
+                MapScribble.LOGGER.info("Migrated legacy MapScribble note from {} to {}", oldFile, newFile);
+            }
+        } catch (Exception e) {
+            MapScribble.LOGGER.warn("Failed to check or migrate legacy notes: {}", e.getMessage());
+        }
     }
 }

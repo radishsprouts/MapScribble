@@ -55,7 +55,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        minecraft: ["26.1.2", "26.2", "26.3"]
+        # Gradle のプロジェクト名（`:<名前>:runClientGameTest`）。client gametest は Fabric API を使うので Fabric 版の 26.1+ だけ
+        minecraft: ["26.1.2-fabric", "26.2-fabric", "26.3-fabric"]
     steps:
       - uses: actions/checkout@v5
 
@@ -80,6 +81,6 @@ jobs:
         with:
           name: gametest-${{ matrix.minecraft }}
           path: |
-            run/screenshots/
-            run/logs/latest.log
+            versions/${{ matrix.minecraft }}/build/run/clientGameTest/screenshots/
+            versions/${{ matrix.minecraft }}/build/run/clientGameTest/logs/latest.log
           if-no-files-found: ignore

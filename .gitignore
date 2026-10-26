@@ -44,3 +44,12 @@ __pycache__/
 # logs
 logs/
 **/logs/
+
+# stonecutter の生成物（各バージョンのソースの写し）
+versions/
+
+# 解析用の一時物（javap の出力・展開した class）
+temp_*/
+
+# Claude Code の作業フォルダ
+.claude/worktrees/

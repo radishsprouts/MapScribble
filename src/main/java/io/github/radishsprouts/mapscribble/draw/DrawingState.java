@@ -33,7 +33,8 @@ public final class DrawingState {
     /** 線の太さの段階（1〜3）。既定は中。 */
     private int width = 2;
     private boolean visible = true;
-    private boolean regionTextVisible = true;
+    /** 地図上の文字（囲み・線・文字メモのすべて）を出しているか。 */
+    private boolean textVisible = true;
     private int bandX = 28;
     private int bandY = 44;
     /** 新しいメモの既定（文字入力の画面が変えて、最後に使った値を覚える）。 */
@@ -121,19 +122,20 @@ public final class DrawingState {
         }
     }
 
-    public boolean isRegionTextVisible() {
-        return regionTextVisible;
+    /** 地図上の文字（囲み・線・文字メモのすべて）を出しているか（文字の表示切替）。 */
+    public boolean isTextVisible() {
+        return textVisible;
     }
 
-    public void setRegionTextVisible(boolean regionTextVisible) {
-        if (this.regionTextVisible != regionTextVisible) {
-            this.regionTextVisible = regionTextVisible;
+    public void setTextVisible(boolean textVisible) {
+        if (this.textVisible != textVisible) {
+            this.textVisible = textVisible;
             changed();
         }
     }
 
-    public void toggleRegionTextVisible() {
-        setRegionTextVisible(!regionTextVisible);
+    public void toggleTextVisible() {
+        setTextVisible(!textVisible);
     }
 
     public int bandX() {

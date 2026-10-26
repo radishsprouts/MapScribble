@@ -13,17 +13,20 @@ import io.github.radishsprouts.mapscribble.store.MemoRepository;
 import java.nio.file.Path;
 import java.util.List;
 import net.minecraft.client.Minecraft;
+//? if >=26.1 {
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+//?} else {
+/*import net.minecraft.client.gui.GuiGraphics;
+*///?}
 import net.minecraft.client.gui.screens.Screen;
+//? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
+//?}
 import net.minecraft.network.chat.Component;
 
 /**
  * 画面まわりの窓口。ツールの帯の描画と入力、文字入力の画面を開く処理、キー操作、最後に使った値の保存をまとめる。
- * JourneyMap のクラスは参照しない（つなぎは jm/ScribbleBridge）。Minecraft の主スレッドからだけ使う。
- *
- * <p>{@link DrawingState} の口へつなぐもの: 帯の当たり判定、一筆の確定後（文字入力の画面を開く）、
- * 編集ツールのクリック（編集の画面を開く）、一時のお知らせ。
+ * 地図MODのクラスは直接参照しない。Minecraft の主スレッドからだけ使う。
  */
 public final class ScribbleUi {
     public static final String NOTICE_DISCARDED = "mapscribble.msg.discarded";
@@ -57,16 +60,18 @@ public final class ScribbleUi {
         state.addChangeListener(this::onStateChanged);
     }
 
+    public ToolBand band() {
+        return band;
+    }
+
     private static long nowMs() {
         return System.nanoTime() / 1_000_000L;
     }
 
-    /** メモのファイルを読めなかった（ストアからの通知）。モードを抜けるか、メモが使える状態になるまで説明の行に出す。 */
     public void onLoadFailed() {
         loadFailed = true;
     }
 
-    /** メモの保存に失敗した（true）／失敗の後で保存できた（false）。次に保存が成功するまで説明の行に出す。 */
     public void onSaveStateChanged(boolean failed) {
         saveFailed = failed;
     }
@@ -88,21 +93,30 @@ public final class ScribbleUi {
         }
     }
 
-    // ---- 描画 ----
-
-    /**
-     * 全画面マップの描画イベントの中で呼ぶ。手書きモードでなければ何もしない。
-     *
-     * @param hoverMemo 消しゴム・編集でカーソルの下にあるメモ（無ければ null）
-     */
+    //? if >=26.1 {
     public void render(GuiGraphicsExtractor g, int mouseX, int mouseY, Memo hoverMemo) {
+        renderInternal(g, mouseX, mouseY, hoverMemo);
+    }
+    //?} else {
+    /*public void render(GuiGraphics g, int mouseX, int mouseY, Memo hoverMemo) {
+        renderInternal(g, mouseX, mouseY, hoverMemo);
+    }
+    *///?}
+
+    //? if >=26.1 {
+    private void renderInternal(GuiGraphicsExtractor g, int mouseX, int mouseY, Memo hoverMemo) {
+    //?} else {
+    /*private void renderInternal(GuiGraphics g, int mouseX, int mouseY, Memo hoverMemo) {
+    *///?}
         if (!state.isModeOn()) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
         int screenW = mc.getWindow().getGuiScaledWidth();
         int screenH = mc.getWindow().getGuiScaledHeight();
+
         band.drag(mouseX, mouseY, screenW, screenH);
+        keepBandOnScreen(screenW, screenH);
         long now = nowMs();
         MemoRepository repo = controller.repository();
         if (repo != null) {
@@ -123,11 +137,25 @@ public final class ScribbleUi {
                         state.tool() == Tool.ERASER ? "mapscribble.hover.erase" : "mapscribble.hover.edit",
                         describe(hoverMemo)));
             }
-            g.setComponentTooltipForNextFrame(mc.font, memoTooltip, mouseX, mouseY);
+            GuiCompat.drawTooltip(g, mc.font, memoTooltip, mouseX, mouseY);
         }
     }
 
-    /** ツールチップに出すメモの説明（文字の 1 行目。文字が無ければ「文字なしの囲み／線」）。 */
+    /**
+     * 帯が画面の外へはみ出さないようにする。帯の幅を広げた（終了ボタンの追加）ため、旧バージョンで保存した
+     * 右寄りの位置や、画面を小さくした後の位置だと右端が切れて、出口の終了ボタンが見えなくなる。
+     */
+    private void keepBandOnScreen(int screenW, int screenH) {
+        if (band.isDragging()) {
+            return;
+        }
+        int x = Math.max(0, Math.min(Math.max(0, screenW - BandLayout.WIDTH), state.bandX()));
+        int y = Math.max(0, Math.min(Math.max(0, screenH - BandLayout.HEIGHT), state.bandY()));
+        if (x != state.bandX() || y != state.bandY()) {
+            state.setBandPosition(x, y);
+        }
+    }
+
     static Component describe(Memo memo) {
         String text = memo.text() == null ? "" : memo.text().strip();
         int newline = text.indexOf('\n');
@@ -139,11 +167,18 @@ public final class ScribbleUi {
                 ? "mapscribble.note.untitled.enclose" : "mapscribble.note.untitled.line");
     }
 
-    // ---- 入力 ----
+    public boolean onMouseClick(double guiX, double guiY, int button) {
+        return state.isModeOn() && band.click(guiX, guiY, button == 0);
+    }
 
-    /** 帯へのクリック。帯の上だったら true（地図へ渡さない）。 */
     public boolean onMouseClick(double guiX, double guiY, boolean leftButton) {
         return state.isModeOn() && band.click(guiX, guiY, leftButton);
+    }
+
+    public boolean onMouseRelease(double guiX, double guiY, int button) {
+        band.release();
+        persistIfChanged();
+        return true;
     }
 
     public void onMouseRelease() {
@@ -151,7 +186,7 @@ public final class ScribbleUi {
         persistIfChanged();
     }
 
-    /** 全画面マップでのキー。扱ったら true（地図へ渡さない）。 */
+    //? if >=1.21.11 {
     public boolean onKey(KeyEvent event) {
         if (ScribbleKeys.isToggle(event)) {
             state.toggleMode();
@@ -182,8 +217,39 @@ public final class ScribbleUi {
         }
         return false;
     }
-
-    // ---- 文字入力・編集の画面 ----
+    //?} else {
+    /*public boolean onKey(int keyCode, int scanCode, int modifiers) {
+        if (ScribbleKeys.isToggle(keyCode, scanCode)) {
+            state.toggleMode();
+            return true;
+        }
+        if (!state.isModeOn()) {
+            return false;
+        }
+        Tool tool = ScribbleKeys.toolFor(keyCode, scanCode);
+        if (tool != null) {
+            state.setTool(tool);
+            return true;
+        }
+        if (!controller.isActive() || !GuiCompat.isControlDown(modifiers)) {
+            return false;
+        }
+        // GLFW_KEY_Z = 90, GLFW_KEY_Y = 89
+        if (keyCode == 90) {
+            if (GuiCompat.isShiftDown(modifiers)) {
+                controller.redo();
+            } else {
+                controller.undo();
+            }
+            return true;
+        }
+        if (keyCode == 89) {
+            controller.redo();
+            return true;
+        }
+        return false;
+    }
+    *///?}
 
     private void openNew(Draft draft) {
         Screen parent = ScreenCompat.currentScreen();
@@ -199,7 +265,6 @@ public final class ScribbleUi {
                 Draft edited = new Draft(draft.kind(), draft.points(), r.color(), draft.width(), fill,
                         r.size().scale(), r.onMinimap());
                 controller.add(edited.toMemo(r.text()));
-                // 最後に使った値を、次の新しいメモの既定にする
                 state.setColor(r.color());
                 if (draft.kind() == MemoKind.REGION) {
                     state.setFillOpacity(r.fill().opacity());
@@ -216,7 +281,6 @@ public final class ScribbleUi {
 
             @Override
             public void delete() {
-                // 新規には削除が無い
             }
         }));
     }
@@ -231,7 +295,6 @@ public final class ScribbleUi {
         ScreenCompat.setScreen(new NoteEditScreen(parent, spec, new NoteEditScreen.Callbacks() {
             @Override
             public void confirm(NoteEditScreen.Result r) {
-                // 段階を触っていなければ、元の値を保つ（段階に無い値を勝手に丸めない）
                 float fill = memo.kind() == MemoKind.REGION && r.fill() != FillLevel.nearest(memo.fillOpacity())
                         ? r.fill().opacity() : memo.fillOpacity();
                 float scale = r.size() != TextSize.nearest(memo.textScale()) ? r.size().scale() : memo.textScale();
@@ -244,7 +307,6 @@ public final class ScribbleUi {
 
             @Override
             public void cancel() {
-                // 編集のキャンセルは何も変えない
             }
 
             @Override
