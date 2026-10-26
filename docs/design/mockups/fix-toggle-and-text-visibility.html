@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>MapScribble 修正モックアップ（終了ボタン・文字の表示切替）</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #16181c;
+    color: #e8eaed;
+    font-family: "Segoe UI", "Noto Sans JP", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 8px; border-left: 4px solid #2e7dd7; padding-left: 8px; }
+  p.note { color: #a8adb4; font-size: 13px; margin: 0 0 12px; max-width: 72ch; }
+
+  /* ---- 疑似の全画面マップ（1 GUI ピクセル = 2 CSS ピクセル） ---- */
+  .screen {
+    position: relative;
+    background:
+      radial-gradient(circle at 20% 30%, #4f7a3a 0 18%, transparent 18.5%),
+      radial-gradient(circle at 70% 65%, #2b4f7a 0 22%, transparent 22.5%),
+      repeating-linear-gradient(90deg, #3d5a33 0 32px, #416036 32px 64px),
+      #3d5a33;
+    border: 1px solid #000;
+    overflow: hidden;
+  }
+  .screen.s320 { width: 640px; height: 480px; }   /* GUI 320x240 */
+  .screen.snow {
+    background: repeating-linear-gradient(90deg, #f2f5f8 0 32px, #e6ebf0 32px 64px);
+  }
+
+  /* JourneyMap 側の疑似パーツ（位置関係の確認用。実物ではない） */
+  .jm { position: absolute; background: #1b1b1bcc; border: 1px solid #555; color: #ddd;
+        font-size: 10px; display: flex; align-items: center; justify-content: center; }
+  .jm.logo { left: 0; top: 0; width: 44px; height: 44px; }
+  .jm.topbar { left: 50%; top: 0; transform: translateX(-50%); width: 320px; height: 44px; }
+  .jm.coord { left: 50%; top: 48px; transform: translateX(-50%); width: 420px; height: 20px; }
+  .jm.leftcol { left: 0; top: 156px; width: 48px; height: 168px; }
+  .jm.rightcol { right: 0; top: 156px; width: 48px; height: 168px; }
+  .jm.bottombar { left: 50%; bottom: 0; transform: translateX(-50%); width: 420px; height: 68px; }
+  .jm.keys { right: 0; bottom: 72px; width: 456px; height: 180px; }
+
+  /* ---- 右上の切替ボタン（20x20 GUI = 40x40 CSS） ---- */
+  .toggle {
+    position: absolute; width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; line-height: 1;
+  }
+  .toggle .glyph { transform: rotate(-45deg); }
+  .toggle.off { background: #181818cc; border: 2px solid #a8adb4; color: #e6e6e6; }
+  .toggle.off.hover { background: #303030ee; border-color: #ffffff; color: #fff; }
+  .toggle.on  { background: #2e7dd7; border: 2px solid #ffffff; color: #ffffff; }
+  .toggle.on.hover { background: #4a93e4; border-color: #ffffff; }
+
+  /* ---- ツールの帯（235x41 GUI = 470x82 CSS） ---- */
+  .band {
+    position: absolute;
+    width: 470px; height: 82px;
+    background: rgba(16,20,24,0.8);
+    outline: 2px solid rgba(255,255,255,0.2);
+    outline-offset: -2px;
+  }
+  .cell {
+    position: absolute;
+    background: rgba(255,255,255,0.15);
+    outline: 2px solid rgba(255,255,255,0.45);
+    outline-offset: -2px;
+    display: flex; align-items: center; justify-content: center;
+    color: #e6e6e6; font-size: 20px; line-height: 1;
+  }
+  .cell.hover { background: rgba(255,255,255,0.30); outline-color: rgba(255,255,255,0.70); color: #fff; }
+  .cell.sel   { background: #2e7dd7; outline-color: #ffffff; color: #ffffff; }
+  .cell.disabled { background: rgba(255,255,255,0.06); outline-color: rgba(255,255,255,0.15); color: rgba(230,230,230,0.35); }
+  .sep { position: absolute; background: rgba(255,255,255,0.25); }
+  .swatch { position: absolute; outline: 2px solid rgba(0,0,0,0.6); outline-offset: -2px; }
+  .swatch.sel { box-shadow: 0 0 0 2px #fff; }
+  .wbar { position: absolute; background: #ff6e61; }
+  .tsize { font-size: 16px; }
+
+  /* 文字の表示切替のアイコン（破線の枠＋小さな A。ツールの「A」と区別する） */
+  .ic-textvis {
+    position: relative; width: 28px; height: 28px;
+    border: 2px dashed currentColor;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; line-height: 1;
+  }
+  .ic-textvis.hidden-mark::after {
+    content: ""; position: absolute; left: -3px; top: 50%; width: 38px; height: 2px;
+    background: currentColor; transform: rotate(45deg);
+  }
+
+  /* 帯の説明の行（帯の外・GUI y+44） */
+  .hint { position: absolute; color: #fff; font-size: 16px;
+          text-shadow: 2px 2px 0 #3f3f3f; white-space: nowrap; }
+
+  /* ---- ツールチップ ---- */
+  .tip {
+    position: absolute; background: #100010f0; border: 2px solid #2d0a63;
+    padding: 6px 8px; font-size: 16px; color: #fff; white-space: nowrap; z-index: 20;
+    text-shadow: 2px 2px 0 #3f3f3f;
+  }
+  .tip .sub { color: #a0a0a0; display: block; }
+
+  /* ---- 地図上のメモ（文字あり/なしの比較） ---- */
+  .mapdemo { display: flex; gap: 24px; flex-wrap: wrap; }
+  .mapdemo .screen { width: 480px; height: 300px; }
+  .memo-outline {
+    position: absolute; border: 4px solid #ff6e61; background: rgba(255,110,97,0.30);
+    border-radius: 40% 55% 45% 50%;
+  }
+  .memo-line { position: absolute; height: 0; border-top: 4px solid #32d2ff; }
+  .memo-label {
+    position: absolute; background: rgba(0,0,0,0.8); color: #ff6e61;
+    font-size: 16px; padding: 2px 4px; white-space: nowrap; text-shadow: 2px 2px 0 #3f3f3f;
+    transform: translate(-50%, -50%);
+  }
+  .memo-label.aqua { color: #32d2ff; }
+  .memo-label.yellow { color: #ffe600; }
+  /* 文字メモの印: メモの色の菱形（対角 8 画面ピクセル = GUI 倍率2・2倍表示で 16px 相当） */
+  .memo-mark {
+    position: absolute; width: 16px; height: 16px; transform: translate(-50%, -50%) rotate(45deg);
+    background: #ffe600; outline: 2px solid rgba(0,0,0,0.8); outline-offset: -2px;
+  }
+  .memo-mark.white { background: #ffffff; }
+  .memo-mark.black { background: #1a1a1a; outline-color: rgba(255,255,255,0.8); }
+  .hitring {
+    position: absolute; width: 48px; height: 48px; border: 2px dotted rgba(255,255,255,0.55);
+    border-radius: 50%; transform: translate(-50%, -50%);
+  }
+  .caption { color: #a8adb4; font-size: 13px; margin: 6px 0 0; }
+  .legend { color: #7f868e; font-size: 12px; }
+  table { border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th, td { border: 1px solid #343a41; padding: 4px 8px; text-align: left; }
+  th { background: #1f242a; }
+  .row { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; margin-top: 12px; }
+</style>
+</head>
+<body>
+<h1>MapScribble 修正モックアップ（終了ボタン・文字の表示切替）</h1>
+<p class="note">
+  1 GUI ピクセルを 2 CSS ピクセルで表示。JourneyMap の各要素（ロゴ・上部ツールバー・左右の列・下部・キー一覧）は、
+  位置関係の確認のための枠であって実物ではない。設計書:
+  <code>docs/design/fix-toggle-and-text-visibility.md</code>
+</p>
+
+<h2>1. GUI 320×240（最小。窓 640×480・GUI 倍率2）／手書きモード オン</h2>
+<p class="note">
+  帯は 235×41 に広がり、右端に終了ボタン（×）が付く。帯の右端は GUI x 263 で、右列（x 296 以上）に届かない。
+  右上の切替ボタンはオンの間も出続け、青い面になる。ツールチップはカーソルの右下に出る。
+</p>
+<div class="screen s320">
+  <div class="jm logo">logo</div>
+  <div class="jm topbar">JourneyMap 上部ツールバー</div>
+  <div class="jm coord">座標・バイオームの表示行</div>
+  <div class="jm leftcol">左列</div>
+  <div class="jm rightcol">右列</div>
+  <div class="jm bottombar">下部ツールバー</div>
+  <div class="jm keys">キー一覧（Keys オン）</div>
+
+  <!-- 右上の切替ボタン（オン） -->
+  <div class="toggle on" style="left:592px; top:12px;"><span class="glyph">✎</span></div>
+
+  <!-- ツールの帯: 既定位置 GUI (28,44) -->
+  <div class="band" style="left:56px; top:88px;">
+    <!-- 上段 y+3 h20 -->
+    <div class="cell sel" style="left:6px;  top:6px; width:40px; height:40px;">◯</div>
+    <div class="cell"     style="left:50px; top:6px; width:40px; height:40px;">／</div>
+    <div class="cell"     style="left:94px; top:6px; width:40px; height:40px;">A</div>
+    <div class="cell"     style="left:138px;top:6px; width:40px; height:40px;">▱</div>
+    <div class="cell"     style="left:182px;top:6px; width:40px; height:40px;">➤</div>
+    <div class="sep"      style="left:228px;top:10px; width:2px; height:32px;"></div>
+    <div class="cell"          style="left:236px;top:6px; width:40px; height:40px;">↺</div>
+    <div class="cell disabled" style="left:280px;top:6px; width:40px; height:40px;">↻</div>
+    <div class="sep"      style="left:326px;top:10px; width:2px; height:32px;"></div>
+    <div class="cell"     style="left:330px;top:6px; width:40px; height:40px;"><span class="ic-textvis">A</span></div>
+    <div class="cell"     style="left:372px;top:6px; width:40px; height:40px;">👁</div>
+    <!-- 新しい区切りと終了ボタン -->
+    <div class="sep"      style="left:420px;top:10px; width:2px; height:62px;"></div>
+    <div class="cell hover" style="left:424px;top:6px; width:40px; height:70px;">✕</div>
+
+    <!-- 下段 y+25 h13 -->
+    <div class="cell"     style="left:6px;  top:50px; width:32px; height:26px;"><span class="wbar" style="left:4px; right:4px; height:2px;"></span></div>
+    <div class="cell sel" style="left:42px; top:50px; width:32px; height:26px;"><span class="wbar" style="left:4px; right:4px; height:4px;"></span></div>
+    <div class="cell"     style="left:78px; top:50px; width:32px; height:26px;"><span class="wbar" style="left:4px; right:4px; height:6px;"></span></div>
+    <div class="sep"      style="left:114px;top:50px; width:2px; height:26px;"></div>
+    <div class="cell"     style="left:120px;top:50px; width:32px; height:26px;"><span class="tsize">小</span></div>
+    <div class="cell sel" style="left:156px;top:50px; width:32px; height:26px;"><span class="tsize">中</span></div>
+    <div class="cell"     style="left:192px;top:50px; width:32px; height:26px;"><span class="tsize">大</span></div>
+    <div class="sep"      style="left:230px;top:50px; width:2px; height:26px;"></div>
+    <div class="swatch sel" style="left:236px;top:50px; width:16px; height:26px; background:#FF6E61;"></div>
+    <div class="swatch" style="left:254px;top:50px; width:16px; height:26px; background:#FF9500;"></div>
+    <div class="swatch" style="left:272px;top:50px; width:16px; height:26px; background:#FFE600;"></div>
+    <div class="swatch" style="left:290px;top:50px; width:16px; height:26px; background:#7CFC00;"></div>
+    <div class="swatch" style="left:308px;top:50px; width:16px; height:26px; background:#32D2FF;"></div>
+    <div class="swatch" style="left:326px;top:50px; width:16px; height:26px; background:#5C9DFF;"></div>
+    <div class="swatch" style="left:344px;top:50px; width:16px; height:26px; background:#C584FF;"></div>
+    <div class="swatch" style="left:362px;top:50px; width:16px; height:26px; background:#FF6FD0;"></div>
+    <div class="swatch" style="left:380px;top:50px; width:16px; height:26px; background:#FFFFFF;"></div>
+    <div class="swatch" style="left:398px;top:50px; width:16px; height:26px; background:#1A1A1A;"></div>
+  </div>
+  <!-- 説明の行（帯の外。GUI y 88） -->
+  <div class="hint" style="left:62px; top:176px;">囲み：ドラッグして範囲を囲む</div>
+
+  <!-- 終了ボタンのツールチップ（カーソルの右下） -->
+  <div class="tip" style="left:510px; top:150px;">
+    手書きモードを終える
+    <span class="sub">ツールの帯を閉じ、地図の操作に戻ります</span>
+  </div>
+</div>
+
+<h2>2. 帯の右端（終了ボタンの4つの見え方）</h2>
+<div class="row">
+  <div>
+    <div class="band" style="position:relative; width:150px; left:0; top:0;">
+      <div class="cell" style="left:6px; top:6px; width:40px; height:40px;"><span class="ic-textvis">A</span></div>
+      <div class="cell" style="left:50px;top:6px; width:40px; height:40px;">👁</div>
+      <div class="sep"  style="left:98px;top:10px; width:2px; height:62px;"></div>
+      <div class="cell" style="left:102px;top:6px; width:40px; height:70px;">✕</div>
+    </div>
+    <p class="caption">通常<br><span class="legend">面 白15% / 縁 白45% / アイコン #E6E6E6</span></p>
+  </div>
+  <div>
+    <div class="band" style="position:relative; width:150px;">
+      <div class="cell" style="left:6px; top:6px; width:40px; height:40px;"><span class="ic-textvis">A</span></div>
+      <div class="cell" style="left:50px;top:6px; width:40px; height:40px;">👁</div>
+      <div class="sep"  style="left:98px;top:10px; width:2px; height:62px;"></div>
+      <div class="cell hover" style="left:102px;top:6px; width:40px; height:70px;">✕</div>
+    </div>
+    <p class="caption">ホバー<br><span class="legend">面 白30% / 縁 白70% / アイコン #FFFFFF</span></p>
+  </div>
+  <div>
+    <div class="band" style="position:relative; width:150px;">
+      <div class="cell" style="left:6px; top:6px; width:40px; height:40px;"><span class="ic-textvis">A</span></div>
+      <div class="cell" style="left:50px;top:6px; width:40px; height:40px;">👁</div>
+      <div class="sep"  style="left:98px;top:10px; width:2px; height:62px;"></div>
+      <div class="cell" style="left:102px;top:6px; width:40px; height:70px; background:rgba(255,255,255,0.45); outline-color:#fff; color:#fff;">✕</div>
+    </div>
+    <p class="caption">押下中<br><span class="legend">面 白45% / 縁 白100%</span></p>
+  </div>
+  <div>
+    <div class="band" style="position:relative; width:150px;">
+      <div class="cell" style="left:6px; top:6px; width:40px; height:40px;"><span class="ic-textvis hidden-mark">A</span></div>
+      <div class="cell" style="left:50px;top:6px; width:40px; height:40px;">👁</div>
+      <div class="sep"  style="left:98px;top:10px; width:2px; height:62px;"></div>
+      <div class="cell" style="left:102px;top:6px; width:40px; height:70px;">✕</div>
+    </div>
+    <p class="caption">文字を隠している時（左のアイコンが斜線付き）<br><span class="legend">終了ボタンは無効にならない</span></p>
+  </div>
+</div>
+
+<h2>3. 右上の切替ボタン（4つの見え方）</h2>
+<div class="row">
+  <div>
+    <div class="screen" style="width:180px; height:120px;">
+      <div class="toggle off" style="right:8px; top:12px;"><span class="glyph">✎</span></div>
+    </div>
+    <p class="caption">オフ・通常<br><span class="legend">面 #181818 80% / 縁 <b>#A8ADB4</b>（旧 #555555。明るい地形の上で 3:1 を満たすため変更）</span></p>
+  </div>
+  <div>
+    <div class="screen snow" style="width:180px; height:120px;">
+      <div class="toggle off" style="right:8px; top:12px;"><span class="glyph">✎</span></div>
+    </div>
+    <p class="caption">オフ・通常（雪原の上）<br><span class="legend">面に対する縁 4.6:1 / 背景の雪に対する縁 1.9:1 だが、面が暗いので輪郭は面側で判別できる</span></p>
+  </div>
+  <div>
+    <div class="screen" style="width:180px; height:120px;">
+      <div class="toggle off hover" style="right:8px; top:12px;"><span class="glyph">✎</span></div>
+    </div>
+    <p class="caption">オフ・ホバー<br><span class="legend">面 #303030 93% / 縁 #FFFFFF<br>ツールチップ「手書きモードにする」</span></p>
+  </div>
+  <div>
+    <div class="screen" style="width:180px; height:120px;">
+      <div class="toggle on" style="right:8px; top:12px;"><span class="glyph">✎</span></div>
+    </div>
+    <p class="caption">オン・通常<br><span class="legend">面 #2E7DD7 / 縁 #FFFFFF（4.17:1）</span></p>
+  </div>
+  <div>
+    <div class="screen" style="width:180px; height:120px;">
+      <div class="toggle on hover" style="right:8px; top:12px;"><span class="glyph">✎</span></div>
+    </div>
+    <p class="caption">オン・ホバー<br><span class="legend">面 #4A93E4 / 縁 #FFFFFF（3.19:1）<br>ツールチップ「手書きモードを終える」</span></p>
+  </div>
+</div>
+
+<h2>4. 文字の表示切替（対象はすべての文字）</h2>
+<div class="mapdemo">
+  <div>
+    <div class="screen">
+      <div class="memo-outline" style="left:40px; top:40px; width:160px; height:110px;"></div>
+      <div class="memo-label" style="left:120px; top:95px;">拠点の畑</div>
+      <div class="memo-line" style="left:240px; top:200px; width:200px; transform:rotate(-14deg);"></div>
+      <div class="memo-label aqua" style="left:340px; top:178px;">海までの道</div>
+      <div class="memo-label yellow" style="left:300px; top:70px;">ここに村</div>
+    </div>
+    <p class="caption">表示中（文字の表示切替＝オン）<br>
+      <span class="legend">囲みの文字・線の文字・文字メモがすべて見える</span></p>
+  </div>
+  <div>
+    <div class="screen">
+      <div class="memo-outline" style="left:40px; top:40px; width:160px; height:110px;"></div>
+      <div class="memo-line" style="left:240px; top:200px; width:200px; transform:rotate(-14deg);"></div>
+      <div class="hitring" style="left:300px; top:70px;"></div>
+      <div class="memo-mark" style="left:300px; top:70px;"></div>
+    </div>
+    <p class="caption">非表示中（文字の表示切替＝オフ）<br>
+      <span class="legend">3種の文字がすべて消える。囲みの輪郭・塗り・線は残る。<br>
+      文字メモだけは形が無いので、メモの色の菱形の印（対角 8 画面ピクセル）を残す。<br>
+      点線の円は当たり判定（中心から 12 GUI ピクセル）の説明で、画面には描かない</span></p>
+  </div>
+  <div>
+    <div class="screen snow" style="width:300px; height:140px;">
+      <div class="memo-mark" style="left:70px; top:70px;"></div>
+      <div class="memo-mark white" style="left:150px; top:70px;"></div>
+      <div class="memo-mark black" style="left:230px; top:70px;"></div>
+    </div>
+    <p class="caption">印の縁（雪原の上）<br>
+      <span class="legend">左: 黄のメモ / 中: 白のメモ（縁 黒80%で白地から分離）/ 右: 黒のメモ（縁だけ白80%）</span></p>
+  </div>
+</div>
+
+<h2>5. 文字の表示切替のツールチップ</h2>
+<div class="row">
+  <div class="screen" style="width:430px; height:120px;">
+    <div class="cell" style="left:20px; top:20px; width:40px; height:40px;"><span class="ic-textvis">A</span></div>
+    <div class="tip" style="left:68px; top:48px;">
+      文字を隠す
+      <span class="sub">囲み・線・文字メモの文字をすべて隠します</span>
+    </div>
+  </div>
+  <div class="screen" style="width:430px; height:120px;">
+    <div class="cell" style="left:20px; top:20px; width:40px; height:40px;"><span class="ic-textvis hidden-mark">A</span></div>
+    <div class="tip" style="left:68px; top:48px;">
+      文字を表示する
+      <span class="sub">隠している文字をすべて表示します</span>
+    </div>
+  </div>
+</div>
+
+<h2>6. GUI 960×540（広い画面。窓 1920×1080・GUI 倍率2）</h2>
+<p class="note">帯の位置・大きさは GUI 座標で固定なので、広い画面では左上に小さく見える。右上の切替ボタンは地図の右上に付いたまま。</p>
+<div class="screen" style="width:960px; height:540px;">
+  <div class="jm logo" style="width:22px; height:22px;">lg</div>
+  <div class="jm topbar" style="width:320px; height:22px;">JourneyMap 上部ツールバー</div>
+  <div class="jm coord" style="top:24px; width:420px; height:11px;"></div>
+  <div class="jm leftcol" style="width:24px; top:186px; height:168px;"></div>
+  <div class="jm rightcol" style="width:24px; top:186px; height:168px;"></div>
+  <div class="jm bottombar" style="width:420px; height:34px;"></div>
+  <div class="toggle on" style="left:916px; top:6px; width:20px; height:20px; font-size:12px; border-width:1px;"><span class="glyph">✎</span></div>
+  <div class="band" style="left:28px; top:44px; width:235px; height:41px; outline-width:1px;">
+    <div class="cell sel" style="left:3px; top:3px; width:20px; height:20px; font-size:10px; outline-width:1px;">◯</div>
+    <div class="cell" style="left:25px;top:3px; width:20px; height:20px; font-size:10px; outline-width:1px;">／</div>
+    <div class="cell" style="left:47px;top:3px; width:20px; height:20px; font-size:10px; outline-width:1px;">A</div>
+    <div class="cell" style="left:69px;top:3px; width:20px; height:20px; font-size:10px; outline-width:1px;">▱</div>
+    <div class="cell" style="left:91px;top:3px; width:20px; height:20px; font-size:10px; outline-width:1px;">➤</div>
+    <div class="sep"  style="left:114px;top:5px; width:1px; height:16px;"></div>
+    <div class="cell" style="left:118px;top:3px; width:20px; height:20px; font-size:10px; outline-width:1px;">↺</div>
+    <div class="cell disabled" style="left:140px;top:3px; width:20px; height:20px; font-size:10px; outline-width:1px;">↻</div>
+    <div class="sep"  style="left:163px;top:5px; width:1px; height:16px;"></div>
+    <div class="cell" style="left:165px;top:3px; width:20px; height:20px; font-size:9px; outline-width:1px;">A</div>
+    <div class="cell" style="left:186px;top:3px; width:20px; height:20px; font-size:9px; outline-width:1px;">👁</div>
+    <div class="sep"  style="left:210px;top:5px; width:1px; height:31px;"></div>
+    <div class="cell" style="left:212px;top:3px; width:20px; height:35px; font-size:12px; outline-width:1px;">✕</div>
+    <div class="cell" style="left:3px; top:25px; width:16px; height:13px; outline-width:1px;"></div>
+    <div class="cell sel" style="left:21px;top:25px; width:16px; height:13px; outline-width:1px;"></div>
+    <div class="cell" style="left:39px;top:25px; width:16px; height:13px; outline-width:1px;"></div>
+    <div class="sep"  style="left:57px;top:25px; width:1px; height:13px;"></div>
+    <div class="cell" style="left:60px;top:25px; width:16px; height:13px; font-size:8px; outline-width:1px;">小</div>
+    <div class="cell sel" style="left:78px;top:25px; width:16px; height:13px; font-size:8px; outline-width:1px;">中</div>
+    <div class="cell" style="left:96px;top:25px; width:16px; height:13px; font-size:8px; outline-width:1px;">大</div>
+    <div class="sep"  style="left:115px;top:25px; width:1px; height:13px;"></div>
+    <div class="swatch sel" style="left:118px;top:25px; width:8px; height:13px; background:#FF6E61; outline-width:1px;"></div>
+    <div class="swatch" style="left:127px;top:25px; width:8px; height:13px; background:#FF9500; outline-width:1px;"></div>
+    <div class="swatch" style="left:136px;top:25px; width:8px; height:13px; background:#FFE600; outline-width:1px;"></div>
+    <div class="swatch" style="left:145px;top:25px; width:8px; height:13px; background:#7CFC00; outline-width:1px;"></div>
+    <div class="swatch" style="left:154px;top:25px; width:8px; height:13px; background:#32D2FF; outline-width:1px;"></div>
+    <div class="swatch" style="left:163px;top:25px; width:8px; height:13px; background:#5C9DFF; outline-width:1px;"></div>
+    <div class="swatch" style="left:172px;top:25px; width:8px; height:13px; background:#C584FF; outline-width:1px;"></div>
+    <div class="swatch" style="left:181px;top:25px; width:8px; height:13px; background:#FF6FD0; outline-width:1px;"></div>
+    <div class="swatch" style="left:190px;top:25px; width:8px; height:13px; background:#FFFFFF; outline-width:1px;"></div>
+    <div class="swatch" style="left:199px;top:25px; width:8px; height:13px; background:#1A1A1A; outline-width:1px;"></div>
+  </div>
+  <div class="hint" style="left:31px; top:88px; font-size:8px; text-shadow:1px 1px 0 #3f3f3f;">囲み：ドラッグして範囲を囲む</div>
+</div>
+
+<h2>7. 帯の座標（帯の左上を原点とする GUI ピクセル）</h2>
+<table>
+  <tr><th>要素</th><th>x</th><th>y</th><th>幅</th><th>高さ</th><th>変更</th></tr>
+  <tr><td>ツール 囲み〜編集（5個、22 ピッチ）</td><td>3 / 25 / 47 / 69 / 91</td><td>3</td><td>20</td><td>20</td><td>変更なし</td></tr>
+  <tr><td>区切り線</td><td>114</td><td>5</td><td>1</td><td>16</td><td>変更なし</td></tr>
+  <tr><td>元に戻す / やり直す</td><td>118 / 140</td><td>3</td><td>20</td><td>20</td><td>変更なし</td></tr>
+  <tr><td>区切り線</td><td>163</td><td>5</td><td>1</td><td>16</td><td>変更なし</td></tr>
+  <tr><td>文字の表示切替</td><td>165</td><td>3</td><td>20</td><td>20</td><td>座標はそのまま。アイコンと文言のみ変更</td></tr>
+  <tr><td>メモの表示切替</td><td>186</td><td>3</td><td>20</td><td>20</td><td>変更なし</td></tr>
+  <tr><td><b>区切り線（新）</b></td><td><b>210</b></td><td><b>5</b></td><td><b>1</b></td><td><b>31</b></td><td><b>追加</b></td></tr>
+  <tr><td><b>終了（新）</b></td><td><b>212</b></td><td><b>3</b></td><td><b>20</b></td><td><b>35</b></td><td><b>追加</b></td></tr>
+  <tr><td>太さ 細・中・太</td><td>3 / 21 / 39</td><td>25</td><td>16</td><td>13</td><td>変更なし</td></tr>
+  <tr><td>区切り線</td><td>57</td><td>25</td><td>1</td><td>13</td><td>変更なし</td></tr>
+  <tr><td>文字の大きさ 小・中・大</td><td>60 / 78 / 96</td><td>25</td><td>16</td><td>13</td><td>変更なし</td></tr>
+  <tr><td>区切り線</td><td>115</td><td>25</td><td>1</td><td>13</td><td>変更なし</td></tr>
+  <tr><td>色 10 個</td><td>118 + 9×i</td><td>25</td><td>8</td><td>13</td><td>変更なし</td></tr>
+  <tr><td>帯の全体</td><td>—</td><td>—</td><td><b>235</b>（旧 208）</td><td>41</td><td>幅のみ +27</td></tr>
+</table>
+</body>
+</html>
