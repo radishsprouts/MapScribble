@@ -107,6 +107,9 @@
 | 9 | 8 と同じ（undo を左右反転） | textures/gui/tool/redo.png | 16x16 | undo.png の加工後の画像を左右反転 | 同上 | 同上 | 右回りで鏃が分かる |
 | 10 | art/src/visible_src.png | textures/gui/tool/visible.png | 16x16 | 同上 | 同上 | 同上 | 目と分かる。瞳が潰れて穴にならない |
 | 11 | art/src/hidden_src.png | textures/gui/tool/hidden.png | 16x16 | 同上（しきい値 128、96・160 にしない） | 同上 | 同上 | 10 と同じ目の形・線の太さ。左上→右下の斜線が目を貫く。斜線が途切れず、斜線と目の輪郭の左上が一体の塊にならない |
+| 12 | art/src/exit_cand1.png（暫定。採否は Dev-Art-Director） | textures/gui/tool/exit.png | 16x16 | 14x14 へ面積平均（BOX）で縮小、しきい値 128（下の「追加素材 12〜14」） | 14x14（外周 1px） | 黒を透過 | 太い×。斜めの線は階段状で太さ約 2px。鉛筆・ドア・矢印・輪に見えない |
+| 13 | art/src/text_visible_cand2.png（暫定） | textures/gui/tool/text_visible.png | 16x16 | 14x14 へ最近傍、しきい値 128 | 同上 | 同上 | 外周の破線の枠と、中央の大文字「A」が分かれて見える。A に穴（横棒の上の隙間）がある |
+| 14 | art/src/text_hidden_cand3.png（暫定） | textures/gui/tool/text_hidden.png | 16x16 | 同上 | 同上 | 同上 | 13 と同じ枠・A に、左上→右下の斜線 1px が足されている |
 
 ## 生成プロンプト
 
@@ -122,6 +125,77 @@
 - 8 undo: 共通 + "A curved arrow curving counter-clockwise, arrowhead at the left end."
 - 10 visible: 共通 + "An open eye: almond outline with a solid round pupil."
 - 11 hidden（3枚生成済み、参照は art/src/visible_src.png＝visible_cand3）: 計画時の文面は "Same eye, same stroke width and shape as the reference, add one thick diagonal slash from upper-left to lower-right across it."。実際に使った文面・quality の記録は選別担当に渡っていない。違いがあれば Dev-Engineer が追記する。斜線の太さは目の輪郭線に合わせる。
+
+## 追加素材 12〜14（2026-10-26、Dev-Engineer が生成・加工。採否は Dev-Art-Director）
+
+担当の指示（Dev-UI-Designer `docs/design/fix-toggle-and-text-visibility.md` 3.7・4.5 の図柄、Dev-Art-Director の参照・プロンプト）のとおりに実行した。図柄・プロンプト・参照は決めていない。**採否はまだ付いていない。** 下の「暫定」は text_hidden を作るために先頭参照が要ったので、加工後の読み取りで選んだ仮の選択であり、Dev-Art-Director が別の候補を採用したら、その候補を先頭参照にして text_hidden を撮り直す（古い `tool/region_text_visible.png` と `region_text_hidden.png` は残してある）。
+
+### 生成の記録（成功 12 回・失敗 0 回）
+
+- 手段: Node スクリプトから画像生成 MCP（`image-generator`、ツール名 `gpt-image`、HTTP の Streamable HTTP、`tools/call`）を直接呼び、結果の画像を `art/src/<名前>_candN.png` へ保存。認証の値は書かない（設定ファイルから実行時に読んだ）。モデルの版は MCP が決めるので未確認（ツール説明は「OpenAI の gpt-image」）
+- quality: 全て medium
+- 参照画像の渡し方: `art/src/` の元画像（1254x1254）を Pillow の `resize`（最近傍）で長辺 1024 の PNG に縮め（色は純白・純黒のまま）、`data:image/png;base64,<base64>` の文字列にして `image_url` の配列へ渡した（先頭が1枚目）。ローカルパスは渡していない。縮小した参照 PNG は作業用で、リポジトリには置かない
+- 作る順: exit、text_visible → （text_visible の候補を暫定採用）→ text_hidden
+
+| # | 素材 | 枚数 | ファイル | 渡した参照（この順） |
+|---|---|---|---|---|
+| 12 | exit | 3 | exit_cand1〜3.png | text_src.png（線の太さ・粒度）、undo_src.png |
+| 13 | text_visible | 3 | text_visible_cand1〜3.png | text_src.png（A の太さのみ。大きさは写さない）、visible_src.png |
+| 14 | text_hidden | 3 | text_hidden_cand1〜3.png | text_visible_cand2.png（暫定採用の元画像・1枚目）、hidden_src.png（斜線の作法） |
+
+プロンプトの実文（共通の前置き + 指定の文）:
+
+- 前置き: "Single monochrome icon, pure white thick pixel-art line drawing on a solid pure black background, no gray, no gradient, no anti-aliasing, readable at 16x16 pixels, centered with margin. No text."
+- 12 exit: "Same stroke thickness and pixel grid as the attached icons. A bold X: two diagonal strokes crossing at the center, each stroke 2 pixels thick on a 16x16 grid look, stair-stepped diagonals, fits a 14x14 area. No pencil, no door, no arrow, no circle."
+- 13 text_visible: "Same stroke weight and pixel grid as the attached icons, but do not copy the attached letter's size. A square frame drawn as a 1-pixel dashed outline (2 pixels on, 2 pixels off) fitting 14x14, and inside it, centered, a bold capital letter A about 8 pixels wide and 10 pixels tall. The frame must be clearly separate from the A, with a visible black gap."
+- 14 text_hidden: "Same icon as the first attached image, unchanged. Add exactly one 1-pixel-thick stair-stepped diagonal slash from upper-left to lower-right across it, in the same way the second attached image adds a slash to the eye. Keep a black gap between the slash and the frame and the A where possible."
+
+### 暫定の選択と読み取り（1254px の元画像と、14x14 へ加工した結果で確認）
+
+| 素材 | 暫定 | 理由 | 他の候補 |
+|---|---|---|---|
+| exit | cand1 | 3枚とも太い×。cand1 は斜め線の水平方向の幅が 3 マスで安定し、14x14 へ縮めても線の太さが一定（垂直方向で約 2px）。中心だけ太くなる | cand2 は線が細く、縮小後に線が 1px 以下になる。cand3 は太さは足りるが縮小で斜め線の段差が飛ぶ |
+| text_visible | cand2 | A が左右対称で、横棒の上の穴が残る。枠と A の間に黒い隙間が取れる | cand1 は枠が 1 マス点の並びで、A の左脚が崩れる。cand3 は A が左右非対称で、枠が縦横で不揃い |
+| text_hidden | cand3 | 3枚とも枠・斜線の通り方は加工後ほぼ同じ。cand3 は斜線が元画像で最も細く（約 1 マス幅）、仕様の「太さ 1px・階段状」に最も近い | cand1・cand2 は斜線が 2 マス幅で、加工後に A の脚と一体になる所が多い |
+
+### 加工の値（`proc.py` 相当の手順。Pillow の組み込み処理のみ: `point`・`getbbox`・`crop`・`resize`・`ImageOps.expand`・`Image.merge`。画素・図形の描画は無い）
+
+共通: 輝度 > しきい値 を図柄とみなし、その外接矩形を切り出し、14x14 へ縮め、外周に 1px を足して 16x16 にする。黒は alpha 0、白は RGB #FFFFFF・alpha 255 の単色（半透明は残さない）。
+
+| 素材 | 元画像 | 外接矩形（左,上,右,下 / 大きさ） | 縮小 | しきい値 | 不透明 px |
+|---|---|---|---|---|---|
+| exit | exit_cand1.png | (228,195,1033,983) / 805x788 | 面積平均（BOX）で 14x14 に伸縮 | 128 | 76 |
+| text_visible | text_visible_cand2.png | (159,159,1092,1090) / 933x931 | 最近傍で 14x14 に伸縮 | 128 | 54 |
+| text_hidden | text_hidden_cand3.png | (159,160,1092,1090) / 933x930 | 最近傍で 14x14 に伸縮 | 128 | 63 |
+
+- **変えた値**: ① 縦横が1〜4%しか違わないので、余白で縦横比を合わせず 14x14 へ伸縮した（余白を足すと枠が 14 マスに届かず上下が 1 マス欠ける）。② **exit だけ最近傍でなく面積平均（BOX）にした。** 元画像の 1 マスが約 40px で、図柄の幅が約 20 マス。14 へ最近傍で縮めると斜め線の段差が飛び、線が切れて見える（最近傍の結果は下）。面積平均＋同じしきい値 128 なら、斜め線が一定の太さで連続した
+- exit を最近傍・しきい値 128 で縮めた場合（採用しなかった結果。# が不透明）:
+  ```
+  ................
+  .#............#.
+  ..##........##..
+  ..###......###..
+  ...##......##...
+  .....##..##.....
+  .....######.....
+  ......####......
+  ......####......
+  .....######.....
+  .....##..##.....
+  ...##......##...
+  ..###......###..
+  ..##........##..
+  .#............#.
+  ................
+  ```
+- 出力後の確認: 3枚とも 16x16・RGBA。alpha は 0 か 255 のみ、不透明部の色は #FFFFFF のみ、外周 1px に不透明な画素は無い（Python で全画素を調べた）
+- 確認用の拡大画像（最近傍で 8 倍、図柄は白・背景は黒。128x128）: `art/src/exit_zoom.png`、`art/src/text_visible_zoom.png`、`art/src/text_hidden_zoom.png`
+
+### 加工後に残る課題（Dev-Art-Director が採否を決める時の材料）
+
+1. **text_visible・text_hidden の枠は、仕様の「線2px・間隔2px」の破線にならず、1 画素の点の並びに近い。** 元画像の枠の破線は周期が約 2 画素に相当し（枠 1 辺に 4.5 周期）、仕様の 3.5 周期（2 画素オン・2 画素オフ）と合わない。3 候補とも同じ。点の並びとして枠は読めるが、「破線の枠」としては点線に見える。直すなら、生成のプロンプトへ「一辺を 14 マスとし、マスは一辺 80px の正方形ブロックとして描く」のように格子を指定して撮り直す（採否の決定は Dev-Art-Director）
+2. **text_hidden の A は、text_visible の A と同じ形にならなかった。** 「unchanged」と指示したが、生成では A の頂点が潰れ、右脚が斜線と一体になる。3 候補とも同じ傾向。14x14 では A の頭の幅・右脚が text_visible と違って見える
+3. text_hidden の斜線は 14x14 で 1 画素幅の階段になったが、A の脚・横棒と交差する所で A の画素と重なる（交差は設計上避けられない）。枠の左上の角とは 1 画素の隙間がある
 
 ## 今後の追加生成
 
