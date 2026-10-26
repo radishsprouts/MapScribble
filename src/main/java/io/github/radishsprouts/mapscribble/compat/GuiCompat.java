@@ -122,6 +122,61 @@ public final class GuiCompat {
     }
     *///?}
 
+    /**
+     * 描画を矩形の内側へ切り抜く。<strong>引数は GUI 座標</strong>（Minecraft が内部で GUI 倍率を掛ける）。
+     * メソッド名・引数は 1.20.1〜26.x で同じなので、吸収するのはクラス名の差だけ。
+     * 必ず {@code try}/{@code finally} で {@link #disableScissor} と対にする
+     * （切り抜きが残ると HUD 全体が切り抜かれたままになる）。
+     */
+    //? if >=26.1 {
+    public static void enableScissor(GuiGraphicsExtractor g, int minX, int minY, int maxX, int maxY) {
+        g.enableScissor(minX, minY, maxX, maxY);
+    }
+
+    public static void disableScissor(GuiGraphicsExtractor g) {
+        g.disableScissor();
+    }
+    //?} else {
+    /*public static void enableScissor(GuiGraphics g, int minX, int minY, int maxX, int maxY) {
+        g.enableScissor(minX, minY, maxX, maxY);
+    }
+
+    public static void disableScissor(GuiGraphics g) {
+        g.disableScissor();
+    }
+    *///?}
+
+    /** 描画中のカメラの yaw（度）。ミニマップの回転角の計算に使う。 */
+    public static float cameraYaw() {
+        //? if >=26.2 {
+        /*return Minecraft.getInstance().gameRenderer.mainCamera().yRot();
+        *///?} elif >=1.21.11 {
+        return Minecraft.getInstance().gameRenderer.getMainCamera().yRot();
+        //?} else {
+        /*return Minecraft.getInstance().gameRenderer.getMainCamera().getYRot();
+        *///?}
+    }
+
+    /** このフレームの補間位置（0〜1）。エンティティ位置の補間に使う。 */
+    public static float partialTicks() {
+        //? if >=1.21.4 {
+        return Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        //?} elif >=1.21 {
+        /*return Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false);
+        *///?} else {
+        /*return Minecraft.getInstance().getFrameTime();
+        *///?}
+    }
+
+    /** F3 のデバッグ画面が出ているか。 */
+    public static boolean debugOverlayVisible() {
+        //? if >=1.21 {
+        return Minecraft.getInstance().getDebugOverlay().showDebugScreen();
+        //?} else {
+        /*return Minecraft.getInstance().options.renderDebug;
+        *///?}
+    }
+
     //? if >=26.1 {
     public static void fill(GuiGraphicsExtractor g, int minX, int minY, int maxX, int maxY, int color) {
         g.fill(minX, minY, maxX, maxY, color);
