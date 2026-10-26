@@ -21,7 +21,7 @@ JourneyMap の全画面マップに、手書きでメモを描ける Fabric / Fo
 
 - 対応する Minecraft とローダーの組み合わせは次の表のとおりです（全21構成）。Minecraft の版ごとに jar が別で、○の無い組み合わせの jar はありません
 - Java は Minecraft の版で決まります（表の右端）
-- Fabric 版は Fabric Loader 0.19.5 以上が必要です
+- Fabric 版は Fabric Loader 0.15.0 以上が必要です（`fabric.mod.json` の宣言。Minecraft の版に対応した Fabric Loader を使ってください）
 - Forge 版・NeoForge 版の jar は、表にある Minecraft の版だけで読み込まれます（たとえば 1.21.11 用の jar は 1.21.11 でのみ読み込まれます）
 
 | Minecraft | Fabric | Forge | NeoForge | Java |
