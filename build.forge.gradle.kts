@@ -86,10 +86,14 @@ tasks.processResources {
     val props = mapOf(
         "version" to rootProject.version.toString(),
         "minecraft" to minecraftVersion,
+        // Minecraft の対応範囲（Maven 形式。versions/<構成>/gradle.properties に置く）。
+        // この構成向けの jar が別のマイナー版で読み込まれないよう、上限を持つ範囲を入れる
+        "mc_version_range" to project.property("mc_version_range").toString(),
+        // Forge 自体の範囲は下限だけにする。上限を入れると、将来のローダー更新で読み込めなくなる
         "loader" to project.property("forge_version").toString()
     )
     props.forEach { (key, value) -> inputs.property(key, value) }
-    filesMatching("META-INF/mods.toml") {
+    filesMatching("META-INF/*.toml") {
         expand(props)
     }
 }

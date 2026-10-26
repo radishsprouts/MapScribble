@@ -19,6 +19,6 @@ side="CLIENT"
 [[dependencies.mapscribble]]
 modId="minecraft"
 type="required"
-versionRange="[${minecraft},)"
+versionRange="${mc_version_range}"
 ordering="NONE"
 side="CLIENT"
