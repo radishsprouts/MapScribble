@@ -267,7 +267,7 @@ public final class NoteEditScreen extends Screen {
         super.extractRenderState(g, mouseX, mouseY, partialTick);
         renderPanelForeground(g);
     }
-    //?} elif >=1.21 {
+    //?} elif >=1.20.5 {
     /*@Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderCurtainAndPanelBg(g, partialTick);
@@ -299,7 +299,7 @@ public final class NoteEditScreen extends Screen {
         if (!renderParent(g, partialTick)) {
             //? if >=26.1 {
             super.extractBackground(g, -1, -1, partialTick);
-            //?} elif >=1.21 {
+            //?} elif >=1.20.5 {
             /*super.renderBackground(g, -1, -1, partialTick);*/
             //?} else {
             /*super.renderBackground(g);*/

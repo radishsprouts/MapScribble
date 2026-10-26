@@ -36,7 +36,12 @@ public final class GuiCompat {
                         net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK, 1.0f));
     }
 
-    /** この MOD のテクスチャ識別子を取得する。 */
+    /**
+     * この MOD のテクスチャ識別子を取得する。
+     * ResourceLocation.fromNamespaceAndPath は素の Minecraft では 1.21 で入った（1.20.6 の公式マッピングには無い。
+     * Forge 1.20.6 だけが自前で移植している）ので、1.20.6 は {@code >=1.21} の外側（public コンストラクタ）に置く。
+     * Forge 1.20.6 ではこのコンストラクタが非推奨（警告のみ）だが、素の 1.20.6 でも通る。
+     */
     //? if >=1.21.11 {
     public static Identifier texture(String path) {
         return Identifier.fromNamespaceAndPath(MapScribble.MOD_ID, path);
@@ -168,9 +173,13 @@ public final class GuiCompat {
         *///?}
     }
 
-    /** F3 のデバッグ画面が出ているか。 */
+    /**
+     * F3 のデバッグ画面が出ているか。
+     * 1.20.5 で renderDebug が Options から DebugScreenOverlay（private）へ移り、
+     * getDebugOverlay().showDebugScreen() が公開の入口になった（1.20.6 の実物で確認）。
+     */
     public static boolean debugOverlayVisible() {
-        //? if >=1.21 {
+        //? if >=1.20.5 {
         return Minecraft.getInstance().getDebugOverlay().showDebugScreen();
         //?} else {
         /*return Minecraft.getInstance().options.renderDebug;
