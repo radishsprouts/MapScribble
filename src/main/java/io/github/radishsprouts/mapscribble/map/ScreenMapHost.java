@@ -105,8 +105,8 @@ public final class ScreenMapHost {
             canvasRenderer = new MapCanvasRenderer(controller);
             scribbleUi = new ScribbleUi(controller,
                     ScreenCompat.gameDirectory().resolve("config").resolve(UiPrefs.FILE_NAME));
-            StoreSession.setNotifier(message -> scribbleUi.onLoadFailed());
-            StoreSession.setSaveNotifier(scribbleUi::onSaveStateChanged);
+            StoreSession.addNotifier(message -> scribbleUi.onLoadFailed());
+            StoreSession.addSaveNotifier(scribbleUi::onSaveStateChanged);
         }
     }
 

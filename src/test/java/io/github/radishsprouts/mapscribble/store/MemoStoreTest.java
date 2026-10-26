@@ -132,23 +132,23 @@ class MemoStoreTest {
     }
 
     @Test
-    void 比べ直しで鍵が変わった時だけ切り替える(@TempDir Path dir) throws Exception {
+    void 毎tickの比べ直しで鍵が変わった時だけ切り替える(@TempDir Path dir) throws Exception {
         MemoStore store = new MemoStore(60_000);
         SessionController session = new SessionController(store);
         AtomicInteger notified = new AtomicInteger();
         store.addListener(notified::incrementAndGet);
 
         SessionKey a = new SessionKey(dir.resolve("A"), "A", "minecraft:overworld");
-        session.started(a);
+        session.update(a, null);
         store.add(memo(1));
         int afterAdd = notified.get();
 
-        session.recheck(new SessionKey(dir.resolve("A"), "A", "minecraft:overworld"));
-        session.recheck(null);
-        assertEquals(afterAdd, notified.get(), "同じ鍵・取れない鍵では何もしない");
+        session.update(new SessionKey(dir.resolve("A"), "A", "minecraft:overworld"), null);
+        assertFalse(session.needsSwitch(null), "鍵が取れない間は切り替えない");
+        assertEquals(afterAdd, notified.get(), "同じ鍵では何もしない");
         assertEquals(1, store.memos().size());
 
-        session.recheck(new SessionKey(dir.resolve("B"), "B", "minecraft:overworld"));
+        session.update(new SessionKey(dir.resolve("B"), "B", "minecraft:overworld"), null);
         assertTrue(store.memos().isEmpty());
         assertEquals(1, MemoFile.read(dir.resolve("A").resolve("minecraft__overworld.json")).memos().size());
         store.shutdown();

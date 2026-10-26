@@ -115,15 +115,16 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         INSTANCE = this;
         this.api = api;
         this.repositorySupplier = repositorySupplier;
+        // MOD の初期化で作られたものを使い回す（作り直すと Xaero・FTB の画面と一筆・履歴が分かれる）
         this.controller = ScribbleSession.install(repositorySupplier);
         this.state = controller.state();
         this.renderer = new FullscreenRenderer(controller);
         this.minimap = new MinimapOverlays(api);
         this.ui = new ScribbleUi(controller, ScreenCompat.gameDirectory().resolve("config").resolve(UiPrefs.FILE_NAME));
-        // メモのファイルを読めなかった時は、帯の説明の行に出す
-        StoreSession.setNotifier(message -> ui.onLoadFailed());
+        // メモのファイルを読めなかった時は、帯の説明の行に出す（他の画面の受け手は消さずに足す）
+        StoreSession.addNotifier(message -> ui.onLoadFailed());
         // メモを保存できなかった時（と、その後に保存できた時）も、同じ行に出す・消す
-        StoreSession.setSaveNotifier(ui::onSaveStateChanged);
+        StoreSession.addSaveNotifier(ui::onSaveStateChanged);
 
         // ScreenMapHost にプライマリブリッジとして登録
         ScreenMapHost.setPrimaryBridge(this);
