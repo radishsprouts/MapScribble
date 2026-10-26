@@ -1,6 +1,7 @@
 {
   "mapscribble.name": "MapScribble",
   "key.category.mapscribble.main": "MapScribble",
+  "key.categories.mapscribble": "MapScribble",
   "key.mapscribble.toggle_mode": "Toggle Scribble Mode",
   "mapscribble.button.toggle.on": "Exit Scribble Mode",
   "mapscribble.button.toggle.off": "Scribble on Map",
@@ -86,4 +87,4 @@
   "mapscribble.region_text.hide": "Hide region text",
   "mapscribble.region_text.show": "Show region text",
   "mapscribble.text_size.tooltip": "Text size: %s"
-}
+}
