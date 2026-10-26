@@ -172,9 +172,15 @@ implements ClientModInitializer
             event.registerAbove(VanillaGuiLayers.SLEEP_OVERLAY,
                     Identifier.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
                     (graphics, partialTick) -> MinimapHudRenderer.render(graphics));
-            //?} else {
+            //?} elif >=1.21 {
             event.registerAbove(VanillaGuiLayers.SLEEP_OVERLAY,
                     ResourceLocation.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
+                    (graphics, partialTick) -> MinimapHudRenderer.render(graphics));
+            //?} else {
+            // 1.20.6: fromNamespaceAndPath は 1.21 で入ったので、素の 1.20.6 では使えない
+            // （Forge はパッチで先取りしているが NeoForge と Fabric には無い）。コンストラクタを使う
+            event.registerAbove(VanillaGuiLayers.SLEEP_OVERLAY,
+                    new ResourceLocation(MOD_ID, "minimap_overlay"),
                     (graphics, partialTick) -> MinimapHudRenderer.render(graphics));
             //?}
         });
