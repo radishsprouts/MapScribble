@@ -1,6 +1,7 @@
 name: CurseForge
 
-# 既存の GitHub Release の jar を、Minecraft の版ごとに 1 ファイルずつ CurseForge へ上げる。
+# 既存の GitHub Release の jar を、Minecraft の版とローダー（Fabric / Forge / NeoForge）ごとに 1 ファイルずつ CurseForge へ上げる。
+# jar 名は mapscribble-<MOD の版>+<Minecraft の版>-<ローダー>.jar。
 # release.yml が公開した後に呼ぶ。古いタグは手動で実行する。
 # CURSEFORGE_TOKEN（Secret）と CURSEFORGE_PROJECT_ID（Variable）が無ければスキップする。
 # アップロード API は既存ファイルの一覧を取れないので、同じタグで 2 回実行すると二重に上がる。
@@ -63,15 +64,56 @@ jobs:
               | first | .id // empty' versions.json
           }
 
-          fabric=$(version_id '^modloader$' Fabric)
+          # ローダー（Fabric / Forge / NeoForge）と Java の版は jar ごとに違うので、
+          # jar の名前を読んだ後で、使うものだけ ID を解決する
           client=$(version_id '^environment$' Client)
-          java=$(version_id '^java$' 'Java 25')
-          for pair in "Fabric:$fabric" "Client:$client" "Java 25:$java"; do
-            if [ -z "${pair#*:}" ]; then
-              echo "::error::CurseForge に ${pair%%:*} というゲームバージョンがありません"
-              exit 1
+          if [ -z "$client" ]; then
+            echo "::error::CurseForge に Client というゲームバージョンがありません"
+            exit 1
+          fi
+
+          # jar 名: mapscribble-<MOD の版>+<Minecraft の版>-<ローダー>.jar
+          # 標準出力へ "<Minecraft の版> <ローダー>" を出す。
+          # Minecraft の版は '.' を含む（1.21.11, 26.1.2）ので、最後の '+' より後ろを取り、
+          # その最後の '-' で「Minecraft の版」と「ローダー」に分ける
+          parse_jar() {
+            local rest=${1##*/}
+            rest=${rest%.jar}
+            rest=${rest#mapscribble-}
+            [[ $rest == *+* ]] || return 1
+            rest=${rest##*+}
+            [[ $rest == *-* ]] || return 1
+            printf '%s %s\n' "${rest%-*}" "${rest##*-}"
+          }
+
+          # jar 名のローダー → CurseForge の「Modloader」型のゲームバージョン名
+          loader_name() {
+            case "$1" in
+              fabric) echo Fabric ;;
+              forge) echo Forge ;;
+              neoforge) echo NeoForge ;;
+              *) return 1 ;;
+            esac
+          }
+
+          # Minecraft の版 → 必要な Java の主版（各 build.*.gradle.kts の javaVer と同じ区切り）
+          # 1.18〜1.20.4 は 17、1.20.5〜1.21.x は 21、26.1 以降は 25
+          java_major() {
+            local major minor patch
+            IFS=. read -r major minor patch <<< "$1"
+            [[ $major =~ ^[0-9]+$ && $minor =~ ^[0-9]+$ ]] || return 1
+            patch=${patch:-0}
+            [[ $patch =~ ^[0-9]+$ ]] || return 1
+            if [ "$major" -ge 26 ]; then
+              echo 25
+            elif [ "$major" -eq 1 ] && { [ "$minor" -ge 21 ] || { [ "$minor" -eq 20 ] && [ "$patch" -ge 5 ]; }; }; then
+              echo 21
+            elif [ "$major" -eq 1 ] && [ "$minor" -ge 18 ]; then
+              echo 17
+            else
+              return 1
             fi
-          done
+          }
 
           case "$TAG" in v0.*) release_type=beta ;; *) release_type=release ;; esac
           release_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
@@ -97,28 +139,64 @@ jobs:
             exit 1
           fi
           # 部分的に上がって再実行で二重になるのを防ぐため、
-          # アップロードの前に全 jar の Minecraft 版 ID を解決しておく
-          declare -A minecraft
+          # アップロードの前に全 jar の Minecraft 版・ローダー・Java 版の ID を解決しておく
+          declare -A jar_mc jar_loader jar_java      # キー: jar のパス
+          declare -A mc_ids loader_ids java_ids      # キー: Minecraft の版 / ローダー名 / "Java <主版>"
           for jar in "${jars[@]}"; do
-            # mapscribble-<MOD の版>+<Minecraft の版>.jar
-            mc=$(basename "$jar" .jar)
-            mc=${mc##*+}
-            minecraft[$mc]=$(version_id '^minecraft(-|$)' "$mc")
-            if [ -z "${minecraft[$mc]}" ]; then
-              echo "::error::CurseForge に Minecraft $mc がありません。既知の 26.x: $(jq -r '[.[] | select(.name | startswith("26.")) | .name] | unique | join(", ")' versions.json)"
+            parsed=$(parse_jar "$jar") || {
+              echo "::error::jar 名 $(basename "$jar") を mapscribble-<MOD の版>+<Minecraft の版>-<ローダー>.jar として読めません"
               exit 1
+            }
+            mc=${parsed% *}
+            loader=${parsed#* }
+            if ! lname=$(loader_name "$loader"); then
+              echo "::error::jar 名 $(basename "$jar") のローダー '$loader' は fabric / forge / neoforge のどれでもありません"
+              exit 1
+            fi
+            if ! jmajor=$(java_major "$mc"); then
+              echo "::error::Minecraft $mc に必要な Java の版を決められません（jar: $(basename "$jar")）"
+              exit 1
+            fi
+            jar_mc[$jar]=$mc
+            jar_loader[$jar]=$loader
+            jar_java[$jar]="Java $jmajor"
+
+            if [ -z "${mc_ids[$mc]:-}" ]; then
+              mc_ids[$mc]=$(version_id '^minecraft(-|$)' "$mc")
+              if [ -z "${mc_ids[$mc]}" ]; then
+                echo "::error::CurseForge に Minecraft $mc がありません。既知の 26.x: $(jq -r '[.[] | select(.name | startswith("26.")) | .name] | unique | join(", ")' versions.json)"
+                exit 1
+              fi
+            fi
+            if [ -z "${loader_ids[$loader]:-}" ]; then
+              loader_ids[$loader]=$(version_id '^modloader$' "$lname")
+              if [ -z "${loader_ids[$loader]}" ]; then
+                echo "::error::CurseForge に $lname というゲームバージョンがありません"
+                exit 1
+              fi
+            fi
+            jname=${jar_java[$jar]}
+            if [ -z "${java_ids[$jname]:-}" ]; then
+              java_ids[$jname]=$(version_id '^java$' "$jname")
+              if [ -z "${java_ids[$jname]}" ]; then
+                echo "::error::CurseForge に $jname というゲームバージョンがありません"
+                exit 1
+              fi
             fi
           done
 
           for jar in "${jars[@]}"; do
             version=$(basename "$jar" .jar)
             version=${version#mapscribble-}
-            mc=${version##*+}
+            mc=${jar_mc[$jar]}
+            loader=${jar_loader[$jar]}
+            # Fabric API は Fabric の jar だけが必須（Forge / NeoForge の jar は要求しない）
             jq -n \
               --arg version "$version" \
               --arg type "$release_type" \
               --arg changelog "$changelog" \
-              --argjson versions "[${minecraft[$mc]}, $fabric, $client, $java]" \
+              --arg loader "$loader" \
+              --argjson versions "[${mc_ids[$mc]}, ${loader_ids[$loader]}, $client, ${java_ids[${jar_java[$jar]}]}]" \
               '{
                 displayName: "MapScribble \($version)",
                 changelog: $changelog,
@@ -126,10 +204,10 @@ jobs:
                 gameVersions: $versions,
                 releaseType: $type,
                 relations: {
-                  projects: [
-                    {slug: "fabric-api", type: "requiredDependency"},
-                    {slug: "journeymap", type: "requiredDependency"}
-                  ]
+                  projects: (
+                    (if $loader == "fabric" then [{slug: "fabric-api", type: "requiredDependency"}] else [] end)
+                    + [{slug: "journeymap", type: "requiredDependency"}]
+                  )
                 }
               }' > metadata.json
             status=$(curl -sS -o response.json -w '%{http_code}' -X POST \
