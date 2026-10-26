@@ -1,5 +1,5 @@
 modLoader="javafml"
-loaderVersion="[47,)"
+loaderVersion="[${fml},)"
 license="MIT"
 
 [[mods]]
@@ -12,13 +12,13 @@ authors="radishsprouts"
 [[dependencies.mapscribble]]
 modId="forge"
 mandatory=true
-versionRange="[47,)"
+versionRange="[${fml},)"
 ordering="NONE"
 side="CLIENT"
 
 [[dependencies.mapscribble]]
 modId="minecraft"
 mandatory=true
-versionRange="${mc_version_range}"
+versionRange="${mc_range}"
 ordering="NONE"
 side="CLIENT"

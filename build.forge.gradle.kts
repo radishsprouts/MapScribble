@@ -21,6 +21,23 @@ sc.constants["forge"] = true
 
 val minecraftVersion: String = sc.current.version
 
+// JourneyMap API 2.0 系（journeymap.api.v2）の配布が無い構成は jm_api_version を置かない。
+// その構成では v2 API を使う jm/ パッケージと compat/JmCompat.java をコンパイルから外す
+// （JourneyMap との連携は map/jm の JourneyMapLegacyAdapter がリフレクションで担うので、機能は落ちない）
+if (project.findProperty("jm_api_version") == null) {
+    sourceSets.main {
+        java {
+            exclude(
+                "io/github/radishsprouts/mapscribble/jm/**",
+                "io/github/radishsprouts/mapscribble/compat/JmCompat.java"
+            )
+        }
+    }
+}
+
+// mods.toml の loaderVersion / forge の versionRange に差し込むメジャー版（1.20.1-47.4.28 → 47）
+val fmlMajor: String = project.property("forge_version").toString().substringAfterLast('-').substringBefore('.')
+
 base.archivesName.set("mapscribble")
 version = "${rootProject.version}+$minecraftVersion-forge"
 
@@ -45,8 +62,12 @@ legacyForge {
 }
 
 dependencies {
-    // JourneyMap API: compile time only. Never bundled in the jar
-    compileOnly("info.journeymap:journeymap-api-forge:${project.property("jm_api_version")}") { isTransitive = false }
+    // JourneyMap API: compile time only. Never bundled in the jar.
+    // jm_api_version は versions/<構成>/gradle.properties に置く。
+    // API 2.0 系の配布が無い構成は置かず、この行を飛ばす
+    project.findProperty("jm_api_version")?.let {
+        compileOnly("info.journeymap:journeymap-api-forge:$it") { isTransitive = false }
+    }
     // JourneyMap 本体: 開発用クライアントでだけ読み込む（MOD の jar には入らない）。
     // 旧 Forge の mod の jar は難読化名なので、開発名へ自動で変換される mod 系の configuration に入れる。
     // jm_version は versions/<構成>/gradle.properties に置く。JourneyMap の配布が無い構成は置かず、この行を飛ばす
@@ -87,8 +108,12 @@ tasks.processResources {
         "version" to rootProject.version.toString(),
         "minecraft" to minecraftVersion,
         // Minecraft の対応範囲（Maven 形式。versions/<構成>/gradle.properties に置く）。
-        // この構成向けの jar が別のマイナー版で読み込まれないよう、上限を持つ範囲を入れる
-        "mc_version_range" to project.property("mc_version_range").toString(),
+        // この構成向けの jar が別のマイナー版で読み込まれないよう、上限を持つ範囲を入れる。
+        // mods.toml の minecraft の versionRange に差し込む（build.forge-fg7.gradle.kts と同じ名前）
+        "mc_range" to project.property("mc_version_range").toString(),
+        // mods.toml の loaderVersion と forge の versionRange に差し込む FML のメジャー版。
+        // 下限だけにして、将来のローダー更新で読み込めなくならないようにする
+        "fml" to fmlMajor,
         // Forge 自体の範囲は下限だけにする。上限を入れると、将来のローダー更新で読み込めなくなる
         "loader" to project.property("forge_version").toString()
     )
