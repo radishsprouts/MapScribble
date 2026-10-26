@@ -128,7 +128,7 @@
 
 ## 追加素材 12〜14（2026-10-26、Dev-Engineer が生成・加工。採否は 2026-10-27 に Dev-Art-Director が付けた。下の「追加素材 12〜14 の採否と撮り直し」）
 
-担当の指示（Dev-UI-Designer `docs/design/fix-toggle-and-text-visibility.md` 3.7・4.5 の図柄、Dev-Art-Director の参照・プロンプト）のとおりに実行した。図柄・プロンプト・参照は決めていない。下の「暫定」は text_hidden を作るために先頭参照が要ったので、加工後の読み取りで選んだ仮の選択であり、**12 と 13 は暫定どおり採用、14 は撮り直しになった**（古い `tool/region_text_visible.png` と `region_text_hidden.png` は残してある）。
+担当の指示（Dev-UI-Designer `docs/design/fix-toggle-and-text-visibility.md` 3.7・4.5 の図柄、Dev-Art-Director の参照・プロンプト）のとおりに実行した。図柄・プロンプト・参照は決めていない。下の「暫定」は text_hidden を作るために先頭参照が要ったので、加工後の読み取りで選んだ仮の選択であり、**12 と 13 は暫定どおり採用、14 は撮り直しになった**（古い `tool/region_text_visible.png` と `region_text_hidden.png` は、撮り直しの確定後に削除した。2026-10-27）。
 
 ### 生成の記録（成功 12 回・失敗 0 回）
 
@@ -250,7 +250,7 @@
 - 採用: `exit_cand1.png` → `exit_src.png`、`text_visible_cand2.png` → `text_visible_src.png`
 - 不採用: `exit_cand2.png`・`exit_cand3.png` → `exit_rej1.png`・`exit_rej2.png`、`text_visible_cand1.png`・`text_visible_cand3.png` → `text_visible_rej1.png`・`text_visible_rej2.png`、`text_hidden_cand1〜3.png` → `text_hidden_rej1〜3.png`
 - 撮り直しの斜線: 採用 `slash_src.png`、不採用 `slash_rejN.png`
-- `tool/region_text_visible.png`・`tool/region_text_hidden.png` の削除は、設計書 4.5 のとおり実装側（Dev-Engineer）が `text_hidden.png` の確定後に行う（この役職は画像ファイルを書き換えない）
+- `tool/region_text_visible.png`・`tool/region_text_hidden.png` は、設計書 4.5 のとおり `text_hidden.png` の確定後に実装側が削除した（2026-10-27。`ui/ToolBand.java` の参照は新しい `text_visible.png` / `text_hidden.png` だけ）
 
 ### 文字メモの印（菱形）の寸法についての見解（2026-10-27、実装担当からの確認への回答）
 
