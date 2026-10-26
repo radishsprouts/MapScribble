@@ -33,6 +33,10 @@ stonecutter {
         }
         // 旧 Minecraft Forge (1.20.1)
         version("1.20.1-forge", "1.20.1").buildscript("build.forge.gradle.kts")
+        // Minecraft Forge (1.21.11 以降・ForgeGradle 7)
+        for (v in listOf("1.21.11", "26.1.2", "26.2", "26.3")) {
+            version("$v-forge", v).buildscript("build.forge-fg7.gradle.kts")
+        }
 
         vcsVersion = "26.1.2-fabric"
     }
