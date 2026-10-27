@@ -188,14 +188,20 @@ public class DrawingClientGameTest implements FabricClientGameTest {
                         + " first=" + m.points().get(0));
         context.takeScreenshot("mapscribble-region-committed");
 
-        // 線（始点は帯（GUI 28,44 〜 236,101）の外に置く）
+        // 線（始点は帯とその下のヒント行の外に置く。帯は GUI 座標の左上（既定 28,44 から幅 235・高さ 41）にあり、
+        // 右端に「終了」ボタンがある。始点が帯の上だと、押した時に帯のボタンが受けて一筆が始まらない）
         context.runOnClient(client -> state.setTool(Tool.LINE));
-        context.getInput().setCursorPos(width * 0.60, height * 0.20);
+        double lineStartX = width * 0.60;
+        double lineStartY = height * 0.60;
+        double lineGuiScale = context.computeOnClient(client -> client.getWindow().getGuiScale());
+        check(!state.isOverBand(lineStartX / lineGuiScale, lineStartY / lineGuiScale),
+                "線の始点は帯の外にある（GUI 座標 " + (lineStartX / lineGuiScale) + "," + (lineStartY / lineGuiScale) + "）");
+        context.getInput().setCursorPos(lineStartX, lineStartY);
         context.waitTicks(2);
         context.getInput().holdMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);
         context.waitTicks(2);
         for (int s = 1; s <= 20; s++) {
-            context.getInput().setCursorPos(width * 0.60 + width * 0.01 * s, height * 0.20 + height * 0.012 * s);
+            context.getInput().setCursorPos(lineStartX + width * 0.01 * s, lineStartY + height * 0.012 * s);
             context.waitTicks(1);
         }
         context.getInput().releaseMouse(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT);

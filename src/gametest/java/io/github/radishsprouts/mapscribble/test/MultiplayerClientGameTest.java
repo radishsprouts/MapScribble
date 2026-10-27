@@ -7,9 +7,7 @@ import io.github.radishsprouts.mapscribble.draw.Tool;
 import io.github.radishsprouts.mapscribble.model.MemoKind;
 import io.github.radishsprouts.mapscribble.store.StoreSession;
 import io.github.radishsprouts.mapscribble.ui.EditLayout;
-import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -25,9 +23,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
 
 /**
- * マルチプレイ（専用サーバーに接続した状態）で描いたメモが、JourneyMap のマルチ用の保存先
- * （journeymap/data/mp/&lt;サーバー名&gt;[_&lt;worldId&gt;]/addon-data/mapscribble/）へ書かれ、
- * シングル用（journeymap/data/sp/）へは書かれないことを確かめる。
+ * マルチプレイ（専用サーバーに接続した状態）で描いたメモが、マルチ用の保存先
+ * （&lt;ゲームフォルダ&gt;/mapscribble/servers/&lt;サーバーのアドレス&gt;/）へ書かれ、
+ * シングル用（&lt;ゲームフォルダ&gt;/mapscribble/saves/）へは書かれないことを確かめる
+ * （保存先は StoreSession.createKey が決める。地図 MOD には依存しない）。
  * 経過は標準出力へ「[MS-MP] 」を付けて出す。期待と違えば AssertionError で落とす。
  *
  * <p>流れ: 専用サーバーを立てて接続 → 全画面マップで囲む → 文字 → 保存 → mp の下のファイルを確かめる（sp の下は変わらない）
@@ -37,6 +36,10 @@ import net.minecraft.client.gui.screens.TitleScreen;
 public class MultiplayerClientGameTest implements FabricClientGameTest {
     private static final int TIMEOUT_TICKS = 600;
     private static final String NOTE = "mp note";
+    /** mapscribble/ の下の、マルチ（専用サーバーへの接続）の保存先のフォルダ名。StoreSession.createKey の "servers/" */
+    private static final String MULTI_KIND = "servers";
+    /** 同じく、シングルのワールドの保存先のフォルダ名。"saves/" */
+    private static final String SINGLE_KIND = "saves";
 
     private static void log(String message) {
         System.out.println("[MS-MP] " + message);
@@ -81,26 +84,15 @@ public class MultiplayerClientGameTest implements FabricClientGameTest {
                 .filter(m -> text.equals(m.text())).count());
     }
 
-    /** JourneyMap が mapscribble に返すデータの置き場（IClientAPI#getDataPath）。StoreSession が持つ api を読む。 */
-    private static File apiDataPath(ClientGameTestContext context) {
-        return context.computeOnClient(client -> {
-            try {
-                Field f = StoreSession.class.getDeclaredField("api");
-                f.setAccessible(true);
-                Object api = f.get(null);
-                Method m = api.getClass().getMethod("getDataPath", String.class);
-                return (File) m.invoke(api, "mapscribble");
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException(e);
-            }
-        });
-    }
-
+    /** メモの保存先の根（StoreSession.createKey の baseDir）。<ゲームフォルダ>/mapscribble/ */
     private static Path dataRoot() {
-        return FabricLoader.getInstance().getGameDir().resolve("journeymap").resolve("data");
+        return FabricLoader.getInstance().getGameDir().resolve("mapscribble");
     }
 
-    /** journeymap/data/<kind>/ の下にある mapscribble のオーバーワールドのファイル（kind は "mp" か "sp"）。 */
+    /**
+     * mapscribble/<kind>/ の下にあるオーバーワールドのメモのファイル（kind は "servers"＝マルチ、"saves"＝シングル）。
+     * ファイル名は MemoFile.fileName("minecraft:overworld") と同じ。
+     */
     private static List<Path> overworldFiles(String kind) {
         Path root = dataRoot().resolve(kind);
         if (!Files.isDirectory(root)) {
@@ -108,7 +100,6 @@ public class MultiplayerClientGameTest implements FabricClientGameTest {
         }
         try (Stream<Path> walk = Files.walk(root)) {
             return walk.filter(p -> p.getFileName().toString().equals("minecraft__overworld.json"))
-                    .filter(p -> p.toString().replace('\\', '/').contains("/addon-data/mapscribble/"))
                     .toList();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -182,10 +173,10 @@ public class MultiplayerClientGameTest implements FabricClientGameTest {
 
     /** タイトル画面（ワールドに入っていない状態）から始め、タイトル画面で終える。 */
     public static void run(ClientGameTestContext context) {
-        Map<String, String> spBefore = snapshot("sp");
-        log("sp の mapscribble ファイル（開始時）: " + spBefore.keySet());
-        List<Path> mpBefore = overworldFiles("mp");
-        log("mp の mapscribble ファイル（開始時）: " + mpBefore);
+        Map<String, String> spBefore = snapshot(SINGLE_KIND);
+        log("saves（シングル用）の mapscribble ファイル（開始時）: " + spBefore.keySet());
+        List<Path> mpBefore = overworldFiles(MULTI_KIND);
+        log("servers（マルチ用）の mapscribble ファイル（開始時）: " + mpBefore);
 
         var properties = new java.util.Properties();
         properties.setProperty("server-port", String.valueOf(freePort()));
@@ -264,15 +255,6 @@ public class MultiplayerClientGameTest implements FabricClientGameTest {
         int width = context.computeOnClient(client -> client.getWindow().getWidth());
         int height = context.computeOnClient(client -> client.getWindow().getHeight());
 
-        // JourneyMap が返す保存先（マルチ）
-        File dataPath = apiDataPath(context);
-        log("getDataPath(mapscribble) = " + dataPath);
-        check(dataPath != null, "getDataPath が値を返す");
-        String dataPathNorm = dataPath.getPath().replace('\\', '/');
-        check(dataPathNorm.contains("/journeymap/data/mp/"), "getDataPath がマルチ用（data/mp/）の下: " + dataPathNorm);
-        check(!dataPathNorm.contains("/journeymap/data/sp/"), "getDataPath がシングル用（data/sp/）ではない");
-        check(dataPathNorm.endsWith("/addon-data/mapscribble"), "getDataPath が addon-data/mapscribble で終わる");
-        log("マルチのサーバーのフォルダ名 = " + dataPath.getParentFile().getParentFile().getName());
 
         int n0 = context.computeOnClient(client -> StoreSession.repository().memos().size());
         log("描く前のメモ数 n0=" + n0 + " 内訳=" + context.computeOnClient(client -> StoreSession.repository().memos().stream()
@@ -326,23 +308,22 @@ public class MultiplayerClientGameTest implements FabricClientGameTest {
                 "メモが 1 件増えた");
         check(countWithText(context, NOTE) == 1, "入れた文字「" + NOTE + "」のメモがある");
 
-        // 3. 保存先: mp の下に書かれ、getDataPath のフォルダと一致する
-        check(waitFileIn(context, "mp", NOTE), "data/mp/ の下の addon-data/mapscribble/minecraft__overworld.json に「"
-                + NOTE + "」が書き出された（" + overworldFiles("mp") + "）");
-        Path expected = dataPath.toPath().resolve("minecraft__overworld.json");
-        log("期待のファイル = " + expected + " 存在=" + Files.isRegularFile(expected));
-        check(Files.isRegularFile(expected) && read(expected).contains(NOTE),
-                "getDataPath のフォルダの minecraft__overworld.json にある");
-        for (Path p : overworldFiles("mp")) {
+        // 3. 保存先: mapscribble/servers/<サーバーのフォルダ>/ の下に書かれる
+        check(waitFileIn(context, MULTI_KIND, NOTE), "mapscribble/servers/<サーバー>/minecraft__overworld.json に「"
+                + NOTE + "」が書き出された（" + overworldFiles(MULTI_KIND) + "）");
+        Path servers = dataRoot().resolve(MULTI_KIND);
+        for (Path p : overworldFiles(MULTI_KIND)) {
             if (read(p).contains(NOTE)) {
                 log("書かれたファイル（実際）= " + p.toAbsolutePath());
+                check(servers.equals(p.getParent().getParent()),
+                        "サーバーごとのフォルダ（servers/<サーバー>/）の直下に書かれている: " + servers.relativize(p));
             }
         }
 
-        // 4. sp の下には書かれていない（内容も変わっていない）
-        List<Path> spNow = overworldFiles("sp");
-        check(!anyContains(spNow, NOTE), "data/sp/ の下のどのファイルにも「" + NOTE + "」が無い");
-        check(snapshot("sp").equals(spBefore), "data/sp/ の下の mapscribble のファイルが、開始時から変わっていない");
+        // 4. シングル用（saves/）の下には書かれていない（内容も変わっていない）
+        List<Path> spNow = overworldFiles(SINGLE_KIND);
+        check(!anyContains(spNow, NOTE), "mapscribble/saves/ の下のどのファイルにも「" + NOTE + "」が無い");
+        check(snapshot(SINGLE_KIND).equals(spBefore), "mapscribble/saves/ の下のファイルが、開始時から変わっていない");
         context.takeScreenshot("mapscribble-mp-end");
     }
 }
