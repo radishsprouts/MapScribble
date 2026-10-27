@@ -24,6 +24,38 @@ subprojects {
             from(licenseFile) { rename { "$it$licenseSuffix" } }
         }
 
+        // Forge 系の構成だけ、jar の直下に pack.mcmeta を生成する。
+        // Forge は MOD の jar をそのままリソースパックとして読み、pack.mcmeta が無いと
+        // 「Missing metadata in pack mod:mapscribble」の警告を出して、その MOD のリソース（画像・翻訳）を
+        // 読み込まない。NeoForge は MOD のリソースパックを pack.mcmeta 無しでも読めるうえ、
+        // Fabric は pack.mcmeta を読まないので、この項目（pack_mcmeta_fields）を置いた構成にだけ入れる。
+        // 版番号の書式は Minecraft の版ごとに違う（pack_format / min_format・max_format）ので、
+        // versions/<構成>/gradle.properties に Forge 自身の jar と同じ値を置く
+        val packFields = project.findProperty("pack_mcmeta_fields")?.toString()
+        if (packFields != null) {
+            val packMcmeta = """
+                {
+                  "pack": {
+                    "description": "MapScribble resources",
+                    $packFields
+                  }
+                }
+            """.trimIndent() + "\n"
+            val packMcmetaFile = layout.buildDirectory.file("generated/pack-mcmeta/pack.mcmeta")
+            val generatePackMcmeta = tasks.register("generatePackMcmeta") {
+                inputs.property("pack_mcmeta", packMcmeta)
+                outputs.file(packMcmetaFile)
+                doLast {
+                    val file = packMcmetaFile.get().asFile
+                    file.parentFile.mkdirs()
+                    file.writeText(packMcmeta, Charsets.UTF_8)
+                }
+            }
+            tasks.named<ProcessResources>("processResources") {
+                from(generatePackMcmeta)
+            }
+        }
+
         // 全構成の最終 jar を `build/libs/<MOD版>/` へ集める（CI のビルド・リリースと README が呼ぶ）。
         // jar 名は `mapscribble-<MOD版>+<Minecraft版>-<ローダー>.jar`（各構成が version に付ける）なので、
         // 同じ Minecraft 版の Fabric 版と NeoForge 版（1.20.1 は Fabric 版と Forge 版）が
