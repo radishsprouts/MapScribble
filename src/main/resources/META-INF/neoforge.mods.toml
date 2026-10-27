@@ -8,6 +8,7 @@ version="${version}"
 displayName="MapScribble"
 description="Handwritten notes and scribbles on full-screen and mini maps (JourneyMap, Xaero's World Map, FTB Chunks). Client-side only."
 authors="radishsprouts"
+logoFile="assets/mapscribble/icon.png"
 
 [[dependencies.mapscribble]]
 modId="neoforge"
