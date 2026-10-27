@@ -99,6 +99,12 @@ public final class ScribbleBridge implements PrimaryMapBridge {
     private int dragEventsInStroke;
     /** 今の一筆の間に、描画ごとのカーソル位置で一筆を進めた回数。 */
     private int pumpedFramesInStroke;
+    /**
+     * 今の一筆の間に、OS のウィンドウで左ボタンが押されていると一度でも読めたか。
+     * 押す入力が OS を通らない時（開発用の入力の差し込み等）は常に「離れている」と読めるので、
+     * 押されているのを見た後でなければ「離れた」を信じない。
+     */
+    private boolean sawPhysicalDownInStroke;
     /** ドラッグ通知が届かなかった事実を、ログへ一度だけ書いたか。 */
     private boolean warnedNoDragEvents;
     /** 離した通知が届かなかった事実を、ログへ一度だけ書いたか。 */
@@ -363,7 +369,9 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         pumpedFramesInStroke++;
 
         Boolean down = ScreenCompat.isLeftMouseDown();
-        if (down != null && !down) {
+        if (Boolean.TRUE.equals(down)) {
+            sawPhysicalDownInStroke = true;
+        } else if (down != null && sawPhysicalDownInStroke) {
             if (!warnedLostRelease) {
                 warnedLostRelease = true;
                 MapScribble.LOGGER.warn("左ボタンを離した通知が届かないまま一筆が残っていたので、描画の時点で確定しました"
@@ -459,6 +467,7 @@ public final class ScribbleBridge implements PrimaryMapBridge {
                 releaseScreenInputState(fs.getScreen());
                 dragEventsInStroke = 0;
                 pumpedFramesInStroke = 0;
+                sawPhysicalDownInStroke = false;
                 controller.beginStroke(pos.x, pos.y, projection);
                 cancel(event);
                 break;
