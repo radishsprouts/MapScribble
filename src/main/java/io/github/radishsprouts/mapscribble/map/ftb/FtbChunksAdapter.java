@@ -14,7 +14,10 @@ import net.minecraft.client.gui.screens.Screen;
  * リージョン座標系から Projection への変換、中ドラッグスクロール、grabbed フラグによるドラッグ抑止を行う。
  */
 public final class FtbChunksAdapter implements MapAdapter {
-    private static final String WRAPPER_CLASS = "dev.ftb.mods.ftblibrary.ui.ScreenWrapper";
+    // FTB Library 26.1 以降は ScreenWrapper が client.gui.widget パッケージへ移っている（旧版は ui パッケージ）。
+    // メソッド名（getGui 等）は新旧で同じなので、クラス名だけ両方を受け付ける
+    private static final String WRAPPER_CLASS_NEW = "dev.ftb.mods.ftblibrary.client.gui.widget.ScreenWrapper";
+    private static final String WRAPPER_CLASS_OLD = "dev.ftb.mods.ftblibrary.ui.ScreenWrapper";
     private static final String LARGE_MAP_NEW = "dev.ftb.mods.ftbchunks.client.gui.map.LargeMapScreen";
     private static final String LARGE_MAP_OLD = "dev.ftb.mods.ftbchunks.client.gui.LargeMapScreen";
 
@@ -111,7 +114,8 @@ public final class FtbChunksAdapter implements MapAdapter {
         if (screen == null) {
             return null;
         }
-        if (!screen.getClass().getName().equals(WRAPPER_CLASS)) {
+        String wrapperName = screen.getClass().getName();
+        if (!wrapperName.equals(WRAPPER_CLASS_NEW) && !wrapperName.equals(WRAPPER_CLASS_OLD)) {
             return null;
         }
         initReflection(screen.getClass());
