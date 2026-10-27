@@ -168,7 +168,7 @@ public final class ScribbleUi {
     }
 
     public boolean onMouseClick(double guiX, double guiY, int button) {
-        return state.isModeOn() && band.click(guiX, guiY, button == 0);
+        return state.isModeOn() && band.click(guiX, guiY, button == InputConstants.MOUSE_BUTTON_LEFT);
     }
 
     public boolean onMouseClick(double guiX, double guiY, boolean leftButton) {

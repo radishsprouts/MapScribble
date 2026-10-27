@@ -1,5 +1,6 @@
 package io.github.radishsprouts.mapscribble.map;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
@@ -305,7 +306,7 @@ public final class ScreenMapHost {
         }
 
         // 右上の切替ボタン: オフなら手書きモードを始め、オンなら終える
-        if (button == 0 && isToggleHovered(screen, adapter, mouseX, mouseY)) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && isToggleHovered(screen, adapter, mouseX, mouseY)) {
             if (state.isModeOn()) {
                 controller.cancelStroke();
                 leftMouseDown = false;
@@ -318,7 +319,7 @@ public final class ScreenMapHost {
             return false;
         }
 
-        if (button != 0) {
+        if (button != InputConstants.MOUSE_BUTTON_LEFT) {
             return false;
         }
 
@@ -393,7 +394,7 @@ public final class ScreenMapHost {
         }
 
         DrawingController controller = ScribbleSession.controller();
-        if (controller != null && button == 0 && controller.activeStroke() != null) {
+        if (controller != null && button == InputConstants.MOUSE_BUTTON_LEFT && controller.activeStroke() != null) {
             Projection proj = adapter.currentProjection(screen);
             if (proj != null) {
                 controller.finishStroke(proj);
