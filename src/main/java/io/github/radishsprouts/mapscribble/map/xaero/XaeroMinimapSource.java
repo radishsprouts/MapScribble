@@ -22,6 +22,8 @@ import net.minecraft.client.Minecraft;
  *
  * <p>バージョン分岐（stonecutter）は要らない。26.x だけにある
  * {@code MinimapPipRenderState} は、取れたかどうかで実行時に分ける。
+ * 設定（形・表示の有無・UI の倍率・北固定）の取り方も実行時に分け、{@code HudMod#getHudConfigs} がある版は
+ * xaero.lib の設定、無い版（25.x 以前）は旧 {@code ModSettings} から取る（{@link ConfigAccess}）。
  */
 public final class XaeroMinimapSource implements MinimapSource {
 
@@ -67,16 +69,8 @@ public final class XaeroMinimapSource implements MinimapSource {
     private boolean shouldRenderSeen;
     private Method renderStateBoxSize;
     private Method renderStateMinimapScale;
-    // 設定
-    private Object hudMod;
-    private Method getHudConfigs;
-    private Method getClientConfigManager;
-    private Method getEffective;
-    private Method getMinimapScale;
-    private Object shapeOption;
-    /** ミニマップを出す設定か。取れなければ null（判定を省く）。 */
-    private Object displayOption;
-    private Method getEffectiveNorthLocked;
+    /** 設定（形・表示の有無・UI の倍率・北固定）の取り方。Xaero の版で経路が違うので、ここに閉じ込める。 */
+    private ConfigAccess configAccess;
     // xaero.hud.entity.EntityUtils
     private Method entityGetX;
     private Method entityGetZ;
@@ -127,13 +121,12 @@ public final class XaeroMinimapSource implements MinimapSource {
                 return null;
             }
 
-            Object configManager = getClientConfigManager.invoke(getHudConfigs.invoke(hudMod));
-            if (configManager == null) {
+            Object config = configAccess.current();
+            if (config == null) {
                 return null;
             }
             // ミニマップそのものを無効にしている間は描かない
-            if (displayOption != null
-                    && Boolean.FALSE.equals(getEffective.invoke(configManager, displayOption))) {
+            if (!configAccess.minimapShown(config)) {
                 return null;
             }
 
@@ -167,14 +160,13 @@ public final class XaeroMinimapSource implements MinimapSource {
                 frameXGui = pushStateX.getInt(pushState);
                 frameYGui = pushStateY.getInt(pushState);
                 frameSideGui = ((Number) sessionGetWidth.invoke(moduleSession, guiScale)).doubleValue();
-                minimapScale = ((Number) getMinimapScale.invoke(null, configManager)).doubleValue();
+                minimapScale = configAccess.minimapScale(config);
             }
 
             int minimapSize = ((Number) getMinimapSize.invoke(processor)).intValue();
             double zoom = ((Number) getMinimapZoom.invoke(processor)).doubleValue();
-            int shape = ((Number) getEffective.invoke(configManager, shapeOption)).intValue();
-            boolean northLocked = Boolean.TRUE.equals(
-                    getEffectiveNorthLocked.invoke(null, minimapSize / 2, shape));
+            int shape = configAccess.shape(config);
+            boolean northLocked = configAccess.northLocked(config, minimapSize / 2, shape);
 
             double padPhys = FRAME_PADDING * minimapScale;
             // 設定サイズから出した半辺と、枠の実寸から出した半辺。食い違ったら枠の側を採る
@@ -250,36 +242,21 @@ public final class XaeroMinimapSource implements MinimapSource {
             resolveRenderState();
 
             Class<?> hudModClass = Class.forName("xaero.common.HudMod");
-            hudMod = hudModClass.getField("INSTANCE").get(null);
+            Object hudMod = hudModClass.getField("INSTANCE").get(null);
             if (hudMod == null) {
                 warnOnce("xaero.common.HudMod.INSTANCE が null でした", null);
                 return;
             }
-            getHudConfigs = hudModClass.getMethod("getHudConfigs");
-            Object configChannel = getHudConfigs.invoke(hudMod);
-            if (configChannel == null) {
-                warnOnce("Xaero の設定チャネルが取得できませんでした", null);
+            // 設定の入口で版を分ける。getHudConfigs（xaero.lib の設定）がある版は新しい経路だけを使い、
+            // 無い版（Xaero's Minimap 25.x 以前）だけ旧い ModSettings の経路を使う。
+            // 新しい版で経路が欠けた時に、26.x にも残っている旧 ModSettings の抜け殻へ落ちて
+            // 誤った値を使わないよう、新旧は getHudConfigs の有無だけで決める
+            configAccess = optionalMethod(hudModClass, "getHudConfigs") != null
+                    ? resolveClientConfigAccess(hudModClass, hudMod)
+                    : resolveLegacyConfigAccess(hudModClass, hudMod);
+            if (configAccess == null) {
                 return;
             }
-            // ここから先の型（xaero.lib.*）は jar に同梱されておらず Class.forName できないので、
-            // 実体の getClass() からメソッド名と引数の個数で探す
-            getClientConfigManager = configChannel.getClass().getMethod("getClientConfigManager");
-            Object configManager = getClientConfigManager.invoke(configChannel);
-            if (configManager == null) {
-                warnOnce("Xaero の設定マネージャが取得できませんでした", null);
-                return;
-            }
-            getEffective = findMethod(configManager.getClass(), "getEffective", 1);
-            getMinimapScale = findMethod(Class.forName("xaero.hud.gui.util.GuiUtils"), "getMinimapScale", 1);
-
-            Class<?> optionsClass =
-                    Class.forName("xaero.hud.minimap.common.config.option.MinimapProfiledConfigOptions");
-            shapeOption = optionsClass.getField("SHAPE").get(null);
-            displayOption = optionalStaticField(optionsClass, "DISPLAY_MINIMAP");
-
-            getEffectiveNorthLocked =
-                    Class.forName("xaero.hud.minimap.config.util.MinimapConfigClientUtils")
-                            .getMethod("getEffectiveNorthLocked", int.class, int.class);
 
             Class<?> entityUtilsClass = Class.forName("xaero.hud.entity.EntityUtils");
             entityGetX = findMethod(entityUtilsClass, "getEntityX", 2);
@@ -291,6 +268,59 @@ public final class XaeroMinimapSource implements MinimapSource {
             warnOnce("Xaero's Minimap の内部へのアクセス経路が見つかりませんでした。"
                     + "ミニマップへの手書きメモを無効にします", t);
         }
+    }
+
+    /**
+     * 設定の新しい取り方（xaero.lib の設定。Xaero's Minimap 26.x と、getHudConfigs を持つ版）を解決する。
+     * 取れなければ警告を出して null を返す（例外はそのまま呼び出し元へ投げる）。
+     */
+    private ConfigAccess resolveClientConfigAccess(Class<?> hudModClass, Object hudMod) throws Exception {
+        Method getHudConfigs = hudModClass.getMethod("getHudConfigs");
+        Object configChannel = getHudConfigs.invoke(hudMod);
+        if (configChannel == null) {
+            warnOnce("Xaero の設定チャネルが取得できませんでした", null);
+            return null;
+        }
+        // ここから先の型（xaero.lib.*）は jar に同梱されておらず Class.forName できないので、
+        // 実体の getClass() からメソッド名と引数の個数で探す
+        Method getClientConfigManager = configChannel.getClass().getMethod("getClientConfigManager");
+        Object configManager = getClientConfigManager.invoke(configChannel);
+        if (configManager == null) {
+            warnOnce("Xaero の設定マネージャが取得できませんでした", null);
+            return null;
+        }
+        Method getEffective = findMethod(configManager.getClass(), "getEffective", 1);
+        Method getMinimapScale = findMethod(Class.forName("xaero.hud.gui.util.GuiUtils"), "getMinimapScale", 1);
+
+        Class<?> optionsClass =
+                Class.forName("xaero.hud.minimap.common.config.option.MinimapProfiledConfigOptions");
+        Object shapeOption = optionsClass.getField("SHAPE").get(null);
+        Object displayOption = optionalStaticField(optionsClass, "DISPLAY_MINIMAP");
+
+        Method getEffectiveNorthLocked =
+                Class.forName("xaero.hud.minimap.config.util.MinimapConfigClientUtils")
+                        .getMethod("getEffectiveNorthLocked", int.class, int.class);
+        return new ClientConfigAccess(hudMod, getHudConfigs, getClientConfigManager, getEffective,
+                getMinimapScale, shapeOption, displayOption, getEffectiveNorthLocked);
+    }
+
+    /**
+     * 設定の旧い取り方（xaero.common.settings.ModSettings。Xaero's Minimap 25.x 以前）を解決する。
+     *
+     * <p>確定した経路（25.2.10 / NeoForge 1.20.6 の逆アセンブルで確認）:
+     * {@code HudMod#getSettings()} が {@code ModSettings} を返し、そこから
+     * {@code getMinimap()}（表示の有無。サーバーの禁止も含む）・{@code minimapShape}（public int。値域は 0〜1 で、新しい版の SHAPE と同じ。0 以外を円として扱う）・
+     * {@code getMinimapScale()}（UI の倍率）・{@code getLockNorth(int, int)}（北固定）を取る。
+     */
+    private ConfigAccess resolveLegacyConfigAccess(Class<?> hudModClass, Object hudMod) throws Exception {
+        Method getSettings = hudModClass.getMethod("getSettings");
+        Class<?> settingsClass = Class.forName("xaero.common.settings.ModSettings");
+        Method getMinimap = settingsClass.getMethod("getMinimap");
+        Method getMinimapScale = settingsClass.getMethod("getMinimapScale");
+        Field minimapShape = settingsClass.getField("minimapShape");
+        Method getLockNorth = settingsClass.getMethod("getLockNorth", int.class, int.class);
+        MapScribble.LOGGER.info("[MapScribble] Xaero's Minimap の設定を旧い形式（ModSettings）で読みます");
+        return new LegacyConfigAccess(hudMod, getSettings, getMinimap, getMinimapScale, minimapShape, getLockNorth);
     }
 
     /** 26.x の MinimapPipRenderState。1 つでも欠けたら「無い」ものとして扱い、押し出し枠の経路へ落ちる。 */
@@ -369,6 +399,127 @@ public final class XaeroMinimapSource implements MinimapSource {
             MapScribble.LOGGER.warn("[MapScribble] {}", message);
         } else {
             MapScribble.LOGGER.warn("[MapScribble] {}: {}", message, cause.toString());
+        }
+    }
+
+    /**
+     * 設定値の取り方。Xaero's Minimap の版で経路が違う（新: xaero.lib の設定 / 旧: ModSettings）ので、
+     * 違いはここに閉じ込める。{@link #geometry(float)} はこの型しか見ない。
+     *
+     * <p>{@link #current()} が返す「設定のハンドル」を、同じフレームの各メソッドへ渡す
+     * （実装はハンドルの中身を知っていて、呼び出し側は中身を知らない）。
+     */
+    private interface ConfigAccess {
+        /** このフレームの設定のハンドル。取れなければ null（描かない）。 */
+        Object current() throws Exception;
+
+        /** ミニマップを出す設定か。 */
+        boolean minimapShown(Object config) throws Exception;
+
+        /** ミニマップの形。0 以外が円。 */
+        int shape(Object config) throws Exception;
+
+        /** UI の倍率（minimapScale）。 */
+        double minimapScale(Object config) throws Exception;
+
+        /** 北固定か。configuredSize は設定サイズ（processor の minimapSize の半分）。 */
+        boolean northLocked(Object config, int configuredSize, int shape) throws Exception;
+    }
+
+    /** 新しい取り方。ハンドルは ClientConfigManager（xaero.lib）。 */
+    private static final class ClientConfigAccess implements ConfigAccess {
+        private final Object hudMod;
+        private final Method getHudConfigs;
+        private final Method getClientConfigManager;
+        private final Method getEffective;
+        private final Method getMinimapScale;
+        private final Object shapeOption;
+        /** ミニマップを出す設定のオプション。取れなければ null（判定を省く）。 */
+        private final Object displayOption;
+        private final Method getEffectiveNorthLocked;
+
+        ClientConfigAccess(Object hudMod, Method getHudConfigs, Method getClientConfigManager,
+                Method getEffective, Method getMinimapScale, Object shapeOption, Object displayOption,
+                Method getEffectiveNorthLocked) {
+            this.hudMod = hudMod;
+            this.getHudConfigs = getHudConfigs;
+            this.getClientConfigManager = getClientConfigManager;
+            this.getEffective = getEffective;
+            this.getMinimapScale = getMinimapScale;
+            this.shapeOption = shapeOption;
+            this.displayOption = displayOption;
+            this.getEffectiveNorthLocked = getEffectiveNorthLocked;
+        }
+
+        @Override
+        public Object current() throws Exception {
+            return getClientConfigManager.invoke(getHudConfigs.invoke(hudMod));
+        }
+
+        @Override
+        public boolean minimapShown(Object config) throws Exception {
+            return displayOption == null || !Boolean.FALSE.equals(getEffective.invoke(config, displayOption));
+        }
+
+        @Override
+        public int shape(Object config) throws Exception {
+            return ((Number) getEffective.invoke(config, shapeOption)).intValue();
+        }
+
+        @Override
+        public double minimapScale(Object config) throws Exception {
+            return ((Number) getMinimapScale.invoke(null, config)).doubleValue();
+        }
+
+        @Override
+        public boolean northLocked(Object config, int configuredSize, int shape) throws Exception {
+            return Boolean.TRUE.equals(getEffectiveNorthLocked.invoke(null, configuredSize, shape));
+        }
+    }
+
+    /** 旧い取り方（Xaero's Minimap 25.x 以前）。ハンドルは xaero.common.settings.ModSettings。 */
+    private static final class LegacyConfigAccess implements ConfigAccess {
+        private final Object hudMod;
+        private final Method getSettings;
+        private final Method getMinimap;
+        private final Method getMinimapScale;
+        private final Field minimapShape;
+        private final Method getLockNorth;
+
+        LegacyConfigAccess(Object hudMod, Method getSettings, Method getMinimap, Method getMinimapScale,
+                Field minimapShape, Method getLockNorth) {
+            this.hudMod = hudMod;
+            this.getSettings = getSettings;
+            this.getMinimap = getMinimap;
+            this.getMinimapScale = getMinimapScale;
+            this.minimapShape = minimapShape;
+            this.getLockNorth = getLockNorth;
+        }
+
+        @Override
+        public Object current() throws Exception {
+            // 設定の読み直し（setSettings / resetSettings）で差し替わるので、毎回 HudMod から取る
+            return getSettings.invoke(hudMod);
+        }
+
+        @Override
+        public boolean minimapShown(Object config) throws Exception {
+            return Boolean.TRUE.equals(getMinimap.invoke(config));
+        }
+
+        @Override
+        public int shape(Object config) throws Exception {
+            return minimapShape.getInt(config);
+        }
+
+        @Override
+        public double minimapScale(Object config) throws Exception {
+            return ((Number) getMinimapScale.invoke(config)).doubleValue();
+        }
+
+        @Override
+        public boolean northLocked(Object config, int configuredSize, int shape) throws Exception {
+            return Boolean.TRUE.equals(getLockNorth.invoke(config, configuredSize, shape));
         }
     }
 }
