@@ -60,6 +60,11 @@ public final class XaeroMinimapSource implements MinimapSource {
     private Field renderStateX;
     private Field renderStateY;
     private Field renderStateShouldRender;
+    /**
+     * shouldRender が true になったのを一度でも見たか。Xaero's Minimap 26.6.2 はこのフィールドを宣言しているが
+     * どこからも書き込まない（常に false）ので、true を見るまでは「描いていない」の印として扱わない。
+     */
+    private boolean shouldRenderSeen;
     private Method renderStateBoxSize;
     private Method renderStateMinimapScale;
     // 設定
@@ -142,9 +147,13 @@ public final class XaeroMinimapSource implements MinimapSource {
             double minimapScale;
             Object renderState = renderState(processor, enlarged);
             if (renderState != null) {
-                if (renderStateShouldRender != null && !renderStateShouldRender.getBoolean(renderState)) {
-                    // Xaero が今フレームはミニマップを描いていない
-                    return null;
+                if (renderStateShouldRender != null) {
+                    if (renderStateShouldRender.getBoolean(renderState)) {
+                        shouldRenderSeen = true;
+                    } else if (shouldRenderSeen) {
+                        // Xaero が今フレームはミニマップを描いていない
+                        return null;
+                    }
                 }
                 frameXGui = renderStateX.getInt(renderState);
                 frameYGui = renderStateY.getInt(renderState);
