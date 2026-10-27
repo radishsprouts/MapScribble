@@ -27,8 +27,18 @@ public final class ScreenCompat {
         //?}
     }
 
+    /**
+     * ゲームのフォルダ。NeoForge 26.1 以降は Minecraft の生成より前に MOD を生成するため、
+     * Minecraft.getInstance() ではなくローダーから取る。
+     */
     public static Path gameDirectory() {
-        return Minecraft.getInstance().gameDirectory.toPath();
+        //? if fabric {
+        return net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir();
+        //?} elif neoforge {
+        /*return net.neoforged.fml.loading.FMLPaths.GAMEDIR.get();
+        *///?} else {
+        /*return net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get();
+        *///?}
     }
 
     public static String dimensionId(ResourceKey<Level> key) {
