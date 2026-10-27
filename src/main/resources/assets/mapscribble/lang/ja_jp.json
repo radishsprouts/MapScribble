@@ -69,6 +69,7 @@
   "mapscribble.screen.title.edit.text": "文字のメモを編集",
   "mapscribble.screen.label.text": "文字",
   "mapscribble.screen.label.color": "色：%s",
+  "mapscribble.screen.swatch.narration": "色",
   "mapscribble.screen.hint.keys": "Ctrl+Enter で確定 / Esc で取り消し",
   "mapscribble.screen.error.text_required": "文字のメモには文字が必要です",
   "mapscribble.screen.counter": "%s/%s",

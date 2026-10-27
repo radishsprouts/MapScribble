@@ -69,6 +69,7 @@
   "mapscribble.screen.title.edit.text": "Modifier le texte",
   "mapscribble.screen.label.text": "Texte",
   "mapscribble.screen.label.color": "Couleur : %s",
+  "mapscribble.screen.swatch.narration": "Couleur",
   "mapscribble.screen.hint.keys": "Ctrl+Entrée pour enregistrer / Échap pour annuler",
   "mapscribble.screen.error.text_required": "Une note de texte ne peut pas être vide",
   "mapscribble.screen.counter": "%s/%s",

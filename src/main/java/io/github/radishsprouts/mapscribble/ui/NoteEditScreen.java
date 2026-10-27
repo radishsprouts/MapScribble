@@ -70,11 +70,8 @@ public final class NoteEditScreen extends Screen {
     private boolean onMinimap;
 
     public NoteEditScreen(Screen parent, Spec spec, Callbacks callbacks) {
-        super(Component.translatable(spec.edit()
-                ? "mapscribble.screen.title.edit"
-                : (spec.kind() == MemoKind.TEXT
-                ? "mapscribble.screen.title.new_text"
-                : (spec.kind() == MemoKind.REGION ? "mapscribble.screen.title.new_enclose" : "mapscribble.screen.title.new_line"))));
+        super(Component.translatable((spec.edit() ? "mapscribble.screen.title.edit." : "mapscribble.screen.title.")
+                + (spec.kind() == MemoKind.TEXT ? "text" : (spec.kind() == MemoKind.REGION ? "enclose" : "line"))));
         this.parent = parent;
         this.spec = spec;
         this.callbacks = callbacks;

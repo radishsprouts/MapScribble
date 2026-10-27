@@ -69,6 +69,7 @@
   "mapscribble.screen.title.edit.text": "编辑文字备注",
   "mapscribble.screen.label.text": "文字",
   "mapscribble.screen.label.color": "颜色：%s",
+  "mapscribble.screen.swatch.narration": "颜色",
   "mapscribble.screen.hint.keys": "Ctrl+Enter 保存 / Esc 取消",
   "mapscribble.screen.error.text_required": "文字备注不能为空",
   "mapscribble.screen.counter": "%s/%s",

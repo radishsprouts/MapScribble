@@ -69,6 +69,7 @@
   "mapscribble.screen.title.edit.text": "Редактирование текста",
   "mapscribble.screen.label.text": "Текст",
   "mapscribble.screen.label.color": "Цвет: %s",
+  "mapscribble.screen.swatch.narration": "Цвет",
   "mapscribble.screen.hint.keys": "Ctrl+Enter для сохранения / Esc для отмены",
   "mapscribble.screen.error.text_required": "Текстовая заметка не может быть пустой",
   "mapscribble.screen.counter": "%s/%s",
