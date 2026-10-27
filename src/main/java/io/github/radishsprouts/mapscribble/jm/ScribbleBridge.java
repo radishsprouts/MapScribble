@@ -95,6 +95,15 @@ public final class ScribbleBridge implements PrimaryMapBridge {
 
     /** 今開いている JourneyMap の全画面マップ（開いていなければ null）。 */
     private IFullscreen fullscreen;
+    /** 今の一筆の間に、JourneyMap のドラッグ通知が届いた回数（原因の切り分けのため。一筆の開始で 0 に戻す）。 */
+    private int dragEventsInStroke;
+    /** 今の一筆の間に、描画ごとのカーソル位置で一筆を進めた回数。 */
+    private int pumpedFramesInStroke;
+    /** ドラッグ通知が届かなかった事実を、ログへ一度だけ書いたか。 */
+    private boolean warnedNoDragEvents;
+    /** 離した通知が届かなかった事実を、ログへ一度だけ書いたか。 */
+    private boolean warnedLostRelease;
+
     /** 変更の通知を登録済みの窓口。 */
     private final Set<MemoRepository> listened = Collections.newSetFromMap(new IdentityHashMap<>());
     private MemoRepository lastRepository;
@@ -281,6 +290,7 @@ public final class ScribbleBridge implements PrimaryMapBridge {
     private void onRender(FullscreenRenderEvent event) {
         track(event.getFullscreen());
         dedupeToggleButton(event.getFullscreen().getScreen());
+        pumpStroke(event.getFullscreen());
         renderer.render(event);
         syncToggleButton();
         int mouseX = event.getMouseX();
@@ -312,6 +322,7 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         if (fs == null || fs.getScreen() != screen) {
             return;
         }
+        pumpStroke(fs);
         //? if <26.1 {
         /*dedupeToggleButton(screen);
         renderer.render(gfx, fs);
@@ -329,6 +340,47 @@ public final class ScribbleBridge implements PrimaryMapBridge {
             });
         }
         *///?}
+    }
+
+    /**
+     * 一筆の最中、描画のたびにカーソルの今の位置で一筆を進める。
+     * JourneyMap のドラッグ通知（FULLSCREEN_MAP_DRAG_EVENT）は、JourneyMap の内部の状態によっては届かなくなり、
+     * 押した瞬間だけ描けて一筆が進まず確定もしないことがあった。通知に頼らず、ゲームが持つカーソル位置から進める。
+     * 左ボタンを離した通知が届かなかった時も、OS のウィンドウから押下状態を読んで一筆を確定する（26.3 は読めないので何もしない）。
+     */
+    private void pumpStroke(IFullscreen fs) {
+        if (controller.activeStroke() == null) {
+            return;
+        }
+        Projection projection = MapProjection.of(fs);
+        double physX = ScreenCompat.mousePhysicalX();
+        double physY = ScreenCompat.mousePhysicalY();
+        int guiScale = MapProjection.guiScale();
+        // ドラッグ通知と同じく、帯の上では一筆を進めない
+        if (!state.isOverBand(physX / guiScale, physY / guiScale)) {
+            controller.extendStroke(physX, physY, projection);
+        }
+        pumpedFramesInStroke++;
+
+        Boolean down = ScreenCompat.isLeftMouseDown();
+        if (down != null && !down) {
+            if (!warnedLostRelease) {
+                warnedLostRelease = true;
+                MapScribble.LOGGER.warn("左ボタンを離した通知が届かないまま一筆が残っていたので、描画の時点で確定しました"
+                        + "（ドラッグ通知 {} 回、描画で進めた回数 {}）", dragEventsInStroke, pumpedFramesInStroke);
+            }
+            finishPumpedStroke(projection);
+        }
+    }
+
+    /** 一筆を確定する。ドラッグ通知が一度も届かず描画で補っていたなら、その事実をログへ一度だけ残す。 */
+    private void finishPumpedStroke(Projection projection) {
+        if (dragEventsInStroke == 0 && pumpedFramesInStroke > 10 && !warnedNoDragEvents) {
+            warnedNoDragEvents = true;
+            MapScribble.LOGGER.warn("JourneyMap のドラッグ通知が一度も届かなかったので、描画のたびのカーソル位置で一筆を進めました"
+                    + "（描画で進めた回数 {}）", pumpedFramesInStroke);
+        }
+        controller.finishStroke(projection);
     }
 
     /** 消しゴム・編集で、カーソルの下にあるメモ。条件が合わなければ null。同じ入力なら前の答えを使い回す。 */
@@ -400,6 +452,13 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         switch (tool) {
             case ENCLOSE:
             case LINE:
+                // 前の一筆が離す通知を受け取れずに残っていたら、先に確定する
+                if (controller.activeStroke() != null) {
+                    controller.finishStroke(projection);
+                }
+                releaseScreenInputState(fs.getScreen());
+                dragEventsInStroke = 0;
+                pumpedFramesInStroke = 0;
                 controller.beginStroke(pos.x, pos.y, projection);
                 cancel(event);
                 break;
@@ -415,6 +474,18 @@ public final class ScribbleBridge implements PrimaryMapBridge {
             default:
                 break;
         }
+    }
+
+    /**
+     * 一筆を始める時に、画面が握っている入力欄のフォーカスとドラッグ中の印を外す。
+     * 見えない入力欄などが握ったままだと、以後のドラッグがそちらへ流れ、地図側のドラッグ通知が出なくなる疑いがある。
+     */
+    private static void releaseScreenInputState(Screen screen) {
+        if (screen == null) {
+            return;
+        }
+        screen.setFocused(null);
+        screen.setDragging(false);
     }
 
     private void pick(Tool tool, Projection projection, Point2D.Double pos) {
@@ -473,6 +544,7 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         }
         // 手書きモード中は最初から毎回取り消す（地図を動かさない）
         cancel(event);
+        dragEventsInStroke++;
         controller.extendStroke(pos.x, pos.y, MapProjection.of(fs));
     }
 
@@ -502,7 +574,11 @@ public final class ScribbleBridge implements PrimaryMapBridge {
             return true;
         }
         if (button == MOUSE_LEFT && controller.activeStroke() != null) {
-            controller.finishStroke(MapProjection.of(fs));
+            Projection projection = MapProjection.of(fs);
+            // 離した位置まで一筆を伸ばしてから確定する
+            int guiScale = MapProjection.guiScale();
+            controller.extendStroke(mouseX * guiScale, mouseY * guiScale, projection);
+            finishPumpedStroke(projection);
         }
         return true;
     }

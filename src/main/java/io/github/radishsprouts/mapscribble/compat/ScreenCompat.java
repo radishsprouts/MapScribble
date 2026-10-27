@@ -28,6 +28,41 @@ public final class ScreenCompat {
     }
 
     /**
+     * マウスカーソルの横位置を、MapScribble の座標（GUI 座標 × guiScale の物理ピクセル）で返す。
+     * 画面表示中はイベントを介さずに、ゲームが保持しているカーソル位置をそのまま読む。
+     */
+    public static double mousePhysicalX() {
+        Minecraft mc = Minecraft.getInstance();
+        com.mojang.blaze3d.platform.Window window = mc.getWindow();
+        double guiX = mc.mouseHandler.xpos() * window.getGuiScaledWidth() / Math.max(1, window.getScreenWidth());
+        return guiX * Math.max(1.0, (double) window.getGuiScale());
+    }
+
+    /** 縦位置。{@link #mousePhysicalX()} と同じ座標。 */
+    public static double mousePhysicalY() {
+        Minecraft mc = Minecraft.getInstance();
+        com.mojang.blaze3d.platform.Window window = mc.getWindow();
+        double guiY = mc.mouseHandler.ypos() * window.getGuiScaledHeight() / Math.max(1, window.getScreenHeight());
+        return guiY * Math.max(1.0, (double) window.getGuiScale());
+    }
+
+    /**
+     * 左ボタンが物理的に押されているか。画面表示中は MouseHandler の押下状態が更新されないので、OS のウィンドウから直接読む。
+     * 26.3 は GLFW ではなく読み口が無いので、分からない時は null を返す。
+     */
+    public static Boolean isLeftMouseDown() {
+        //? if >=26.3 {
+        /*return null;
+        *///?} elif >=1.21.11 {
+        return org.lwjgl.glfw.GLFW.glfwGetMouseButton(Minecraft.getInstance().getWindow().handle(),
+                org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+        //?} else {
+        /*return org.lwjgl.glfw.GLFW.glfwGetMouseButton(Minecraft.getInstance().getWindow().getWindow(),
+                org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+        *///?}
+    }
+
+    /**
      * ゲームのフォルダ。NeoForge 26.1 以降は Minecraft の生成より前に MOD を生成するため、
      * Minecraft.getInstance() ではなくローダーから取る。
      */
