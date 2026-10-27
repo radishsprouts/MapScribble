@@ -87,13 +87,20 @@ public class CloseDuringDragClientGameTest implements FabricClientGameTest {
         int width = context.computeOnClient(client -> client.getWindow().getWidth());
         int height = context.computeOnClient(client -> client.getWindow().getHeight());
 
-        // 始点は帯の外に置く。押して動かすが、離さない
-        context.getInput().setCursorPos(width * 0.60, height * 0.30);
+        // 始点は帯（右端の「終了」ボタンを含む）とその下のヒント行の外に置く。帯は GUI 座標の左上（既定 28,44 から幅 235）に
+        // あり、始点が帯の上だと、押した時に帯のボタン（終了なら手書きモードが切れる）が受けて一筆が始まらない。
+        // 押して動かすが、離さない
+        double startX = width * 0.60;
+        double startY = height * 0.60;
+        double guiScale = context.computeOnClient(client -> client.getWindow().getGuiScale());
+        check(!state.isOverBand(startX / guiScale, startY / guiScale),
+                "ドラッグの始点は帯の外にある（GUI 座標 " + (startX / guiScale) + "," + (startY / guiScale) + "）");
+        context.getInput().setCursorPos(startX, startY);
         context.waitTicks(2);
         context.getInput().holdMouse(InputConstants.MOUSE_BUTTON_LEFT);
         context.waitTicks(2);
         for (int s = 1; s <= 10; s++) {
-            context.getInput().setCursorPos(width * 0.60 + width * 0.01 * s, height * 0.30 + height * 0.01 * s);
+            context.getInput().setCursorPos(startX + width * 0.01 * s, startY + height * 0.01 * s);
             context.waitTicks(1);
         }
         check(controller.activeStroke() != null, "押したまま動かすと、描きかけの一筆がある");

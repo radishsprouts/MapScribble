@@ -87,15 +87,17 @@ public class FlowClientGameTest implements FabricClientGameTest {
                 .filter(m -> text.equals(m.text())).count());
     }
 
-    /** JourneyMap のデータ置き場の下にある mapscribble のオーバーワールドのファイルを全部読む（パスと中身）。 */
+    /**
+     * シングルのワールドのメモの保存先（<ゲームフォルダ>/mapscribble/saves/<ワールド名>/。StoreSession.createKey が決める）
+     * にある、オーバーワールドのファイルを全部集める。
+     */
     private static List<Path> overworldFiles() {
-        Path root = FabricLoader.getInstance().getGameDir().resolve("journeymap").resolve("data");
+        Path root = FabricLoader.getInstance().getGameDir().resolve("mapscribble").resolve("saves");
         if (!Files.isDirectory(root)) {
             return List.of();
         }
         try (Stream<Path> walk = Files.walk(root)) {
             return walk.filter(p -> p.getFileName().toString().equals("minecraft__overworld.json"))
-                    .filter(p -> p.toString().replace('\\', '/').contains("/addon-data/mapscribble/"))
                     .toList();
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -234,7 +236,7 @@ public class FlowClientGameTest implements FabricClientGameTest {
                 + saved.points().size());
 
         // 4. ファイルに保存される
-        check(waitFile(context, NOTE, true), "addon-data/mapscribble/minecraft__overworld.json に「" + NOTE
+        check(waitFile(context, NOTE, true), "mapscribble/saves/<ワールド>/minecraft__overworld.json に「" + NOTE
                 + "」が書き出された（" + overworldFiles() + "）");
 
         // 5. 消しゴム（数字キー 4）で、描いた囲みの中をクリックして消す
