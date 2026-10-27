@@ -9,6 +9,7 @@ import io.github.radishsprouts.mapscribble.draw.DrawingState;
 import io.github.radishsprouts.mapscribble.draw.HitTester;
 import io.github.radishsprouts.mapscribble.draw.ScribbleSession;
 import io.github.radishsprouts.mapscribble.draw.Tool;
+import io.github.radishsprouts.mapscribble.geom.PointerUnits;
 import io.github.radishsprouts.mapscribble.geom.Projection;
 import io.github.radishsprouts.mapscribble.map.MidDragHandler;
 import io.github.radishsprouts.mapscribble.map.PrimaryMapBridge;
@@ -95,6 +96,15 @@ public final class ScribbleBridge implements PrimaryMapBridge {
 
     /** 今開いている JourneyMap の全画面マップ（開いていなければ null）。 */
     private IFullscreen fullscreen;
+    /**
+     * JourneyMap の通知（クリック・ドラッグ）の座標の単位。版によって GUI 座標か物理ピクセルかが違うので、
+     * 押した時に実測して覚える。地図の画面が替わったら捨てる。
+     */
+    private PointerUnits.Unit pointerUnit = PointerUnits.Unit.UNKNOWN;
+    /** 直近の押下（JourneyMap の mouseClicked より前にゲームが渡す）の GUI 座標。NaN は記録なし。onClick で使ったら消す。 */
+    private double pressGuiX = Double.NaN;
+    private double pressGuiY = Double.NaN;
+    private int pressButton;
     /** 今の一筆の間に、JourneyMap のドラッグ通知が届いた回数（原因の切り分けのため。一筆の開始で 0 に戻す）。 */
     private int dragEventsInStroke;
     /** 今の一筆の間に、描画ごとのカーソル位置で一筆を進めた回数。 */
@@ -167,7 +177,17 @@ public final class ScribbleBridge implements PrimaryMapBridge {
     // ---- 状態の追跡 ----
 
     private void track(IFullscreen fs) {
+        if (this.fullscreen != fs) {
+            resetPointerUnits();
+        }
         this.fullscreen = fs;
+    }
+
+    /** 通知の座標の単位と、記録した押下の位置を捨てる（地図の画面が替わった時）。 */
+    private void resetPointerUnits() {
+        pointerUnit = PointerUnits.Unit.UNKNOWN;
+        pressGuiX = Double.NaN;
+        pressGuiY = Double.NaN;
     }
 
     /** 右列に「手書き」の切替ボタンを足す。ラベルは翻訳キー（オンの時は「終える」、オフの時は「にする」）。 */
@@ -251,6 +271,7 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         Screen shown = ScreenCompat.currentScreen();
         if (shown != fs.getScreen()) {
             fullscreen = null;
+            resetPointerUnits();
             controller.cancelStroke();
             MidDragHandler.reset();
             return null;
@@ -287,6 +308,7 @@ public final class ScribbleBridge implements PrimaryMapBridge {
             controller.cancelStroke();
             MidDragHandler.reset();
             fullscreen = null;
+            resetPointerUnits();
         }
     }
 
@@ -433,7 +455,9 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         if (fs == null) {
             return;
         }
-        Point2D.Double pos = event.getMousePosition();
+        int guiScale = MapProjection.guiScale();
+        // 通知の座標の単位は JourneyMap の版で違う。以後は物理ピクセルにそろえた座標を使う
+        Point2D.Double pos = clickPhysical(event.getMousePosition(), event.getButton(), guiScale);
 
         // ミドルボタン押下でドラッグスクロール開始（手書きモードON/OFF問わず動作）
         if (event.getButton() == 2) {
@@ -446,7 +470,6 @@ public final class ScribbleBridge implements PrimaryMapBridge {
             return;
         }
 
-        int guiScale = MapProjection.guiScale();
         if (state.isOverBand(pos.x / guiScale, pos.y / guiScale)) {
             cancel(event);
             return;
@@ -483,6 +506,46 @@ public final class ScribbleBridge implements PrimaryMapBridge {
             default:
                 break;
         }
+    }
+
+    /**
+     * クリック通知の座標を物理ピクセルにする。ゲームが先に渡した押下の GUI 座標（{@link #onMouseClicked}）があれば、
+     * 通知の座標と比べて単位を実測して覚え、座標は「記録 × 倍率」を使う。記録が無ければ、判定済みの単位で通知の座標を直す。
+     * 記録は使ったら消す。
+     */
+    private Point2D.Double clickPhysical(Point2D.Double notified, int button, int guiScale) {
+        double recordedX = Double.NaN;
+        double recordedY = Double.NaN;
+        if (pressButton == button) {
+            recordedX = pressGuiX;
+            recordedY = pressGuiY;
+        }
+        pressGuiX = Double.NaN;
+        pressGuiY = Double.NaN;
+        PointerUnits.Unit detected = PointerUnits.detect(notified.x, notified.y, recordedX, recordedY, guiScale);
+        if (detected != PointerUnits.Unit.UNKNOWN) {
+            if (detected != pointerUnit) {
+                MapScribble.LOGGER.debug("JourneyMap の通知の座標の単位: {}（通知 {}, {} / 押した位置 {}, {} / 倍率 {}）",
+                        detected, notified.x, notified.y, recordedX, recordedY, guiScale);
+            }
+            pointerUnit = detected;
+        }
+        return new Point2D.Double(
+                PointerUnits.clickToPhysical(notified.x, recordedX, pointerUnit, guiScale),
+                PointerUnits.clickToPhysical(notified.y, recordedY, pointerUnit, guiScale));
+    }
+
+    /**
+     * ドラッグ通知の座標を物理ピクセルにする。単位が判定済みならそれで直し、まだ分からなければ
+     * ゲームが持つカーソル位置（物理ピクセル）を使う。
+     */
+    private Point2D.Double dragPhysical(Point2D.Double notified, int guiScale) {
+        if (pointerUnit == PointerUnits.Unit.UNKNOWN) {
+            return new Point2D.Double(ScreenCompat.mousePhysicalX(), ScreenCompat.mousePhysicalY());
+        }
+        return new Point2D.Double(
+                PointerUnits.toPhysical(notified.x, pointerUnit, guiScale),
+                PointerUnits.toPhysical(notified.y, pointerUnit, guiScale));
     }
 
     /**
@@ -524,7 +587,8 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         if (fs == null) {
             return;
         }
-        Point2D.Double pos = event.getMousePosition();
+        int guiScale = MapProjection.guiScale();
+        Point2D.Double pos = dragPhysical(event.getMousePosition(), guiScale);
 
         // ミドルボタン押下中ドラッグによるマップスクロール（パン）
         if (event.getButton() == 2 || MidDragHandler.isDragging()) {
@@ -542,7 +606,6 @@ public final class ScribbleBridge implements PrimaryMapBridge {
             return;
         }
 
-        int guiScale = MapProjection.guiScale();
         if (state.isOverBand(pos.x / guiScale, pos.y / guiScale)) {
             cancel(event);
             return;
@@ -564,7 +627,12 @@ public final class ScribbleBridge implements PrimaryMapBridge {
             return false;
         }
         int guiScale = MapProjection.guiScale();
+        // JourneyMap の mouseClicked（クリック通知）より前に届く押下の GUI 座標を覚え、通知の座標の単位の判定に使う
+        pressGuiX = mouseX;
+        pressGuiY = mouseY;
+        pressButton = button;
         if (button == 2) {
+            // 物理ピクセル（ドラッグ・描画側と同じ単位）で渡す
             MidDragHandler.onMouseDown(2, mouseX * guiScale, mouseY * guiScale);
             return true;
         }
