@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MapScribble モックアップ: 切替ボタンの移動</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #16181c; color: #e8eaed;
+         font-family: "Segoe UI", "Noto Sans JP", sans-serif; font-size: 14px; line-height: 1.6; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 0 0 12px; max-width: 72ch; color: #a8adb4; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+  .bar button { min-height: 32px; padding: 4px 12px; background: #2a2e34; color: #e8eaed;
+                border: 1px solid #a8adb4; border-radius: 4px; font: inherit; cursor: pointer; }
+  .bar button:hover { background: #3a3f47; }
+  .bar button[aria-pressed="true"] { background: #2e7dd7; border-color: #fff; color: #fff; }
+  .bar label { color: #a8adb4; }
+  #wrap { overflow: auto; max-width: 100%; }
+  /* 疑似の全画面マップ。1 GUI ピクセル = U CSS ピクセル */
+  #screen { position: relative; overflow: hidden; border: 1px solid #000; user-select: none; touch-action: none;
+            background: repeating-linear-gradient(90deg, #3d5a33 0 32px, #416036 32px 64px); }
+  #screen.snow { background: repeating-linear-gradient(90deg, #f2f5f8 0 32px, #e6ebf0 32px 64px); }
+  /* 方角表示の想定位置。Xaero の実物ではない */
+  #overlay { position: absolute; background: #000a; color: #fff; display: flex; align-items: center;
+             justify-content: center; font-size: 11px; border: 1px dashed #fff; pointer-events: none; }
+  #band { position: absolute; background: #101418cc; border: 1px solid #fff3; color: #e6e6e6;
+          display: none; align-items: center; justify-content: center; font-size: 12px; }
+  /* 切替ボタン: 色は ui-design.md 3.5 の表のまま。鉛筆は文字で代用（実物は toggle.png） */
+  #toggle { position: absolute; display: flex; align-items: center; justify-content: center;
+            border-style: solid; color: #e6e6e6; line-height: 1; }
+  #toggle.off { background: #181818cc; border-color: #a8adb4; }
+  #toggle.off.lift { background: #303030ee; border-color: #fff; color: #fff; }
+  #toggle.on { background: #2e7dd7; border-color: #fff; color: #fff; }
+  #toggle.on.lift { background: #4a93e4; border-color: #fff; }
+  #toggle.moving { z-index: 5; }
+  /* バニラのツールチップの見立て */
+  #tip { position: absolute; display: none; z-index: 6; background: #100010f0; border: 1px solid #5000ff50;
+         color: #fff; padding: 3px 5px; font-size: 13px; line-height: 1.35; pointer-events: none; white-space: nowrap; }
+  #tip span { display: block; }
+  #tip .g { color: #a0a0a0; }
+  #log { margin-top: 12px; font-family: Consolas, monospace; font-size: 12px; color: #c8ccd2; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>切替ボタンの移動（Xaero / FTB / 旧 JourneyMap の全画面マップ）</h1>
+<p>鉛筆のボタンを左ドラッグで移動、動かさず離すと切替、Shift+クリックで掴んで次のクリックで置く、右クリックで元の位置へ戻す。点線の枠は方角表示の想定位置で、実物ではありません。</p>
+<div class="bar">
+  <label>GUI の大きさ:</label>
+  <button data-size="320,240,2">320×240</button>
+  <button data-size="427,240,2">427×240</button>
+  <button data-size="960,540,1">960×540</button>
+  <label>地形:</label>
+  <button id="snow">雪にする</button>
+  <label>言語:</label>
+  <button id="lang">en_us にする</button>
+</div>
+<div id="wrap">
+  <div id="screen">
+    <div id="overlay">方角表示</div>
+    <div id="band">ツールの帯 235×41</div>
+    <div id="toggle" class="off" role="button" aria-label="手書きモードの切替">✎</div>
+    <div id="tip"></div>
+  </div>
+</div>
+<div id="log"></div>
+
+<script>
+const TEXT = {
+  ja: { on: '手書きモードを終える', onD: 'ツールの帯を閉じ、地図の操作に戻ります',
+        off: '手書きモードにする', offD: 'ツールの帯を出して、地図に手書きできます',
+        move: 'ドラッグまたは Shift+クリックで移動', reset: '右クリックで元の位置へ戻す',
+        place: 'クリックで置く / 右クリックか Esc で取り消し', toEn: 'en_us にする' },
+  en: { on: 'Exit Scribble Mode', onD: 'Closes the toolbar and returns to map controls',
+        off: 'Scribble on Map', offD: 'Opens the toolbar so you can draw on the map',
+        move: 'Drag or Shift+click to move', reset: 'Right-click to reset position',
+        place: 'Click to place / Right-click or Esc to cancel', toEn: 'ja_jp にする' }
+};
+const SIZE = 20, DEF_DX = 4, DEF_DY = 6, BAND_W = 235, BAND_H = 41, THRESHOLD = 4;
+let W = 320, H = 240, U = 2, GUI_SCALE = 2, lang = 'ja';
+let mode = false;
+let saved = null;                 // null = 既定の位置。{right,bottom,dx,dy}
+let st = 'IDLE';                  // IDLE / PRESSED / DRAGGING / CARRYING
+let press = null, moveXY = null, hover = false;
+const $ = id => document.getElementById(id);
+const screen_ = $('screen'), btn = $('toggle'), tip = $('tip');
+
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function resolve(p) {
+  const a = p || { right: true, bottom: false, dx: DEF_DX, dy: DEF_DY };
+  const x = a.right ? W - SIZE - a.dx : a.dx;
+  const y = a.bottom ? H - SIZE - a.dy : a.dy;
+  return { x: clamp(x, 0, W - SIZE), y: clamp(y, 0, H - SIZE) };
+}
+function toAnchor(x, y) {
+  const right = x + SIZE / 2 >= W / 2, bottom = y + SIZE / 2 >= H / 2;
+  return { right, bottom, dx: right ? W - SIZE - x : x, dy: bottom ? H - SIZE - y : y };
+}
+function current() { return moveXY || resolve(saved); }
+function bandRect() { return { x: 28, y: 44, w: BAND_W, h: BAND_H }; }
+function overBand(gx, gy) {
+  if (!mode) return false;
+  const b = bandRect();
+  return gx >= b.x && gx < b.x + b.w && gy >= b.y && gy < b.y + b.h;
+}
+function gui(ev) {
+  const r = screen_.getBoundingClientRect();
+  return { x: Math.floor((ev.clientX - r.left - 1) / U), y: Math.floor((ev.clientY - r.top - 1) / U) };
+}
+function onBtn(g) { const p = current(); return g.x >= p.x && g.x < p.x + SIZE && g.y >= p.y && g.y < p.y + SIZE; }
+
+function commit(p) {
+  const def = resolve(null);
+  saved = (p.x === def.x && p.y === def.y) ? null : toAnchor(p.x, p.y);
+}
+function endMove() { st = 'IDLE'; moveXY = null; press = null; }
+
+function render() {
+  screen_.style.width = (W * U + 2) + 'px';
+  screen_.style.height = (H * U + 2) + 'px';
+  const ov = $('overlay');
+  ov.style.left = ((W - 40) * U) + 'px'; ov.style.top = (2 * U) + 'px';
+  ov.style.width = (38 * U) + 'px'; ov.style.height = (28 * U) + 'px';
+  const b = bandRect(), bandEl = $('band');
+  bandEl.style.display = mode ? 'flex' : 'none';
+  bandEl.style.left = (b.x * U) + 'px'; bandEl.style.top = (b.y * U) + 'px';
+  bandEl.style.width = (b.w * U) + 'px'; bandEl.style.height = (b.h * U) + 'px';
+  const p = current(), moving = st === 'DRAGGING' || st === 'CARRYING';
+  btn.style.left = (p.x * U) + 'px'; btn.style.top = (p.y * U) + 'px';
+  btn.style.width = (SIZE * U) + 'px'; btn.style.height = (SIZE * U) + 'px';
+  btn.style.borderWidth = U + 'px';
+  btn.style.fontSize = (14 * U) + 'px';
+  btn.className = (mode ? 'on' : 'off') + ((hover || st !== 'IDLE') ? ' lift' : '') + (moving ? ' moving' : '');
+  // 帯は移動中でなければ切替ボタンより手前
+  bandEl.style.zIndex = moving ? 1 : 4;
+  renderTip();
+  document.querySelectorAll('[data-size]').forEach(el =>
+    el.setAttribute('aria-pressed', el.dataset.size.startsWith(W + ',' + H)));
+  $('log').textContent = '状態: ' + st + ' / モード: ' + (mode ? 'オン' : 'オフ') +
+    ' / 表示位置: ' + p.x + ',' + p.y + ' / 保存値: ' + (saved ? JSON.stringify(saved) : '既定（保存なし）');
+}
+let lastMouse = { x: 0, y: 0 };
+function renderTip() {
+  const t = TEXT[lang];
+  let lines = null;
+  if (st === 'CARRYING') lines = [['g', t.place]];
+  else if (st === 'IDLE' && hover) {
+    lines = [['', mode ? t.on : t.off], ['g', mode ? t.onD : t.offD], ['g', t.move]];
+    if (saved) lines.push(['g', t.reset]);
+  }
+  if (!lines) { tip.style.display = 'none'; return; }
+  tip.innerHTML = lines.map(l => '<span class="' + l[0] + '">' + l[1] + '</span>').join('');
+  tip.style.display = 'block';
+  let tx = lastMouse.x * U + 12, ty = lastMouse.y * U - 12;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  if (tx + w > W * U) tx = lastMouse.x * U - w - 8;
+  ty = clamp(ty, 0, H * U - h);
+  tip.style.left = Math.max(0, tx) + 'px'; tip.style.top = ty + 'px';
+}
+function follow(g) {
+  moveXY = { x: clamp(g.x - press.grabX, 0, W - SIZE), y: clamp(g.y - press.grabY, 0, H - SIZE) };
+}
+
+screen_.addEventListener('contextmenu', e => e.preventDefault());
+screen_.addEventListener('mousedown', e => {
+  const g = gui(e);
+  if (st === 'CARRYING') {
+    if (e.button === 0) { follow(g); commit(moveXY); endMove(); press = { consumed: true }; st = 'IDLE'; press = null; }
+    else if (e.button === 2) endMove();
+    e.preventDefault();
+    render();
+    return;
+  }
+  if (overBand(g.x, g.y)) return;
+  if (!onBtn(g)) return;
+  e.preventDefault();
+  if (e.button === 2) { saved = null; render(); return; }
+  if (e.button !== 0) return;
+  const p = current();
+  press = { x: g.x, y: g.y, grabX: g.x - p.x, grabY: g.y - p.y, shift: e.shiftKey };
+  st = 'PRESSED';
+  render();
+});
+window.addEventListener('mousemove', e => {
+  const g = gui(e);
+  lastMouse = g;
+  if (st === 'PRESSED') {
+    const d = Math.max(Math.abs(g.x - press.x), Math.abs(g.y - press.y)) * GUI_SCALE;
+    if (d >= THRESHOLD) st = 'DRAGGING';
+  }
+  if (st === 'DRAGGING' || st === 'CARRYING') follow(g);
+  hover = st === 'IDLE' && g.x >= 0 && g.y >= 0 && g.x < W && g.y < H && onBtn(g) && !overBand(g.x, g.y);
+  render();
+});
+window.addEventListener('mouseup', e => {
+  if (e.button !== 0) return;
+  if (st === 'PRESSED') {
+    if (press.shift) { st = 'CARRYING'; follow(gui(e)); }
+    else { mode = !mode; endMove(); }
+  } else if (st === 'DRAGGING') {
+    follow(gui(e)); commit(moveXY); endMove();
+  }
+  render();
+});
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && st !== 'IDLE') { e.preventDefault(); endMove(); render(); }
+});
+document.querySelectorAll('[data-size]').forEach(el => el.addEventListener('click', () => {
+  const [w, h, u] = el.dataset.size.split(',').map(Number);
+  W = w; H = h; U = u; GUI_SCALE = u; render();
+}));
+$('snow').addEventListener('click', () => {
+  const on = screen_.classList.toggle('snow');
+  $('snow').textContent = on ? '草にする' : '雪にする';
+});
+$('lang').addEventListener('click', () => {
+  lang = lang === 'ja' ? 'en' : 'ja';
+  $('lang').textContent = TEXT[lang].toEn;
+  render();
+});
+render();
+</script>
+</body>
+</html>
