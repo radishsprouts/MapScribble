@@ -151,6 +151,11 @@ public final class XaeroMapAdapter implements MapAdapter {
     }
 
     @Override
+    public String toggleButtonKey() {
+        return io.github.radishsprouts.mapscribble.geom.ToggleButtonPlacement.KEY_XAERO;
+    }
+
+    @Override
     public void onScreenInit(Screen screen) {
     }
 

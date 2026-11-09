@@ -1,8 +1,13 @@
 package io.github.radishsprouts.mapscribble.draw;
 
+import io.github.radishsprouts.mapscribble.geom.ToggleButtonPlacement;
 import io.github.radishsprouts.mapscribble.model.Memo;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 /**
@@ -37,6 +42,8 @@ public final class DrawingState {
     private boolean textVisible = true;
     private int bandX = 28;
     private int bandY = 44;
+    /** 動かした切替ボタンの位置（地図 MOD のキー順に保つと、保存した JSON が毎回同じ並びになる）。 */
+    private final Map<String, ToggleButtonPlacement.Saved> toggleButtons = new TreeMap<>();
     /** 新しいメモの既定（文字入力の画面が変えて、最後に使った値を覚える）。 */
     private float fillOpacity = 0.30f;
     private float textScale = 0.75f;
@@ -150,6 +157,27 @@ public final class DrawingState {
         if (this.bandX != x || this.bandY != y) {
             this.bandX = x;
             this.bandY = y;
+            changed();
+        }
+    }
+
+    /** 動かした切替ボタンの保存値（地図 MOD のキーごと）。動かしていなければ null（既定の位置）。 */
+    public ToggleButtonPlacement.Saved toggleButton(String key) {
+        return toggleButtons.get(key);
+    }
+
+    /** 動かした切替ボタンの保存値の一覧（キー順。動かした地図 MOD だけ）。 */
+    public Map<String, ToggleButtonPlacement.Saved> toggleButtons() {
+        return Collections.unmodifiableMap(toggleButtons);
+    }
+
+    /**
+     * 切替ボタンの位置を保存値にする。null で既定の位置へ戻す（キーを消す）。変わった時だけ通知する。
+     * 移動の途中では呼ばない（置いた時・戻した時の1回だけ。毎フレームの保存を避ける）。
+     */
+    public void setToggleButton(String key, ToggleButtonPlacement.Saved saved) {
+        ToggleButtonPlacement.Saved before = saved == null ? toggleButtons.remove(key) : toggleButtons.put(key, saved);
+        if (!Objects.equals(before, saved)) {
             changed();
         }
     }

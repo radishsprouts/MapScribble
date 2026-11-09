@@ -23,7 +23,15 @@ public interface MapAdapter {
     default void suppressMapDrag(Screen screen) {
     }
 
-    /** 切替ボタンの X 座標。既定は画面右上（screen.width - 24）。 */
+    /**
+     * 利用者が動かした切替ボタンの位置を覚えるキー（{@code ToggleButtonPlacement.KEYS}）。null なら動かせない。
+     * {@link #toggleButtonX} / {@link #toggleButtonY} は「既定の位置」の意味のまま。
+     */
+    default String toggleButtonKey() {
+        return null;
+    }
+
+    /** 切替ボタンの既定の X 座標。既定は画面右上（screen.width - 24）。 */
     default int toggleButtonX(Screen screen) {
         return screen.width - 24;
     }

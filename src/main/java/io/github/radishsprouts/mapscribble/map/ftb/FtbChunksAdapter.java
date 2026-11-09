@@ -239,6 +239,11 @@ public final class FtbChunksAdapter implements MapAdapter {
     }
 
     @Override
+    public String toggleButtonKey() {
+        return io.github.radishsprouts.mapscribble.geom.ToggleButtonPlacement.KEY_FTB_CHUNKS;
+    }
+
+    @Override
     public void onScreenInit(Screen screen) {
     }
 
