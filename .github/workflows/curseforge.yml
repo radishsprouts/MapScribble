@@ -117,12 +117,13 @@ jobs:
 
           case "$TAG" in v0.*) release_type=beta ;; *) release_type=release ;; esac
           release_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
-          # CHANGELOG.md の "## <版>" の節（次の版の見出しの手前まで）。
+          # CHANGELOG.md の "## [<版>] - <日付>" の節（次の版の見出しの手前まで）。
+          # 見出しの版は角括弧で囲まれているので、外してから比べる。
           # ファイルや節が無くても失敗させず、Release へのリンクだけにする
           notes=""
           if [ -f CHANGELOG.md ]; then
             notes=$(awk -v v="${TAG#v}" '
-              /^## / { if (found) exit; if ($2 == v) { found = 1; next } }
+              /^## / { if (found) exit; h = $2; gsub(/\[/, "", h); gsub(/\]/, "", h); if (h == v) { found = 1; next } }
               found' CHANGELOG.md || true)
           fi
           if [ -z "$(tr -d '[:space:]' <<< "$notes")" ]; then
