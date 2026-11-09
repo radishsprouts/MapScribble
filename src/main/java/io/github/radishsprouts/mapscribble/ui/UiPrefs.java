@@ -4,11 +4,13 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.github.radishsprouts.mapscribble.draw.DrawingState;
 import io.github.radishsprouts.mapscribble.draw.Tool;
+import io.github.radishsprouts.mapscribble.geom.ToggleButtonPlacement;
 import io.github.radishsprouts.mapscribble.store.MemoFile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 
 /**
  * 最後に使った値（ツール・色・太さ・塗り・文字の大きさ・ミニマップ）を、ゲームを再起動しても覚えておく
@@ -32,7 +34,45 @@ public final class UiPrefs {
         o.addProperty("textVisible", state.isTextVisible());
         o.addProperty("bandX", state.bandX());
         o.addProperty("bandY", state.bandY());
+        // 動かした地図 MOD の切替ボタンだけ書く（動かしていなければキー自体を書かない）
+        if (!state.toggleButtons().isEmpty()) {
+            JsonObject buttons = new JsonObject();
+            for (Map.Entry<String, ToggleButtonPlacement.Saved> e : state.toggleButtons().entrySet()) {
+                JsonObject b = new JsonObject();
+                b.addProperty("right", e.getValue().right());
+                b.addProperty("bottom", e.getValue().bottom());
+                b.addProperty("dx", e.getValue().dx());
+                b.addProperty("dy", e.getValue().dy());
+                buttons.add(e.getKey(), b);
+            }
+            o.add("toggleButtons", buttons);
+        }
         return o.toString();
+    }
+
+    /** toggleButtons を読む。壊れた値の地図 MOD だけ既定の位置のまま（他は読む）。 */
+    private static void applyToggleButtons(JsonObject o, DrawingState state) {
+        if (!o.has("toggleButtons") || !o.get("toggleButtons").isJsonObject()) {
+            return;
+        }
+        JsonObject buttons = o.getAsJsonObject("toggleButtons");
+        for (String key : ToggleButtonPlacement.KEYS) {
+            if (!buttons.has(key) || !buttons.get(key).isJsonObject()) {
+                continue;
+            }
+            JsonObject b = buttons.getAsJsonObject(key);
+            if (!isBoolean(b, "right") || !isBoolean(b, "bottom") || !isNumber(b, "dx") || !isNumber(b, "dy")) {
+                continue;
+            }
+            double dx = b.get("dx").getAsDouble();
+            double dy = b.get("dy").getAsDouble();
+            if (!(dx >= 0) || !(dy >= 0)) {
+                continue;
+            }
+            state.setToggleButton(key, new ToggleButtonPlacement.Saved(b.get("right").getAsBoolean(),
+                    b.get("bottom").getAsBoolean(), (int) Math.min(dx, Integer.MAX_VALUE),
+                    (int) Math.min(dy, Integer.MAX_VALUE)));
+        }
     }
 
     /** JSON の値を状態へ入れる。読めない項目・不正な値は既定のまま。壊れた JSON 全体は何も変えない。 */
@@ -74,6 +114,7 @@ public final class UiPrefs {
         if (isNumber(o, "bandX") && isNumber(o, "bandY")) {
             state.setBandPosition(o.get("bandX").getAsInt(), o.get("bandY").getAsInt());
         }
+        applyToggleButtons(o, state);
     }
 
     private static boolean isBoolean(JsonObject o, String key) {

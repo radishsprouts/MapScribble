@@ -128,6 +128,9 @@ implements ClientModInitializer
             //? if >=1.21.11 {
             ScreenMouseEvents.allowMouseClick(screen).register((scr, event) ->
                     !ScreenMapHost.onMouseClicked(scr, event.x(), event.y(), event.button()));
+            // 右クリックを切替ボタンの「戻す」で消費した時は、離した通知も地図へ渡さない
+            ScreenMouseEvents.allowMouseRelease(screen).register((scr, event) ->
+                    !ScreenMapHost.shouldBlockRelease(scr, event.button()));
             ScreenMouseEvents.afterMouseRelease(screen).register((scr, event, consumed) ->
                     ScreenMapHost.onMouseReleased(scr, event.x(), event.y(), event.button()));
             ScreenKeyboardEvents.allowKeyPress(screen).register((scr, event) ->
@@ -135,6 +138,8 @@ implements ClientModInitializer
             //?} else {
             /*ScreenMouseEvents.allowMouseClick(screen).register((scr, mouseX, mouseY, button) ->
                     !ScreenMapHost.onMouseClicked(scr, mouseX, mouseY, button));
+            ScreenMouseEvents.allowMouseRelease(screen).register((scr, mouseX, mouseY, button) ->
+                    !ScreenMapHost.shouldBlockRelease(scr, button));
             ScreenMouseEvents.afterMouseRelease(screen).register((scr, mouseX, mouseY, button) ->
                     ScreenMapHost.onMouseReleased(scr, mouseX, mouseY, button));
             ScreenKeyboardEvents.allowKeyPress(screen).register((scr, keyCode, scanCode, modifiers) ->
@@ -211,6 +216,13 @@ implements ClientModInitializer
 
         forgeBus.addListener((ScreenEvent.MouseButtonPressed.Pre event) -> {
             if (ScreenMapHost.onMouseClicked(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton())) {
+                event.setCanceled(true);
+            }
+        });
+
+        // 右クリックを切替ボタンの「戻す」で消費した時は、離した通知も地図へ渡さない
+        forgeBus.addListener((ScreenEvent.MouseButtonReleased.Pre event) -> {
+            if (ScreenMapHost.shouldBlockRelease(event.getScreen(), event.getButton())) {
                 event.setCanceled(true);
             }
         });
@@ -298,6 +310,11 @@ implements ClientModInitializer
             return ScreenMapHost.onMouseClicked(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton());
         });
 
+        // 右クリックを切替ボタンの「戻す」で消費した時は、離した通知も地図へ渡さない
+        ScreenEvent.MouseButtonReleased.Pre.BUS.addListener((ScreenEvent.MouseButtonReleased.Pre event) -> {
+            return ScreenMapHost.shouldBlockRelease(event.getScreen(), event.getButton());
+        });
+
         ScreenEvent.MouseButtonReleased.Post.BUS.addListener((ScreenEvent.MouseButtonReleased.Post event) ->
                 ScreenMapHost.onMouseReleased(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton()));
 
@@ -358,6 +375,13 @@ implements ClientModInitializer
 
         forgeBus.addListener((ScreenEvent.MouseButtonPressed.Pre event) -> {
             if (ScreenMapHost.onMouseClicked(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton())) {
+                event.setCanceled(true);
+            }
+        });
+
+        // 右クリックを切替ボタンの「戻す」で消費した時は、離した通知も地図へ渡さない
+        forgeBus.addListener((ScreenEvent.MouseButtonReleased.Pre event) -> {
+            if (ScreenMapHost.shouldBlockRelease(event.getScreen(), event.getButton())) {
                 event.setCanceled(true);
             }
         });

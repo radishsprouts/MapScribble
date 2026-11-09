@@ -206,6 +206,11 @@ public final class JourneyMapLegacyAdapter implements MapAdapter {
     }
 
     @Override
+    public String toggleButtonKey() {
+        return io.github.radishsprouts.mapscribble.geom.ToggleButtonPlacement.KEY_JOURNEYMAP_LEGACY;
+    }
+
+    @Override
     public void onScreenInit(Screen screen) {
     }
 

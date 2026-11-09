@@ -82,6 +82,21 @@ Forge・NeoForge の列は、その構成のビルドに使う Forge・NeoForge 
 | JourneyMap（1.20.6 向けの jar など、公式プラグインが動かない時） | 画面の右上。JourneyMap の閉じるボタンの左隣 |
 | Xaero's World Map / FTB Chunks | 画面の右上 |
 
+### 鉛筆のボタンを動かす（画面の右上に出るボタンだけ）
+
+地図 MOD の表示（方角表示など）に鉛筆のボタンが重なる時は、ボタンを動かせます。動かせるのは、MapScribble が画面に直接描く上の表の「画面の右上」のボタン（Xaero's World Map・FTB Chunks・JourneyMap の公式プラグインが動かない時）です。**JourneyMap の公式プラグインで右の列に並ぶボタンは、位置を JourneyMap が決めるので動かせません。**
+
+| 操作 | 結果 |
+|---|---|
+| 左ボタンを押したまま動かして離す | ボタンがカーソルに付いてきて、離した所に置かれます（手書きモードは切り替わりません） |
+| Shift を押しながら左クリック（動かさずに離す） | ボタンを掴みます。ボタンを押さなくてもカーソルに付いてくるので、次に左クリックした所に置かれます（ドラッグできない時の手段） |
+| 右クリック | 元の位置へ戻します |
+| 動かしている間に Esc（掴んでいる間は右クリックも） | 動かす前の位置に戻して取り消します。地図の画面は閉じません |
+
+- 動かさずに左ボタンを離した時だけ、手書きモードが切り替わります（押した瞬間ではなく、離した時に切り替わります）。押した点から 4 画面ピクセル以上動かすとドラッグになります
+- ボタンは画面の外へ出ません。ツールの帯と重なった時は帯が手前に出て、重なった部分のクリックは帯が受けます（動かしている間だけ、ボタンが帯より手前に見えます）
+- 位置は地図 MOD ごとに別々に、近い画面の端からの距離で覚えます（`<.minecraft>/config/mapscribble-ui.json` の `toggleButtons`）。画面の大きさや GUI の大きさを変えても、端に沿った表示の隣に置いたままになります。元の位置に置いた時と、右クリックで戻した時は、記録を消します
+
 手書きモードの切替キーも用意していますが、**既定では未割り当て**です。使うには Minecraft の「設定 → 操作設定」の分類「MapScribble」にある「手書きモードの切替」にキーを割り当ててください。
 
 手書きモードの間だけ、画面の左上にツールの帯が出ます。帯は、ボタンの無い余白を左ドラッグすると画面内の好きな位置へ動かせます（画面の外へは出ません）。置いた位置は次回も覚えています。
@@ -275,6 +290,7 @@ MapScribble lets you draw handwritten notes on the fullscreen map of JourneyMap,
 - Minecraft 1.20.1 / 1.20.6 / 1.21.1 / 1.21.4 / 1.21.11 / 26.1.2 / 26.2 / 26.3 on Fabric, Forge and NeoForge (21 combinations; see the support table above), Java 17 / 21 / 25 depending on the Minecraft version. Fabric builds need Fabric API. No map mod is declared as a hard dependency: any one of JourneyMap, Xaero's World Map or FTB Chunks is enough (client side only; nothing to install on the server).
 - Minimaps: JourneyMap (as JourneyMap overlays) and Xaero's Minimap (drawn by MapScribble inside the minimap frame) are supported. FTB Chunks' minimap is not. The 1.20.6 builds do not use the JourneyMap API (no 2.0 distribution for that version), so they draw on the JourneyMap fullscreen map by reflection and do not show notes on the JourneyMap minimap.
 - Turn on scribble mode with the pencil button: in the right column of the fullscreen map with JourneyMap's official plugin, or at the top right of the screen with Xaero's World Map and FTB Chunks. Tool keys are 1 to 5 (outline, line, text, eraser, edit), and Ctrl+Z / Ctrl+Y undo and redo. The mode-toggle key is unassigned by default (Controls, category MapScribble).
+- The pencil button that MapScribble draws itself (Xaero's World Map, FTB Chunks, JourneyMap without its official plugin) can be moved: drag it with the left button, or Shift+click it and click again to place it; right-click resets it, and Esc cancels a move. Releasing the button without moving still toggles scribble mode. The position is remembered per map mod as a distance from the nearest screen edge. The buttons in JourneyMap's right column cannot be moved.
 - The tool band can be dragged anywhere on the screen by its empty area, and remembers where you put it. It holds the five tools, undo / redo, a text-only visibility toggle, an overall visibility toggle, the exit button, three line widths, three text sizes and ten colors. Note text can be up to 1000 characters. UI texts are available in 10 languages.
 - Notes are separated by the address you connected to, not by the map mod's own per-server folders. On a proxy network (Velocity and the like), moving between backend servers keeps the same folder, because the client's server address does not change — this is what the code says; it has not been verified on a live network. Connect through a different address if you want separate notes.
 - Build: `./gradlew buildAndCollect` produces one jar per Minecraft version and loader (21 configurations) in `build/libs/<mod version>/`. License: MIT.
