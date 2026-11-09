@@ -117,17 +117,30 @@ jobs:
 
           case "$TAG" in v0.*) release_type=beta ;; *) release_type=release ;; esac
           release_url="https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
-          # CHANGELOG.md の "## [<版>] - <日付>" の節（次の版の見出しの手前まで）。
+          # 変更履歴は、英語（CHANGELOG.en.md）の後に日本語（CHANGELOG.md）を続ける。
+          # どちらも "## [<版>] - <日付>" の節（次の版の見出しの手前まで）を取る。
           # 見出しの版は角括弧で囲まれているので、外してから比べる。
-          # ファイルや節が無くても失敗させず、Release へのリンクだけにする
-          notes=""
-          if [ -f CHANGELOG.md ]; then
-            notes=$(awk -v v="${TAG#v}" '
+          # ファイルや節が無くても失敗させず、ある方だけ（両方無ければ Release へのリンクだけ）にする
+          section() {
+            [ -f "$1" ] || return 0
+            awk -v v="${TAG#v}" '
               /^## / { if (found) exit; h = $2; gsub(/\[/, "", h); gsub(/\]/, "", h); if (h == v) { found = 1; next } }
-              found' CHANGELOG.md || true)
-          fi
-          if [ -z "$(tr -d '[:space:]' <<< "$notes")" ]; then
-            echo "::warning::CHANGELOG.md に ${TAG#v} の節がありません。変更履歴は Release へのリンクだけになります"
+              found' "$1" || true
+          }
+          notes=""
+          for file in CHANGELOG.en.md CHANGELOG.md; do
+            part=$(section "$file")
+            if [ -z "$(tr -d '[:space:]' <<< "$part")" ]; then
+              echo "::warning::$file に ${TAG#v} の節がありません"
+              continue
+            fi
+            if [ -n "$notes" ]; then
+              notes=$(printf '%s\n\n---\n\n%s' "$notes" "$part")
+            else
+              notes=$part
+            fi
+          done
+          if [ -z "$notes" ]; then
             changelog=$(printf 'GitHub release: %s' "$release_url")
           else
             changelog=$(printf '%s\n\nGitHub release: %s' "$notes" "$release_url")
