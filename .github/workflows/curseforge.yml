@@ -204,7 +204,11 @@ jobs:
             version=${version#mapscribble-}
             mc=${jar_mc[$jar]}
             loader=${jar_loader[$jar]}
-            # Fabric API は Fabric の jar だけが必須（Forge / NeoForge の jar は要求しない）
+            # Fabric API は Fabric の jar だけが必須（Forge / NeoForge の jar は要求しない）。
+            # 地図 MOD は、対応する4つ（JourneyMap・Xaero's World Map・Xaero's Minimap・FTB Chunks）を
+            # どれも任意の依存として載せる（いずれか1つが入っていれば動き、必須のものは無い）。
+            # FTB Chunks は CurseForge でローダーごとに別プロジェクトなので、jar のローダーで切り替える
+            # （Fabric は ftb-chunks-fabric、Forge / NeoForge は ftb-chunks-forge。後者のページ名は「FTB Chunks (NeoForge)」）
             jq -n \
               --arg version "$version" \
               --arg type "$release_type" \
@@ -220,7 +224,12 @@ jobs:
                 relations: {
                   projects: (
                     (if $loader == "fabric" then [{slug: "fabric-api", type: "requiredDependency"}] else [] end)
-                    + [{slug: "journeymap", type: "optionalDependency"}]
+                    + [
+                        {slug: "journeymap", type: "optionalDependency"},
+                        {slug: "xaeros-world-map", type: "optionalDependency"},
+                        {slug: "xaeros-minimap", type: "optionalDependency"},
+                        {slug: (if $loader == "fabric" then "ftb-chunks-fabric" else "ftb-chunks-forge" end), type: "optionalDependency"}
+                      ]
                   )
                 }
               }' > metadata.json
