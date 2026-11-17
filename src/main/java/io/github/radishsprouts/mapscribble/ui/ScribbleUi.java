@@ -11,10 +11,13 @@ import io.github.radishsprouts.mapscribble.draw.Tool;
 import io.github.radishsprouts.mapscribble.model.Memo;
 import io.github.radishsprouts.mapscribble.model.MemoKind;
 import io.github.radishsprouts.mapscribble.store.MemoRepository;
+import io.github.radishsprouts.mapscribble.store.NotebookAccess;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.language.I18n;
 //? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
 //?}
@@ -31,6 +34,10 @@ public final class ScribbleUi {
     private final DrawingState state;
     private final ToolBand band;
     private final NoticeTimer notice = new NoticeTimer();
+    private final BandMenu menu = new BandMenu();
+    /** メモの保存先の操作の窓口。つなぎ込み（StoreSession）が差し込む。未接続（null）でも落ちない。 */
+    private Supplier<NotebookAccess> notebooks = () -> null;
+    private Supplier<NotebookExtras> notebookExtras = () -> NotebookExtras.NONE;
     private final Path prefsFile;
     private String lastSavedPrefs;
     private boolean loadFailed;
@@ -49,7 +56,10 @@ public final class ScribbleUi {
         UiPrefs.load(prefsFile, state);
         this.lastSavedPrefs = UiPrefs.toJson(state);
 
-        state.setBandHitTest((x, y) -> state.isModeOn() && BandLayout.contains(x, y, state.bandX(), state.bandY()));
+        // メニューを開いている間は、画面のどこも「帯の上」として扱い、地図に描かない・地図を動かさない
+        state.setBandHitTest((x, y) -> state.isModeOn()
+                && (menu.isOpen() || BandLayout.contains(x, y, state.bandX(), state.bandY())));
+        band.setMenuButtonHandler(this::toggleMenu);
         state.setNoticeHandler(key -> notice.push(key, nowMs()));
         state.setDraftHandler(this::openNew);
         state.setEditHandler(this::openEdit);
@@ -58,6 +68,30 @@ public final class ScribbleUi {
 
     public ToolBand band() {
         return band;
+    }
+
+    /** メモの保存先の窓口を差し込む（シングルプレイ・未接続は null を返す Supplier でよい）。 */
+    public void setNotebookAccess(Supplier<NotebookAccess> access, Supplier<NotebookExtras> extras) {
+        this.notebooks = access == null ? () -> null : access;
+        this.notebookExtras = extras == null ? () -> NotebookExtras.NONE : extras;
+    }
+
+    public boolean isMenuOpen() {
+        return menu.isOpen();
+    }
+
+    private void toggleMenu() {
+        if (menu.isOpen()) {
+            closeMenu();
+        } else {
+            menu.open();
+            band.setMenuOpen(true);
+        }
+    }
+
+    private void closeMenu() {
+        menu.close();
+        band.setMenuOpen(false);
     }
 
     private static long nowMs() {
@@ -77,6 +111,7 @@ public final class ScribbleUi {
             controller.cancelStroke();
             loadFailed = false;
             band.release();
+            closeMenu();
         }
         persistIfChanged();
     }
@@ -113,7 +148,13 @@ public final class ScribbleUi {
                 loadFailed, saveFailed, repo == null && !loadFailed, noticeKey, !state.isVisible(),
                 repo != null && repo.memos().isEmpty() && state.tool() == Tool.ENCLOSE, state.tool()));
         float alpha = noticeKey != null && noticeKey.equals(hint.translationKey()) ? notice.alpha(now) : 1f;
+        band.setMenuOpen(menu.isOpen());
         band.render(g, mc.font, mouseX, mouseY, hint, alpha);
+        if (menu.isOpen()) {
+            // メニューは帯より手前。開いている間は説明の行も、メモのホバーの文言も出さない
+            menu.render(g, mc.font, mouseX, mouseY, state.bandX(), state.bandY(), screenW, screenH, menuItems());
+            return;
+        }
 
         if (hoverMemo != null && !BandLayout.contains(mouseX, mouseY, state.bandX(), state.bandY())) {
             if (hoverMemo != tooltipMemo || state.tool() != tooltipTool) {
@@ -154,11 +195,59 @@ public final class ScribbleUi {
     }
 
     public boolean onMouseClick(double guiX, double guiY, int button) {
-        return state.isModeOn() && band.click(guiX, guiY, button == InputConstants.MOUSE_BUTTON_LEFT);
+        return onMouseClick(guiX, guiY, button == InputConstants.MOUSE_BUTTON_LEFT);
     }
 
     public boolean onMouseClick(double guiX, double guiY, boolean leftButton) {
-        return state.isModeOn() && band.click(guiX, guiY, leftButton);
+        if (!state.isModeOn()) {
+            return false;
+        }
+        if (menu.isOpen()) {
+            // 開いている間のクリックは、メニューの中でも外でも他へ渡さず消費する
+            Minecraft mc = Minecraft.getInstance();
+            boolean consumed = menu.click(guiX, guiY, leftButton, state.bandX(), state.bandY(),
+                    mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight(), menuItems());
+            if (!menu.isOpen()) {
+                band.setMenuOpen(false);
+            }
+            return consumed;
+        }
+        return band.click(guiX, guiY, leftButton);
+    }
+
+    // ---- メニュー ----
+
+    private List<BandMenu.Item> menuItems() {
+        NotebookAccess access = notebooks.get();
+        boolean available = access != null && access.isAvailable();
+        String note;
+        Component tooltip = null;
+        if (!available) {
+            // シングルプレイ（と未接続）。項目は隠さず、押せない理由を文で示す
+            note = I18n.get("mapscribble.menu.notebooks.single");
+            tooltip = Component.translatable("mapscribble.menu.notebooks.single.desc");
+        } else {
+            NotebookAccess.State st = access.state();
+            int inUse = NotebookPanel.inUseIndex(st);
+            note = inUse >= 0 && NotebookPanel.isSplit(NotebookPanel.kindOf(st, false))
+                    ? st.notebooks().get(inUse).name() : I18n.get("mapscribble.menu.notebooks.shared");
+        }
+        return List.of(new BandMenu.Item(Component.translatable("mapscribble.menu.notebooks"), note, available, tooltip,
+                () -> openNotebooks(access)));
+    }
+
+    private void openNotebooks(NotebookAccess access) {
+        Screen parent = ScreenCompat.currentScreen();
+        if (parent == null || access == null) {
+            return;
+        }
+        ScreenCompat.setScreen(new NotebookScreen(parent, access, notebookExtras.get(), outcome -> {
+            if (outcome.moveFailed()) {
+                state.notice("mapscribble.msg.move_failed");
+            } else if (outcome.moveUndone()) {
+                state.notice("mapscribble.msg.move_undone");
+            }
+        }));
     }
 
     public boolean onMouseRelease(double guiX, double guiY, int button) {
@@ -174,6 +263,18 @@ public final class ScribbleUi {
 
     //? if >=1.21.11 {
     public boolean onKey(KeyEvent event) {
+        if (state.isModeOn() && menu.isOpen()) {
+            if (menu.key(event.key(), menuItems())) {
+                band.setMenuOpen(menu.isOpen());
+                return true;
+            }
+            // ツールの切替・元に戻す・やり直す・モードの切替は、メニューを閉じてからそのキーの操作を行う
+            if (ScribbleKeys.isToggle(event) || ScribbleKeys.toolFor(event) != null
+                    || (GuiCompat.isControlDown(event) && (event.key() == InputConstants.KEY_Z
+                    || event.key() == InputConstants.KEY_Y))) {
+                closeMenu();
+            }
+        }
         if (ScribbleKeys.isToggle(event)) {
             state.toggleMode();
             return true;
@@ -205,6 +306,17 @@ public final class ScribbleUi {
     }
     //?} else {
     /*public boolean onKey(int keyCode, int scanCode, int modifiers) {
+        if (state.isModeOn() && menu.isOpen()) {
+            if (menu.key(keyCode, menuItems())) {
+                band.setMenuOpen(menu.isOpen());
+                return true;
+            }
+            // ツールの切替・元に戻す・やり直す・モードの切替は、メニューを閉じてからそのキーの操作を行う
+            if (ScribbleKeys.isToggle(keyCode, scanCode) || ScribbleKeys.toolFor(keyCode, scanCode) != null
+                    || (GuiCompat.isControlDown(modifiers) && (keyCode == 90 || keyCode == 89))) {
+                closeMenu();
+            }
+        }
         if (ScribbleKeys.isToggle(keyCode, scanCode)) {
             state.toggleMode();
             return true;

@@ -239,7 +239,7 @@ public final class ScreenMapHost {
         Memo hover = null;
         Tool tool = controller.state().tool();
         if (!following && controller.state().isVisible() && (tool == Tool.ERASER || tool == Tool.EDIT)
-                && !BandLayout.contains(mouseX, mouseY)) {
+                && !BandLayout.contains(mouseX, mouseY, controller.state().bandX(), controller.state().bandY())) {
             MemoRepository repo = controller.repository();
             if (repo != null && repo.isAvailable()) {
                 double px = physX + guiScale / 2.0;
