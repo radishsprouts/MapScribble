@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>MapScribble 0.4.0 モックアップ（帯の最終形・メニュー・メモの保存先）</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: #16181c; color: #e8eaed;
+    font-family: "Segoe UI", "Noto Sans JP", sans-serif;
+    font-size: 14px; line-height: 1.6;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 36px 0 8px; border-left: 4px solid #2e7dd7; padding-left: 8px; }
+  h3 { font-size: 14px; margin: 18px 0 6px; color: #cfd3d8; }
+  p.note { color: #a8adb4; font-size: 13px; margin: 0 0 12px; max-width: 80ch; }
+  code { color: #ffd479; }
+
+  /* ---- 疑似の全画面マップ（1 GUI ピクセル = 2 CSS ピクセル） ---- */
+  .screen {
+    position: relative; overflow: hidden; border: 1px solid #000;
+    background:
+      radial-gradient(circle at 20% 30%, #4f7a3a 0 18%, transparent 18.5%),
+      radial-gradient(circle at 70% 65%, #2b4f7a 0 22%, transparent 22.5%),
+      repeating-linear-gradient(90deg, #3d5a33 0 32px, #416036 32px 64px), #3d5a33;
+  }
+  .screen.s320 { width: 640px; height: 480px; }
+  .jm { position: absolute; background: #1b1b1bcc; border: 1px solid #555; color: #ddd;
+        font-size: 10px; display: flex; align-items: center; justify-content: center; }
+  .jm.logo { left: 0; top: 0; width: 44px; height: 44px; }
+  .jm.topbar { left: 50%; top: 0; transform: translateX(-50%); width: 320px; height: 44px; }
+  .jm.coord { left: 50%; top: 48px; transform: translateX(-50%); width: 420px; height: 20px; }
+  .jm.leftcol { left: 0; top: 156px; width: 48px; height: 168px; }
+  .jm.rightcol { left: 592px; top: 156px; width: 48px; height: 168px; }
+  .jm.bottombar { left: 50%; top: 412px; transform: translateX(-50%); width: 420px; height: 68px; }
+  .limit { position: absolute; border-left: 2px dashed #ff5a5a; top: 0; bottom: 0; }
+  .limit.h { border-left: none; border-top: 2px dashed #ff5a5a; left: 0; right: 0; height: 0; }
+  .limit-label { position: absolute; color: #ff9a9a; font-size: 10px; background: #000a; padding: 0 3px; }
+
+  .toggle { position: absolute; width: 40px; height: 40px; display: flex; align-items: center;
+            justify-content: center; font-size: 24px; background: #2e7dd7; border: 2px solid #fff; color: #fff; }
+
+  /* ---- ツールの帯（256x41 GUI = 512x82 CSS） ---- */
+  .band { position: absolute; width: 512px; height: 82px; background: rgba(16,20,24,0.8);
+          outline: 2px solid rgba(255,255,255,0.2); outline-offset: -2px; }
+  .band.inline { position: relative; display: inline-block; vertical-align: top; }
+  .cell { position: absolute; background: rgba(255,255,255,0.15);
+          outline: 2px solid rgba(255,255,255,0.45); outline-offset: -2px;
+          display: flex; align-items: center; justify-content: center;
+          color: #e6e6e6; font-size: 19px; line-height: 1; }
+  .cell.hover { background: rgba(255,255,255,0.30); outline-color: rgba(255,255,255,0.70); color: #fff; }
+  .cell.sel, .cell.open { background: #2e7dd7; outline-color: #ffffff; color: #ffffff; }
+  .cell.disabled { background: rgba(255,255,255,0.06); outline-color: rgba(255,255,255,0.15); color: rgba(230,230,230,0.35); }
+  .cell.future { background: transparent; outline: 2px dashed rgba(255,214,121,0.55); color: rgba(255,214,121,0.7); font-size: 11px; }
+  .cell .tsize { font-size: 15px; }
+  .cell.small { font-size: 12px; }
+  .sep { position: absolute; background: rgba(255,255,255,0.25); }
+  .swatch { position: absolute; outline: 2px solid rgba(0,0,0,0.6); outline-offset: -2px; }
+  .swatch.sel { box-shadow: 0 0 0 2px #fff; outline-color: #000; }
+  .wbar { position: absolute; left: 4px; right: 4px; }
+  .fillbox { position: absolute; left: 6px; top: 4px; width: 20px; height: 18px; border: 2px solid; }
+  .nosettings { position: absolute; left: 10px; top: 54px; color: #b4b4b4; font-size: 16px;
+                text-shadow: 2px 2px 0 #3f3f3f; white-space: nowrap; }
+  .hint { position: absolute; color: #fff; font-size: 16px; text-shadow: 2px 2px 0 #3f3f3f; white-space: nowrap; }
+  .hint.yellow { color: #ffe600; }
+  .hint.red { color: #ff8080; }
+
+  /* ---- メニュー ---- */
+  .menu { position: absolute; background: rgba(32,36,40,0.94); outline: 2px solid #50565e; outline-offset: -2px; }
+  .menu .item { position: absolute; left: 2px; right: 2px; height: 28px; display: flex; align-items: center;
+                justify-content: space-between; padding: 0 10px; font-size: 16px; color: #fff;
+                text-shadow: 2px 2px 0 #3f3f3f; white-space: nowrap; }
+  .menu .item .sub { color: #a0a0a0; }
+  .menu .item.hover, .menu .item.focus { background: rgba(255,255,255,0.12); }
+  .menu .item.hover .sub, .menu .item.focus .sub { color: #c0c0c0; }
+  .menu .item.focus { outline: 2px solid #fff; outline-offset: -2px; }
+  .menu .item.disabled { color: #80868e; }
+  .menu.ghost { background: transparent; outline: 2px dashed rgba(255,214,121,0.6); }
+
+  /* ---- 保存先の画面（パネル 300x226 GUI） ---- */
+  .dim { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
+  .panel { position: absolute; background: rgba(32,36,40,0.94); outline: 2px solid #50565e; outline-offset: -2px; }
+  .t { position: absolute; font-size: 16px; line-height: 18px; white-space: nowrap; text-shadow: 2px 2px 0 #3f3f3f; color: #fff; }
+  .t.center { transform: translateX(-50%); }
+  .t.right { transform: translateX(-100%); }
+  .t.label { color: #e0e0e0; }
+  .t.gray { color: #a0a0a0; }
+  .t.yellow { color: #ffe600; }
+  .t.red { color: #ff8080; }
+  .vbtn { position: absolute; height: 40px; display: flex; align-items: center; justify-content: center;
+          font-size: 16px; color: #fff; text-shadow: 2px 2px 0 #3f3f3f; white-space: nowrap;
+          background: linear-gradient(#8b8b8b, #6c6c6c); border: 2px solid #000;
+          box-shadow: inset 2px 2px 0 #aaa, inset -2px -4px 0 #555; }
+  .vbtn.hover { background: linear-gradient(#a4b2e8, #7e8fd6); box-shadow: inset 2px 2px 0 #c9d2f5, inset -2px -4px 0 #4e5ca8; border-color: #fff; }
+  .vbtn.disabled { background: #2c2c2c; color: #a0a0a0; box-shadow: none; text-shadow: none; }
+  .list { position: absolute; background: rgba(0,0,0,0.55); outline: 2px solid #50565e; outline-offset: -2px; overflow: hidden; }
+  .row { position: absolute; left: 2px; right: 2px; height: 28px; }
+  .row.inuse { background: #1f5fa8; outline: 2px solid #fff; outline-offset: -2px; }
+  .row.hover { background: rgba(255,255,255,0.12); }
+  .row.hover .t.gray { color: #c0c0c0; }
+  .editbox { position: absolute; background: #000; border: 2px solid #fff; height: 28px; color: #e0e0e0;
+             font-size: 16px; line-height: 24px; padding: 0 6px; white-space: nowrap; }
+  .editbox .caret { display: inline-block; width: 2px; height: 18px; background: #d0d0d0; vertical-align: -3px; }
+  .scroll { position: absolute; width: 6px; background: #8b8b8b; }
+
+  /* ---- ツールチップ ---- */
+  .tip { position: absolute; background: #100010f0; border: 2px solid #2d0a63; padding: 6px 8px;
+         font-size: 16px; color: #fff; white-space: nowrap; z-index: 20; text-shadow: 2px 2px 0 #3f3f3f; }
+  .tip .sub { color: #a0a0a0; display: block; }
+
+  table { border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  th, td { border: 1px solid #343a41; padding: 3px 8px; text-align: left; }
+  th { background: #1f242a; }
+  td.ok { color: #7cfc00; } td.ng { color: #ff6e61; font-weight: bold; }
+  .row-flex { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; margin-top: 12px; }
+  .caption { color: #a8adb4; font-size: 13px; margin: 6px 0 0; max-width: 640px; }
+  .tag { display: inline-block; font-size: 11px; color: #ffd479; border: 1px solid #ffd47966; padding: 0 5px; margin-left: 6px; }
+</style>
+</head>
+<body>
+<h1>MapScribble 0.4.0 モックアップ（帯の最終形・メニュー・メモの保存先）</h1>
+<p class="note">
+  1 GUI ピクセルを 2 CSS ピクセルで表示。JourneyMap の各要素は位置関係の確認のための枠で実物ではない。アイコンは文字で代用している
+  （実物は白い単色の線画 16×16）。点線の黄色い枠は「後の版で入る場所（0.4.0 では何も描かない）」。
+  設計書: <code>docs/design/ui-design.md</code> 3.1・3.6〜3.9。帯の座標は下の「8. セルの座標と上限の試験」の表から描いている（表と絵がずれない）。
+</p>
+
+<h2>1. GUI 320×240（最小）／手書きモード オン・道具は囲み・メニューは閉じている</h2>
+<p class="note">帯は 256×41。右端は GUI x 284 で、JourneyMap の右列（x 296）まで 12 空く。赤い点線は上限（右は x 296、下は y 206）。図形の場所（x 103）は 0.4.0 では空けておき、何も描かない。</p>
+<div class="screen s320" id="scr1">
+  <div class="jm logo">logo</div><div class="jm topbar">上部ツールバー</div><div class="jm coord">座標・バイオームの表示行</div>
+  <div class="jm leftcol">左列</div><div class="jm rightcol">右列</div><div class="jm bottombar">下部ツールバー</div>
+  <div class="limit" style="left:592px;"></div><div class="limit-label" style="left:540px; top:130px;">x 296</div>
+  <div class="limit h" style="top:412px;"></div><div class="limit-label" style="left:4px; top:396px;">y 206</div>
+  <div class="toggle" style="left:592px; top:12px;">✎</div>
+  <div class="band" id="band1" style="left:56px; top:88px;"></div>
+  <div class="hint" style="left:62px; top:176px;">囲み：ドラッグして範囲を囲む</div>
+</div>
+
+<h2>2. 下段は道具ごとに変わる（上段は全道具で同じ）</h2>
+<p class="note">
+  下段は3つの枠に分ける。A（x 3〜55）＝太さ・文字の大きさ、B（x 60〜130）＝道具に固有の設定（囲みの塗り・図形の種類）、
+  C（x 135〜224）＝色10。<b>色は、色を使うどの道具でも同じ場所</b>に出る。設定の無い道具は下段に灰色の1行を出す。
+</p>
+<div id="variants"></div>
+
+<h2>3. メニューを開いた状態（GUI 320×240）</h2>
+<p class="note">
+  メニューのボタンの右端に揃えて、帯のすぐ下（帯の下端＋2）に開く。開いている間はメニューのボタンが青い面になり、説明の行は描かない。
+  黄色い点線は項目が上限の8つになった時の大きさで、下端は y 205（下部ツールバー y 206 に届かない）。
+</p>
+<div class="row-flex">
+  <div>
+    <div class="screen s320" id="scr3">
+      <div class="jm logo">logo</div><div class="jm topbar">上部ツールバー</div><div class="jm coord">座標・バイオームの表示行</div>
+      <div class="jm leftcol">左列</div><div class="jm rightcol">右列</div><div class="jm bottombar">下部ツールバー</div>
+      <div class="limit h" style="top:412px;"></div>
+      <div class="toggle" style="left:592px; top:12px;">✎</div>
+      <div class="band" id="band3" style="left:56px; top:88px;"></div>
+      <div class="menu ghost" id="menuGhost"></div>
+      <div class="menu" id="menu3"></div>
+    </div>
+    <p class="caption">0.4.0 の項目は「保存先…」1つ。右に灰色で使用中のメモ帳の名前を出す。ホバー中の行は面が少し明るくなり、右の灰色も明るくなる。</p>
+  </div>
+  <div>
+    <h3>メニューの項目（最終形の並び。後の版は下へ足すだけ）</h3>
+    <table>
+      <tr><th>順</th><th>版</th><th>項目（ja / en）</th><th>右の灰色の文字</th></tr>
+      <tr><td>1</td><td>0.4.0</td><td>保存先… / Notebooks…</td><td>使用中のメモ帳の名前／分けていません</td></tr>
+      <tr><td>2</td><td>0.6.0</td><td>共有… / Share…</td><td>—</td></tr>
+      <tr><td>3</td><td>0.8.0</td><td>メモの一覧… / Note List…</td><td>割り当てたキー</td></tr>
+      <tr><td>4</td><td>0.9.0</td><td>表示の設定… / Display Settings…</td><td>—</td></tr>
+      <tr><td>5〜8</td><td>—</td><td>空き（8つで打ち切り。超える物は「表示の設定」の画面へ寄せる）</td><td></td></tr>
+    </table>
+    <h3>シングルプレイの時</h3>
+    <div class="band inline" style="width:300px; height:40px; background:none; outline:none;">
+      <div class="menu" style="left:0; top:0; width:300px; height:40px;">
+        <div class="item disabled" style="top:6px;"><span>保存先…</span><span class="sub">このワールド専用</span></div>
+      </div>
+    </div>
+    <p class="caption">押せない（灰色）。ホバーで「シングルプレイのメモは、ワールドごとに分かれています」。</p>
+  </div>
+</div>
+
+<h2>4. 保存先の画面（パネル 300×226、GUI 320×240 の中央）</h2>
+<p class="note">背後は全画面マップを黒 50% で暗くしたもの（文字入力の画面と同じ作り）。ボタン・入力欄・選択ボタンはバニラの部品。</p>
+<div class="row-flex" id="panels"></div>
+
+<h2>5. 説明の行（帯の外の1行）に出る新しい文言</h2>
+<p class="note">どれも「一時のお知らせ」（4 秒・最後の 0.5 秒で薄くなる）。続けて2つ出る時は順に出す（最大2件まで待たせる）。ブラウザの字幅は Minecraft と違うので、幅の判定は設計書の表（全角 9px）で行う。</p>
+<div id="hints"></div>
+
+<h2>6. 分ける前のメモの見分け方（地図の見た目は変えない）</h2>
+<div class="row-flex">
+  <div>
+    <div class="screen" style="width:480px; height:200px;">
+      <div style="position:absolute; left:120px; top:40px; width:150px; height:100px; border:4px solid #ff6e61; background:rgba(255,110,97,0.3); border-radius:40% 55% 45% 50%;"></div>
+      <div class="hint" style="left:150px; top:80px; background:rgba(0,0,0,0.8); color:#ff6e61; padding:0 4px;">村の倉庫</div>
+      <div class="tip" style="left:250px; top:96px;">クリックで編集：村の倉庫<span class="sub">分ける前のメモ（どのサーバーにも出ます）</span></div>
+    </div>
+    <p class="caption">消しゴム・編集でホバーした時、分ける前のメモだけツールチップに灰色の2行目が付く。</p>
+  </div>
+  <div>
+    <div style="position:relative; width:480px; height:60px; background:rgba(32,36,40,0.94); outline:2px solid #50565e; outline-offset:-2px;">
+      <div class="t center" style="left:240px; top:14px;">囲みのメモを編集<span style="color:#a0a0a0;">（分ける前のメモ）</span></div>
+      <div class="t label" style="left:14px; top:44px; font-size:12px;">…（以下、文字の欄など今までどおり）</div>
+    </div>
+    <p class="caption">編集の画面の見出しに灰色で「（分ける前のメモ）」を足す。行は増やさない（パネルの高さを変えない）。</p>
+  </div>
+</div>
+
+<h2>7. GUI 960×540（広い画面）でも並びは同じ</h2>
+<p class="note">ここだけ 1 GUI ピクセル = 1 CSS ピクセル。帯の大きさ・並びは最小の画面と同じで、余白が増えるだけ。</p>
+<div class="screen" style="width:960px; height:540px;">
+  <div class="band" id="band7" style="left:28px; top:44px; transform:scale(0.5); transform-origin:0 0;"></div>
+  <div class="menu" id="menu7"></div>
+</div>
+
+<h2>8. セルの座標と上限の試験（帯の左上を原点とする GUI ピクセル）</h2>
+<p class="note">この表から上の絵を描いている。下の「試験の結果」は、このページの JavaScript が 08 の決まり 1 の3つを計算した結果。</p>
+<div id="checks"></div>
+<div id="tables"></div>
+
+<script>
+// ===== 帯の定義（GUI ピクセル、帯の左上が原点） =====
+const BAND_W = 256, BAND_H = 41;
+const TOP = [
+  {k:'TOOL', i:0, x:3,   y:3, w:18, h:18, g:'◯', name:'囲み'},
+  {k:'TOOL', i:1, x:23,  y:3, w:18, h:18, g:'／', name:'線'},
+  {k:'TOOL', i:2, x:43,  y:3, w:18, h:18, g:'A',  name:'文字'},
+  {k:'TOOL', i:3, x:63,  y:3, w:18, h:18, g:'▱', name:'消しゴム'},
+  {k:'TOOL', i:4, x:83,  y:3, w:18, h:18, g:'➤', name:'編集'},
+  {k:'TOOL', i:5, x:103, y:3, w:18, h:18, g:'図形', name:'図形', since:'0.7.0'},
+  {k:'UNDO', i:0, x:126, y:3, w:18, h:18, g:'↺', name:'元に戻す'},
+  {k:'REDO', i:0, x:146, y:3, w:18, h:18, g:'↻', name:'やり直す'},
+  {k:'TEXT_VISIBILITY', i:0, x:169, y:3, w:18, h:18, g:'[A]', name:'文字の表示切替'},
+  {k:'VISIBILITY', i:0, x:189, y:3, w:18, h:18, g:'👁', name:'メモの表示切替'},
+  {k:'MENU', i:0, x:212, y:3, w:18, h:18, g:'≡', name:'メニュー'},
+  {k:'EXIT', i:0, x:235, y:3, w:18, h:35, g:'✕', name:'終了'},
+];
+const TOP_SEPS = [ {x:123,y:5,w:1,h:14}, {x:166,y:5,w:1,h:14}, {x:209,y:5,w:1,h:14}, {x:232,y:5,w:1,h:31} ];
+const COLORS = ['#FF6E61','#FF9500','#FFE600','#7CFC00','#32D2FF','#5C9DFF','#C584FF','#FF6FD0','#FFFFFF','#1A1A1A'];
+const COLOR_NAMES = ['赤','橙','黄','黄緑','水色','青','紫','桃','白','黒'];
+function widthCells() { return [1,2,3].map((v,j)=>({k:'WIDTH', i:v, x:3+18*j, y:25, w:16, h:13, name:'太さ '+['細','中','太'][j]})); }
+function sizeCells() { return [0,1,2].map(j=>({k:'TEXT_SIZE', i:j, x:3+18*j, y:25, w:16, h:13, name:'文字の大きさ '+['小','中','大'][j]})); }
+function fillCells() { return [0,1,2,3].map(j=>({k:'FILL', i:j, x:60+18*j, y:25, w:16, h:13, name:'塗り '+['なし','うすい','ふつう','こい'][j]})); }
+function shapeKindCells() { return [0,1,2,3].map(j=>({k:'SHAPE_KIND', i:j, x:60+18*j, y:25, w:16, h:13, name:'図形 '+['矢印','直線','四角','円'][j], since:'0.7.0'})); }
+function editKindCells() { return [0,1,2].map(j=>({k:'EDIT_KIND', i:j, x:3+18*j, y:25, w:16, h:13, name:'編集 '+['直す','動かす','点を直す'][j], since:'0.10.0'})); }
+function colorCells() { return COLORS.map((c,j)=>({k:'COLOR', i:j, x:135+9*j, y:25, w:8, h:13, name:'色 '+COLOR_NAMES[j]})); }
+const SEP_A = {x:57, y:25, w:1, h:13}, SEP_C = {x:132, y:25, w:1, h:13};
+const LOWER = {
+  '囲み':          { cells: [...widthCells(), ...fillCells(), ...colorCells()], seps:[SEP_A, SEP_C] },
+  '線':            { cells: [...widthCells(), ...colorCells()], seps:[SEP_C] },
+  '文字':          { cells: [...sizeCells(), ...colorCells()], seps:[SEP_C] },
+  '消しゴム':      { cells: [], seps:[], none:true },
+  '編集（0.4.0〜0.9.0）': { cells: [], seps:[], none:true },
+  '図形（0.7.0〜）':  { cells: [...widthCells(), ...shapeKindCells(), ...colorCells()], seps:[SEP_A, SEP_C], future:true },
+  '編集（0.10.0〜）': { cells: [...editKindCells()], seps:[], future:true },
+};
+const SEL = { tool:0, width:2, size:1, fill:2, color:0 };
+
+function px(v){ return (v*2)+'px'; }
+function renderBand(el, state, opts={}) {
+  el.innerHTML = '';
+  const add = (cls, c, html='') => { const d=document.createElement('div'); d.className=cls;
+    d.style.left=px(c.x); d.style.top=px(c.y); d.style.width=px(c.w); d.style.height=px(c.h); d.innerHTML=html; el.appendChild(d); return d; };
+  for (const s of TOP_SEPS) add('sep', s);
+  for (const c of TOP) {
+    if (c.since && !opts.future) { if (opts.showReserved) add('cell future', c, '0.7'); continue; }
+    let cls = 'cell';
+    if (c.k==='TOOL' && c.i===state.toolIndex) cls += ' sel';
+    if (c.k==='REDO') cls += ' disabled';
+    if (c.k==='MENU' && opts.menuOpen) cls += ' open';
+    add(cls, c, c.k==='TOOL'&&c.i===5 ? '<span style="font-size:10px">図形</span>' : c.g);
+  }
+  const low = LOWER[state.lower];
+  for (const s of low.seps) add('sep', s);
+  for (const c of low.cells) {
+    if (c.k==='COLOR') { add('swatch'+(c.i===SEL.color?' sel':''), c).style.background = COLORS[c.i]; continue; }
+    let cls = 'cell small';
+    if ((c.k==='WIDTH'&&c.i===SEL.width)||(c.k==='TEXT_SIZE'&&c.i===SEL.size)||(c.k==='FILL'&&c.i===SEL.fill)) cls += ' sel';
+    if (c.since) cls = 'cell small future';
+    let html = '';
+    if (c.k==='WIDTH') html = `<span class="wbar" style="height:${c.i*2}px; background:#ff6e61;"></span>`;
+    if (c.k==='TEXT_SIZE') html = `<span class="tsize">${['小','中','大'][c.i]}</span>`;
+    if (c.k==='FILL') html = `<span class="fillbox" style="border-color:#ff6e61; background:rgba(255,110,97,${[0,0.15,0.30,0.50][c.i]});"></span>`;
+    if (c.k==='SHAPE_KIND') html = ['→','─','□','○'][c.i];
+    if (c.k==='EDIT_KIND') html = ['✎','✥','◇'][c.i];
+    add(cls, c, html);
+  }
+  if (low.none) { const d=document.createElement('div'); d.className='nosettings'; d.textContent='この道具に設定はありません'; el.appendChild(d); }
+}
+renderBand(document.getElementById('band1'), {toolIndex:0, lower:'囲み'}, {showReserved:false});
+renderBand(document.getElementById('band3'), {toolIndex:0, lower:'囲み'}, {menuOpen:true});
+renderBand(document.getElementById('band7'), {toolIndex:0, lower:'囲み'});
+
+// ===== 下段のバリエーション =====
+const V = document.getElementById('variants');
+const toolIdx = {'囲み':0,'線':1,'文字':2,'消しゴム':3,'編集（0.4.0〜0.9.0）':4,'図形（0.7.0〜）':5,'編集（0.10.0〜）':4};
+for (const name of Object.keys(LOWER)) {
+  const wrap = document.createElement('div'); wrap.style.margin = '10px 0 4px';
+  wrap.innerHTML = `<h3>${name}${LOWER[name].future?'<span class="tag">後の版（参考）</span>':''}</h3>`;
+  const b = document.createElement('div'); b.className = 'band inline'; wrap.appendChild(b);
+  const hintMap = {'囲み':'囲み：ドラッグして範囲を囲む','線':'線：ドラッグして線を引く','文字':'文字：クリックした場所に置く','消しゴム':'消しゴム：消すメモをクリック','編集（0.4.0〜0.9.0）':'編集：直すメモをクリック'};
+  if (hintMap[name]) { const h=document.createElement('div'); h.style.cssText='color:#fff;font-size:16px;text-shadow:2px 2px 0 #3f3f3f;margin:6px 0 0 6px;'; h.textContent=hintMap[name]; wrap.appendChild(h); }
+  V.appendChild(wrap);
+  renderBand(b, {toolIndex: toolIdx[name], lower:name}, {future: !!LOWER[name].future, showReserved: !LOWER[name].future});
+}
+
+// ===== メニュー =====
+const MENU_W = 150, ITEM_H = 14, MENU_PAD = 3;
+function menuGeom(bandX, bandY, n, screenW=320, screenH=240) {
+  const h = MENU_PAD*2 + ITEM_H*n;
+  let x = bandX + 230 - MENU_W; x = Math.max(0, Math.min(screenW - MENU_W, x));
+  let y = bandY + BAND_H + 2;
+  if (y + h > screenH) y = bandY - 2 - h;
+  return {x, y, w:MENU_W, h};
+}
+function renderMenu(el, g, items, scale=2) {
+  el.style.left=(g.x*scale)+'px'; el.style.top=(g.y*scale)+'px'; el.style.width=(g.w*scale)+'px'; el.style.height=(g.h*scale)+'px';
+  el.innerHTML = items.map((it,j)=>`<div class="item ${it.cls||''}" style="top:${(MENU_PAD+ITEM_H*j)*scale}px; height:${ITEM_H*scale}px; ${scale===1?'font-size:8px;padding:0 5px;text-shadow:1px 1px 0 #3f3f3f;':''}"><span>${it.label}</span><span class="sub">${it.sub||''}</span></div>`).join('');
+}
+const g1 = menuGeom(28, 44, 1), g8 = menuGeom(28, 44, 8);
+renderMenu(document.getElementById('menu3'), g1, [{label:'保存先…', sub:'資源ワールド', cls:'hover'}]);
+renderMenu(document.getElementById('menuGhost'), g8, ['','','','','','','',''].map(l=>({label:l})));
+renderMenu(document.getElementById('menu7'), menuGeom(28,44,1,960,540), [{label:'保存先…', sub:'資源ワールド'}], 1);
+
+// ===== 保存先の画面 =====
+const P = document.getElementById('panels');
+function panel(title, state) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `<h3>${title}</h3>`;
+  const scr = document.createElement('div'); scr.className='screen s320'; wrap.appendChild(scr);
+  scr.innerHTML = '<div class="dim"></div>';
+  const PX = 10, PY = 7, W = 300, H = 226;
+  const pn = document.createElement('div'); pn.className='panel';
+  pn.style.cssText = `left:${px(PX)};top:${px(PY)};width:${px(W)};height:${px(H)};`;
+  scr.appendChild(pn);
+  const t = (txt, x, y, cls='') => `<div class="t ${cls}" style="left:${px(x)};top:${px(y)};">${txt}</div>`;
+  const b = (txt, x, y, w, cls='') => `<div class="vbtn ${cls}" style="left:${px(x)};top:${px(y)};width:${px(w)};">${txt}</div>`;
+  let h = '';
+  h += t('メモの保存先', 150, 7, 'center');
+  h += t('接続先：play.example.net', 150, 19, 'gray center');
+  h += b(state.splitLabel || 'この接続先をサーバーごとに分ける：オン', 7, 31, 286, state.splitDisabled?'disabled':'');
+  h += t(state.desc || 'プロキシの先でサーバーが変わったので、自動でオンにしました', 7, 54, state.descCls || 'gray');
+  h += t('メモ帳', 7, 67, 'label');
+  if (!state.renaming) h += t('クリックで切り替え', 293, 67, 'gray right');
+  // 一覧（行 14・左右の余白 2・スクロールバー x 279..282）
+  let list = `<div class="list" style="left:${px(7)};top:${px(78)};width:${px(286)};height:${px(44)};">`;
+  if (state.listText) {
+    list += `<div class="t ${state.listCls||'gray'}" style="left:${px(5)};top:${px(4)};">${state.listText}</div>`;
+    if (state.listText2) list += `<div class="t ${state.listCls||'gray'}" style="left:${px(5)};top:${px(18)};">${state.listText2}</div>`;
+  } else {
+    (state.rows || []).forEach((r, j) => {
+      list += `<div class="row ${r.cls||''}" style="top:${px(1+14*j)};">`;
+      if (r.edit) {
+        list += `<div class="editbox" style="left:${px(2)};top:0;width:${px(190)};">${r.name}<span class="caret"></span></div>`;
+      } else {
+        list += t(r.name + (r.cls==='inuse' ? '　［使用中］' : ''), 4, 2.5);
+      }
+      list += t(r.count, 220, 2.5, (r.cls==='inuse'?'label':'gray')+' right');
+      list += t(r.date, 274, 2.5, (r.cls==='inuse'?'label':'gray')+' right');
+      list += `</div>`;
+    });
+    if ((state.rows||[]).length > 3) list += `<div class="scroll" style="left:${px(279)};top:${px(2)};height:${px(30)};"></div>`;
+  }
+  list += '</div>';
+  h += list;
+  if (state.error) h += t(state.error, 7, 125, 'red');
+  if (state.renaming) {
+    h += b('決定', 7, 136, 100); h += b('キャンセル', 110, 136, 100);
+  } else {
+    h += b('名前を変える', 7, 136, 100, state.renameDisabled?'disabled':''); h += b('新しいメモ帳', 110, 136, 100, state.newDisabled?'disabled':'');
+  }
+  h += t(state.pre || '分ける前のメモ：23件（どのサーバーにも出ます）', 7, 162, state.preCls || 'label');
+  if (state.after) {
+    h += b('元に戻す', 7, 173, 141); h += b('見えている分を移す（0件）…', 152, 173, 141, 'disabled');
+  } else {
+    h += b(state.moveAll || '全部を移す（23件）…', 7, 173, 141, state.moveDisabled?'disabled':(state.hoverMove?'hover':''));
+    h += b(state.moveVis || '見えている分を移す（5件）…', 152, 173, 141, state.moveDisabled?'disabled':'');
+  }
+  h += b('完了', 100, 199, 100);
+  if (state.tip) h += `<div class="tip" style="left:${px(state.tip.x)};top:${px(state.tip.y)};">${state.tip.html}</div>`;
+  pn.innerHTML = h;
+  if (state.caption) { const c=document.createElement('p'); c.className='caption'; c.innerHTML=state.caption; wrap.appendChild(c); }
+  P.appendChild(wrap);
+}
+const ROWS = [
+  {name:'資源ワールド', count:'18件', date:'2026-11-17', cls:'inuse'},
+  {name:'一般ワールド', count:'42件', date:'2026-11-17', cls:'hover'},
+  {name:'資源（リセット前）', count:'7件', date:'2026-10-02'},
+  {name:'メモ帳 4', count:'0件', date:'2026-11-17'},
+];
+panel('4-a 通常（分けている・自動でオンになった）', { rows: ROWS, hoverMove:true,
+  tip:{x:20, y:196, html:'使用中のメモ帳「資源ワールド」へ移します<span class="sub">確認の画面が出ます。元に戻すで戻せます</span>'},
+  caption:'使用中の行は濃い青の面＋白い縁＋「［使用中］」。ほかの行をクリックすると、その場で切り替わる（このワールドで使うメモ帳が変わり、覚えられる）。4行目以降はスクロール。' });
+panel('4-b 名前を変えている（入力の検証に失敗）', { rows:[{name:'一般ワールド', count:'18件', date:'2026-11-17', edit:true}, {...ROWS[1], cls:''}, ROWS[2]], renaming:true,
+  error:'同じ名前のメモ帳があります', moveDisabled:true,
+  caption:'「名前を変える」で使用中の行が Minecraft の入力欄（EditBox）になり、開いた時は今の名前が全部選ばれている。Enter で決定・Esc で取りやめ（画面は閉じない）。検証は決定の時だけ行い、失敗は欄の下に赤で出して入力を消さない。' });
+panel('4-c 分けていない（普通のサーバー・空の状態）', { splitLabel:'この接続先をサーバーごとに分ける：オフ', desc:'この接続先のどのサーバーでも、同じメモを使います',
+  listText:'まだメモ帳はありません', listText2:'オンにすると、ワールドごとにメモ帳ができます', renameDisabled:true, newDisabled:true,
+  pre:'この接続先のメモ：23件（どのサーバーにも出ます）', preCls:'gray', moveAll:'全部を移す…', moveVis:'見えている分を移す…', moveDisabled:true,
+  caption:'分けていない間は、メモ帳の操作と移す操作は押せない（ホバーで「サーバーごとに分けている時だけ使えます」）。' });
+panel('4-d ワールドを見分けられない（分けている接続先で、識別値が来ない）', { splitLabel:'この接続先をサーバーごとに分ける：オン', splitDisabled:true,
+  desc:'ワールドを見分けられないため、自動では分けられません', descCls:'yellow', renameDisabled:true,
+  rows:[{name:'資源ワールド', count:'18件', date:'2026-11-17'}, {name:'一般ワールド', count:'42件', date:'2026-11-17'}],
+  pre:'分ける前のメモ：23件（今はこちらへ書きます）',
+  caption:'切替は押せない（灰色）。一覧から手で選べば、この接続先では選んだメモ帳を使う。選ぶまでは使用中が無く、名前を変えるは押せず、新しいメモは分ける前のメモへ書く。' });
+panel('4-e 移した後', { rows: ROWS.slice(0,3).map((r,j)=>j===0?{...r,count:'41件'}:(j===1?{...r,cls:''}:r)), after:true,
+  pre:'23件を「資源ワールド」へ移しました', preCls:'',
+  caption:'結果は操作した場所（移すボタンの真上の行）に白で出し、移すボタンの1つ目が「元に戻す」に替わる。画面を閉じた後も地図で Ctrl+Z で戻せる。' });
+panel('4-f 一覧を読み込めない（知らない形式の notebooks.json）', { splitLabel:'この接続先をサーバーごとに分ける：オン', splitDisabled:true, desc:'メモ帳の一覧を読み込めません（ファイルはそのまま）', descCls:'red',
+  listText:'読み込めないため、変更できません', listCls:'gray', renameDisabled:true, newDisabled:true, moveDisabled:true,
+  pre:'分ける前のメモ：23件（どのサーバーにも出ます）',
+  caption:'完了だけ押せる。ファイルは読みも書きもしない。読み込み中は一覧の中に灰色で「読み込んでいます…」を出し、同じく完了以外は押せない。' });
+
+// 確認の画面（バニラの ConfirmScreen 相当）
+(function(){
+  const wrap = document.createElement('div');
+  wrap.innerHTML = '<h3>4-g 移す前の確認（バニラの確認画面）</h3>';
+  const scr = document.createElement('div'); scr.className='screen s320'; scr.style.background='#1d1f24';
+  scr.innerHTML = `
+    <div class="t center" style="left:320px; top:120px;">分ける前のメモを移す</div>
+    <div class="t center" style="left:320px; top:170px;">23件のメモを、メモ帳「資源ワールド」へ移します。</div>
+    <div class="t center" style="left:320px; top:192px;">移したメモは、この接続先のほかのサーバーには</div>
+    <div class="t center" style="left:320px; top:214px;">出なくなります。元に戻すで戻せます。</div>
+    <div class="vbtn hover" style="left:150px; top:300px; width:160px;">移す</div>
+    <div class="vbtn" style="left:330px; top:300px; width:160px;">キャンセル</div>`;
+  wrap.appendChild(scr);
+  const c=document.createElement('p'); c.className='caption'; c.textContent='見えている分を移す時は、1行目が「見えている範囲の 5件を、メモ帳「資源ワールド」へ移します。」になる。Esc はキャンセルと同じ。';
+  wrap.appendChild(c);
+  P.appendChild(wrap);
+})();
+
+// ===== 説明の行 =====
+const HINTS = [
+  ['新しいメモ帳に切り替わった（自動）', '使うメモ帳：メモ帳 2', ''],
+  ['プロキシと判定して分け始めた', 'サーバーごとにメモを分けました', ''],
+  ['（続けて）', '使うメモ帳：メモ帳 1', ''],
+  ['分けている接続先で識別値が来ない', 'このワールドは分けられません', 'yellow'],
+  ['移した（画面を閉じて地図へ戻った時）', '23件を移しました（Ctrl+Z で戻せます）', ''],
+  ['移したのを元に戻した', '移したメモを元に戻しました', ''],
+  ['移すのに失敗した', '移せませんでした（ファイルはそのまま）', 'red'],
+];
+document.getElementById('hints').innerHTML = HINTS.map(([s, txt, cls]) => `
+  <div style="display:flex; gap:16px; align-items:center; margin:6px 0;">
+    <div style="width:260px; color:#a8adb4; font-size:13px;">${s}</div>
+    <div style="position:relative; width:420px; height:30px; background:#3d5a33;"><div class="hint ${cls}" style="left:6px; top:4px;">${txt}</div>
+    <div style="position:absolute; left:${(3+190)*2}px; top:0; bottom:0; border-left:2px dashed #ff5a5a;"></div></div>
+  </div>`).join('') + '<p class="caption">赤い点線は説明の行の文言の上限（190 GUI px）。</p>';
+
+// ===== セルの表と試験 =====
+function overlaps(a,b){ return a.x < b.x+b.w && b.x < a.x+a.w && a.y < b.y+b.h && b.y < a.y+a.h; }
+const results = [];
+for (const name of Object.keys(LOWER)) {
+  const cells = [...TOP, ...LOWER[name].cells];
+  let inside = cells.every(c => c.x>=0 && c.y>=0 && c.x+c.w<=BAND_W && c.y+c.h<=BAND_H);
+  let pairs = [];
+  for (let i=0;i<cells.length;i++) for (let j=i+1;j<cells.length;j++) if (overlaps(cells[i],cells[j])) pairs.push(cells[i].name+' × '+cells[j].name);
+  results.push({name, n:cells.length, inside, overlap:pairs});
+}
+const bandRight = 28 + BAND_W, menuG = menuGeom(28,44,8);
+let html = '<h3>試験の結果</h3><table><tr><th>道具の状態</th><th>セル数</th><th>全セルが帯の中</th><th>重なり</th></tr>';
+for (const r of results) html += `<tr><td>${r.name}</td><td>${r.n}</td><td class="${r.inside?'ok':'ng'}">${r.inside?'はい':'いいえ'}</td><td class="${r.overlap.length?'ng':'ok'}">${r.overlap.length? r.overlap.join(', ') : 'なし'}</td></tr>`;
+html += `</table><table>
+<tr><th>上限</th><th>値</th><th>判定</th></tr>
+<tr><td>帯の幅 ≤ 264</td><td>${BAND_W}</td><td class="${BAND_W<=264?'ok':'ng'}">${BAND_W<=264?'OK':'NG'}</td></tr>
+<tr><td>帯の高さ ≤ 41</td><td>${BAND_H}</td><td class="${BAND_H<=41?'ok':'ng'}">${BAND_H<=41?'OK':'NG'}</td></tr>
+<tr><td>既定の位置で右端 &lt; 296</td><td>${bandRight}</td><td class="${bandRight<296?'ok':'ng'}">${bandRight<296?'OK':'NG'}</td></tr>
+<tr><td>説明の行の下端 &lt; 206</td><td>${44+44+9}</td><td class="ok">OK</td></tr>
+<tr><td>メニュー（8項目）が 320×240 の中で下端 ≤ 206</td><td>x ${menuG.x}..${menuG.x+menuG.w}, y ${menuG.y}..${menuG.y+menuG.h}</td><td class="${menuG.y+menuG.h<=206 && menuG.x>=0 && menuG.x+menuG.w<=320?'ok':'ng'}">${menuG.y+menuG.h<=206?'OK':'NG'}</td></tr>
+</table>`;
+document.getElementById('checks').innerHTML = html;
+let th = '<h3>上段（全道具で同じ）</h3><table><tr><th>種類</th><th>index</th><th>x</th><th>y</th><th>幅</th><th>高さ</th><th>版</th></tr>';
+for (const c of TOP) th += `<tr><td>${c.name}（${c.k}）</td><td>${c.i}</td><td>${c.x}</td><td>${c.y}</td><td>${c.w}</td><td>${c.h}</td><td>${c.since||'0.4.0'}</td></tr>`;
+th += '</table>';
+document.getElementById('tables').innerHTML = th;
+</script>
+</body>
+</html>
