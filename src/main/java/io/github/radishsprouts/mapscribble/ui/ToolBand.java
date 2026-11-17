@@ -40,6 +40,10 @@ public final class ToolBand {
     private static final int SWATCH_BORDER = 0x99000000;
     private static final int SWATCH_HOVER_RING = 0xFFA0A0A0;
     private static final int GRAY = 0xA0A0A0;
+    /** 設定の無い道具の下段の灰色の1行。 */
+    private static final int NO_SETTINGS_GRAY = 0xFFB4B4B4;
+    /** 塗りのボタンで、選んでいる色が黒の時だけ使う縁と内側の色。 */
+    private static final int FILL_BLACK_SUBSTITUTE = 0xE6E6E6;
 
     //? if >=1.21.11 {
     private static final Identifier[] TOOL_ICONS = {
@@ -55,6 +59,8 @@ public final class ToolBand {
     private static final Identifier VISIBLE_ICON = GuiCompat.texture("textures/gui/tool/visible.png");
     private static final Identifier HIDDEN_ICON = GuiCompat.texture("textures/gui/tool/hidden.png");
     private static final Identifier EXIT_ICON = GuiCompat.texture("textures/gui/tool/exit.png");
+    /** メニューのアイコン（素材 #15）。ファイルが無い間はバニラの欠けたテクスチャの絵になるだけで、落ちない。 */
+    private static final Identifier MENU_ICON = GuiCompat.texture("textures/gui/tool/menu.png");
     //?} else {
     /*private static final ResourceLocation[] TOOL_ICONS = {
             GuiCompat.texture("textures/gui/tool/enclose.png"),
@@ -69,6 +75,7 @@ public final class ToolBand {
     private static final ResourceLocation VISIBLE_ICON = GuiCompat.texture("textures/gui/tool/visible.png");
     private static final ResourceLocation HIDDEN_ICON = GuiCompat.texture("textures/gui/tool/hidden.png");
     private static final ResourceLocation EXIT_ICON = GuiCompat.texture("textures/gui/tool/exit.png");
+    private static final ResourceLocation MENU_ICON = GuiCompat.texture("textures/gui/tool/menu.png");
     *///?}
 
     private final DrawingState state;
@@ -91,9 +98,50 @@ public final class ToolBand {
     private String tooltipKeyLabel;
     private List<Component> tooltip = List.of();
 
+    /** メニューを開いているか。開いている間はメニューのボタンを選択中の見え方にし、帯のホバーとツールチップを止める。 */
+    private boolean menuOpen;
+    private Runnable menuButtonHandler = () -> {
+    };
+
+    // 描画のたびに同じ表を作り直さないための入れ物（帯の位置か道具が変わった時だけ作り直す）
+    private int cachedBx = Integer.MIN_VALUE;
+    private int cachedBy = Integer.MIN_VALUE;
+    private Tool cachedTool;
+    private List<BandLayout.Cell> cachedCells = List.of();
+    private List<BandLayout.Separator> cachedSeparators = List.of();
+
     public ToolBand(DrawingState state, DrawingController controller) {
         this.state = state;
         this.controller = controller;
+    }
+
+    /** メニューのボタンが押された時に呼ぶ処理（メニューの開閉は呼び出し側が持つ）。 */
+    public void setMenuButtonHandler(Runnable handler) {
+        this.menuButtonHandler = handler;
+    }
+
+    public void setMenuOpen(boolean open) {
+        this.menuOpen = open;
+        if (open) {
+            hover = null;
+        }
+        lastMouseX = Integer.MIN_VALUE;
+    }
+
+    private List<BandLayout.Cell> cells(int bx, int by) {
+        refreshCache(bx, by);
+        return cachedCells;
+    }
+
+    private void refreshCache(int bx, int by) {
+        Tool tool = state.tool();
+        if (bx != cachedBx || by != cachedBy || tool != cachedTool) {
+            cachedBx = bx;
+            cachedBy = by;
+            cachedTool = tool;
+            cachedCells = BandLayout.buildCells(bx, by, tool);
+            cachedSeparators = BandLayout.buildSeparators(bx, by, tool);
+        }
     }
 
     // ---- 入力 ----
@@ -110,7 +158,13 @@ public final class ToolBand {
         if (!leftButton) {
             return true;
         }
-        BandLayout.Cell cell = BandLayout.cellAt(gx, gy, bx, by);
+        BandLayout.Cell cell = null;
+        for (BandLayout.Cell c : cells(bx, by)) {
+            if (c.contains(gx, gy)) {
+                cell = c;
+                break;
+            }
+        }
         if (cell == null) {
             // ボタン以外の余白をクリックした場合はドラッグ移動を開始
             dragging = true;
@@ -134,8 +188,10 @@ public final class ToolBand {
                 controller.cancelStroke();
                 state.toggleMode();
             }
+            case MENU -> menuButtonHandler.run();
             case WIDTH -> state.setWidth(cell.index());
             case TEXT_SIZE -> state.setTextScale(TextSize.values()[cell.index()].scale());
+            case FILL -> state.setFillOpacity(FillLevel.values()[cell.index()].opacity());
             case COLOR -> state.setColor(NoteColor.values()[cell.index()].rgb());
         }
         return true;
@@ -176,16 +232,17 @@ public final class ToolBand {
                        float hintAlpha) {
         int bx = state.bandX();
         int by = state.bandY();
-        updateHover(mouseX, mouseY, bx, by);
+        List<BandLayout.Cell> cells = cells(bx, by);
+        updateHover(cells, mouseX, mouseY);
 
         GuiCompat.fill(g, bx, by, bx + BandLayout.WIDTH, by + BandLayout.HEIGHT, BG);
         GuiCompat.outline(g, bx, by, BandLayout.WIDTH, BandLayout.HEIGHT, EDGE);
-        for (BandLayout.Separator s : BandLayout.buildSeparators(bx, by)) {
+        for (BandLayout.Separator s : cachedSeparators) {
             GuiCompat.fill(g, s.x(), s.y(), s.x() + s.w(), s.y() + s.h(), SEPARATOR);
         }
 
         int rgb = 0xFF000000 | state.color();
-        for (BandLayout.Cell cell : BandLayout.buildCells(bx, by)) {
+        for (BandLayout.Cell cell : cells) {
             switch (cell.kind()) {
                 case TOOL -> drawButton(g, cell, state.tool().ordinal() == cell.index(), true,
                         TOOL_ICONS[cell.index()]);
@@ -194,28 +251,45 @@ public final class ToolBand {
                 case TEXT_VISIBILITY -> drawButton(g, cell, false, true,
                         state.isTextVisible() ? TEXT_VISIBLE_ICON : TEXT_HIDDEN_ICON);
                 case VISIBILITY -> drawButton(g, cell, false, true, state.isVisible() ? VISIBLE_ICON : HIDDEN_ICON);
+                // メニューを開いている間は選択中の見え方（どのボタンから開いたかの手掛かり）
+                case MENU -> drawButton(g, cell, menuOpen, true, MENU_ICON);
                 case EXIT -> drawButton(g, cell, false, true, EXIT_ICON);
                 case WIDTH -> drawWidth(g, cell, rgb);
                 case TEXT_SIZE -> drawTextSize(g, font, cell);
+                case FILL -> drawFill(g, cell);
                 case COLOR -> drawSwatch(g, cell);
             }
         }
+        if (!BandLayout.hasSettings(state.tool())) {
+            // 空白のままだと「壊れた／読み込み中」に見えるので、押せない灰色の1行で理由を示す
+            GuiCompat.text(g, font, Component.translatable("mapscribble.band.no_settings"),
+                    bx + BandLayout.NO_SETTINGS_X, by + BandLayout.NO_SETTINGS_Y, NO_SETTINGS_GRAY, false);
+        }
 
-        showTooltip(g, font, mouseX, mouseY, hint);
+        if (!menuOpen) {
+            showTooltip(g, font, mouseX, mouseY, hint);
+        }
     }
 
-    private void updateHover(int mouseX, int mouseY, int bx, int by) {
-        if (mouseX == lastMouseX && mouseY == lastMouseY) {
-            return;
-        }
+    /** 毎フレーム、いまのマウス位置のボタンを引き直す（道具の切替でボタンの表が変わるため）。メニュー中は無し。 */
+    private void updateHover(List<BandLayout.Cell> cells, int mouseX, int mouseY) {
         lastMouseX = mouseX;
         lastMouseY = mouseY;
-        hover = BandLayout.cellAt(mouseX, mouseY, bx, by);
+        hover = null;
+        if (menuOpen) {
+            return;
+        }
+        for (BandLayout.Cell c : cells) {
+            if (c.contains(mouseX, mouseY)) {
+                hover = c;
+                return;
+            }
+        }
     }
 
-    /** アイコンを置く y。終了ボタンだけ縦長（35）なので、上 9・下 10 の位置（ボタン内で上下中央）に置く。 */
+    /** アイコンを置く y。アイコン 16×16 はボタンの左上から (1,1)。終了ボタンだけ縦長（35）なので上 9 の位置に置く。 */
     private static int iconY(BandLayout.Cell cell) {
-        return cell.kind() == BandLayout.Kind.EXIT ? cell.y() + 9 : cell.y() + 2;
+        return cell.kind() == BandLayout.Kind.EXIT ? cell.y() + 9 : cell.y() + 1;
     }
 
     //? if >=1.21.11 {
@@ -226,7 +300,7 @@ public final class ToolBand {
         int tint = buttonIcon(cell, selected, enabled);
         GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
         GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), border);
-        GuiCompat.blitIcon(g, icon, cell.x() + 2, iconY(cell), 16, tint);
+        GuiCompat.blitIcon(g, icon, cell.x() + 1, iconY(cell), 16, tint);
     }
     //?} else {
     /*private void drawButton(Gfx g, BandLayout.Cell cell, boolean selected, boolean enabled,
@@ -236,7 +310,7 @@ public final class ToolBand {
         int tint = buttonIcon(cell, selected, enabled);
         GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
         GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), border);
-        GuiCompat.blitIcon(g, icon, cell.x() + 2, iconY(cell), 16, tint);
+        GuiCompat.blitIcon(g, icon, cell.x() + 1, iconY(cell), 16, tint);
     }
     *///?}
 
@@ -265,14 +339,33 @@ public final class ToolBand {
         int textW = font.width(label);
         int textX = cell.x() + (cell.w() - textW) / 2;
         int textY = cell.y() + (cell.h() - font.lineHeight) / 2 + 1;
-        int color = selected ? WHITE : (hover == cell ? WHITE : ICON_NORMAL);
+        int color = selected ? WHITE : (cell.equals(hover) ? WHITE : ICON_NORMAL);
         GuiCompat.text(g, font, Component.literal(label), textX, textY, color, true);
+    }
+
+    /** 塗りのボタン。左上から (2,2) に 12×9 の四角を、選んでいる色の縁と、塗りの濃さの内側で描く。 */
+    private void drawFill(Gfx g, BandLayout.Cell cell) {
+        FillLevel level = FillLevel.values()[cell.index()];
+        boolean selected = FillLevel.nearest(state.fillOpacity()) == level;
+        GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), buttonFace(cell, selected, true));
+        GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), buttonBorder(cell, selected, true));
+        int rgb = state.color() & 0xFFFFFF;
+        if (rgb == 0) {
+            rgb = FILL_BLACK_SUBSTITUTE;
+        }
+        int x = cell.x() + 2;
+        int y = cell.y() + 2;
+        GuiCompat.outline(g, x, y, 12, 9, 0xFF000000 | rgb);
+        int alpha = Math.round(level.opacity() * 255f);
+        if (alpha > 0) {
+            GuiCompat.fill(g, x + 1, y + 1, x + 11, y + 8, (alpha << 24) | rgb);
+        }
     }
 
     private void drawSwatch(Gfx g, BandLayout.Cell cell) {
         NoteColor color = NoteColor.list().get(cell.index());
         boolean selected = (state.color() & 0xFFFFFF) == color.rgb();
-        boolean hovered = hover == cell;
+        boolean hovered = cell.equals(hover);
         if (selected) {
             GuiCompat.outline(g, cell.x() - 1, cell.y() - 1, cell.w() + 2, cell.h() + 2, WHITE);
         } else if (hovered) {
@@ -289,10 +382,10 @@ public final class ToolBand {
         if (!enabled) {
             return FACE_DISABLED;
         }
-        if (pressed == cell && hover == cell) {
+        if (cell.equals(pressed) && cell.equals(hover)) {
             return FACE_PRESSED;
         }
-        return hover == cell ? FACE_HOVER : FACE_NORMAL;
+        return cell.equals(hover) ? FACE_HOVER : FACE_NORMAL;
     }
 
     private int buttonBorder(BandLayout.Cell cell, boolean selected, boolean enabled) {
@@ -302,10 +395,10 @@ public final class ToolBand {
         if (!enabled) {
             return BORDER_DISABLED;
         }
-        if (pressed == cell && hover == cell) {
+        if (cell.equals(pressed) && cell.equals(hover)) {
             return WHITE;
         }
-        return hover == cell ? BORDER_HOVER : BORDER_NORMAL;
+        return cell.equals(hover) ? BORDER_HOVER : BORDER_NORMAL;
     }
 
     private int buttonIcon(BandLayout.Cell cell, boolean selected, boolean enabled) {
@@ -315,7 +408,7 @@ public final class ToolBand {
         if (!enabled) {
             return ICON_DISABLED;
         }
-        return hover == cell ? WHITE : ICON_NORMAL;
+        return cell.equals(hover) ? WHITE : ICON_NORMAL;
     }
 
     // ---- ツールチップ ----
@@ -375,6 +468,10 @@ public final class ToolBand {
             }
             case VISIBILITY -> lines.add(Component.translatable(
                     visible ? "mapscribble.visibility.hide" : "mapscribble.visibility.show"));
+            case MENU -> {
+                lines.add(Component.translatable("mapscribble.menu"));
+                lines.add(gray(Component.translatable("mapscribble.menu.desc")));
+            }
             case EXIT -> {
                 lines.add(Component.translatable("mapscribble.button.toggle.on"));
                 lines.add(gray(Component.translatable("mapscribble.button.toggle.on.desc")));
@@ -386,6 +483,8 @@ public final class ToolBand {
             }));
             case TEXT_SIZE -> lines.add(Component.translatable("mapscribble.text_size.tooltip",
                     Component.translatable(TextSize.values()[cell.index()].translationKey())));
+            case FILL -> lines.add(Component.translatable("mapscribble.fill.tooltip",
+                    Component.translatable(FillLevel.values()[cell.index()].translationKey())));
             case COLOR -> lines.add(Component.translatable("mapscribble.color.tooltip",
                     Component.translatable(NoteColor.values()[cell.index()].translationKey())));
         }

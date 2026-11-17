@@ -410,7 +410,8 @@ public final class ScribbleBridge implements PrimaryMapBridge {
     private Memo hoverMemo(IFullscreen fs, int guiX, int guiY) {
         Tool tool = state.tool();
         if (guiX < 0 || guiY < 0 || !controller.isActive() || !state.isVisible()
-                || (tool != Tool.ERASER && tool != Tool.EDIT) || BandLayout.contains(guiX, guiY)) {
+                || (tool != Tool.ERASER && tool != Tool.EDIT)
+                || BandLayout.contains(guiX, guiY, state.bandX(), state.bandY())) {
             return null;
         }
         MemoRepository repo = controller.repository();
