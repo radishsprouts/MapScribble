@@ -2,6 +2,12 @@
 
 English version of [CHANGELOG.md](CHANGELOG.md). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The CurseForge changelog shows this file's section first, followed by the Japanese one.
 
+## 0.4.0 (unreleased)
+
+### Fixed
+
+- Notes drawn in 0.1.0 were not carried over in 0.2.0 and later. 0.1.0 saved them in JourneyMap's per-world folder (`journeymap/data/{mp,sp}/<folder>/addon-data/mapscribble/`), but the carry-over looked in a different place. When one address has two or more old folders, each is now imported as a notebook and the hint line tells you (the old files are left untouched)
+
 ## [0.3.0] - 2026-11-10
 
 ### Added
