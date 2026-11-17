@@ -53,7 +53,7 @@ public final class SessionController {
             stopped();
             return;
         }
-        store.open(key.file());
+        store.open(key.file(), key.legacyFile());
         current = key;
     }
 

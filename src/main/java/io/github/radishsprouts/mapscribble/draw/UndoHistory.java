@@ -47,6 +47,18 @@ public final class UndoHistory<T> {
         return edit;
     }
 
+    /** {@link #popUndo()} を取り消す（適用に失敗した時）。やり直しの履歴から外し、取り消しの履歴の末尾へ戻す。 */
+    public void restoreUndo(T edit) {
+        redo.removeLastOccurrence(edit);
+        pushUndo(edit);
+    }
+
+    /** {@link #popRedo()} を取り消す（適用に失敗した時）。取り消しの履歴から外し、やり直しの履歴の末尾へ戻す。 */
+    public void restoreRedo(T edit) {
+        undo.removeLastOccurrence(edit);
+        redo.addLast(edit);
+    }
+
     private void pushUndo(T edit) {
         undo.addLast(edit);
         while (undo.size() > limit) {
