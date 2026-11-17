@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -82,6 +84,28 @@ public final class DebouncedWriter implements AutoCloseable {
         } catch (Exception e) {
             LOGGER.warn("MapScribble: 書き込みの完了待ちに失敗した", e);
         }
+    }
+
+    /**
+     * 書き込み用スレッドで、予約分を書き切った後に task を実行する。止めた後は呼び出したスレッドで実行する。
+     * task の例外は返す CompletableFuture の例外になる。
+     */
+    public <T> CompletableFuture<T> submit(Callable<T> task) {
+        CompletableFuture<T> future = new CompletableFuture<>();
+        Runnable job = () -> {
+            drain();
+            try {
+                future.complete(task.call());
+            } catch (Throwable t) {
+                future.completeExceptionally(t);
+            }
+        };
+        try {
+            executor.execute(job);
+        } catch (RejectedExecutionException e) {
+            job.run();
+        }
+        return future;
     }
 
     private void drain() {

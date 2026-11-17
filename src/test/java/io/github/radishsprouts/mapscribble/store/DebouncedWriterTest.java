@@ -105,6 +105,41 @@ class DebouncedWriterTest {
     }
 
     @Test
+    void submitは予約分を書き切った後にtaskを実行して結果を返す() throws Exception {
+        List<String> order = Collections.synchronizedList(new ArrayList<>());
+        try (DebouncedWriter writer = new DebouncedWriter(60_000, (file, snapshot) -> order.add("write"))) {
+            writer.request(Path.of("a.json"), List.of(memo("x")));
+            String result = writer.submit(() -> {
+                order.add("task:" + Thread.currentThread().getName());
+                return "ok";
+            }).get(5, TimeUnit.SECONDS);
+            assertEquals("ok", result);
+            assertEquals(List.of("write", "task:MapScribble-Writer"), order);
+        }
+    }
+
+    @Test
+    void submitのtaskが投げた例外は結果の例外になり_次も動く() throws Exception {
+        try (DebouncedWriter writer = new DebouncedWriter(60_000, (file, snapshot) -> { })) {
+            var failed = writer.submit(() -> {
+                throw new IOException("boom");
+            });
+            var thrown = org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> failed.get(5, TimeUnit.SECONDS));
+            assertTrue(thrown.getCause() instanceof IOException);
+            assertEquals(7, writer.submit(() -> 7).get(5, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void 閉じた後のsubmitは呼び出したスレッドで実行する() throws Exception {
+        DebouncedWriter writer = new DebouncedWriter(60_000, (file, snapshot) -> { });
+        writer.close();
+        String thread = writer.submit(() -> Thread.currentThread().getName()).get(5, TimeUnit.SECONDS);
+        assertEquals(Thread.currentThread().getName(), thread);
+    }
+
+    @Test
     void 閉じた後の依頼もその場で書いて取りこぼさない() {
         List<Written> written = Collections.synchronizedList(new ArrayList<>());
         DebouncedWriter writer = new DebouncedWriter(60_000, (file, snapshot) -> written.add(new Written(file,
