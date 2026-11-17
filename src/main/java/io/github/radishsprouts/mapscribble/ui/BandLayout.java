@@ -19,8 +19,11 @@ public final class BandLayout {
     public static final int WIDTH = 256;
     public static final int HEIGHT = 41;
 
-    public static final int HINT_X = X + 3;
-    public static final int HINT_Y = Y + 44;
+    /** 説明の行の、帯の左上からの相対位置。帯を動かすと行も一緒に動く。 */
+    public static final int HINT_DX = 3;
+    public static final int HINT_DY = 44;
+    public static final int HINT_X = X + HINT_DX;
+    public static final int HINT_Y = Y + HINT_DY;
     public static final int HINT_MAX_WIDTH = 202;
 
     /** 上段のボタンの大きさ（18×18）。 */

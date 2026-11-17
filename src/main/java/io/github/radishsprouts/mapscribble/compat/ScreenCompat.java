@@ -76,6 +76,21 @@ public final class ScreenCompat {
         *///?}
     }
 
+    /** 開発環境（IDE・gradle の runClient）で動いているか。本番の配布物では false。開発環境だけの点検に使う。 */
+    public static boolean isDevelopmentEnvironment() {
+        //? if fabric {
+        return net.fabricmc.loader.api.FabricLoader.getInstance().isDevelopmentEnvironment();
+        //?} elif neoforge {
+        /*//? if >=1.21.11 {
+        return !net.neoforged.fml.loading.FMLLoader.getCurrent().isProduction();
+        //?} else {
+        /^return !net.neoforged.fml.loading.FMLLoader.isProduction();
+        ^///?}
+        *///?} else {
+        /*return !net.minecraftforge.fml.loading.FMLLoader.isProduction();
+        *///?}
+    }
+
     public static String dimensionId(ResourceKey<Level> key) {
         //? if >=1.21.11 {
         return key.identifier().toString();
