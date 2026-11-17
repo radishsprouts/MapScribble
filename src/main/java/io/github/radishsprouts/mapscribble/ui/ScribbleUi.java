@@ -33,7 +33,8 @@ public final class ScribbleUi {
     private final DrawingController controller;
     private final DrawingState state;
     private final ToolBand band;
-    private final NoticeTimer notice = new NoticeTimer();
+    /** 共有の待ち行列。帯が出ていない間に起きたお知らせ（StoreSession が積む）も、ここから次に帯を出した時に出る。 */
+    private final NoticeTimer notice = NoticeTimer.shared();
     private final BandMenu menu = new BandMenu();
     /** メモの保存先の操作の窓口。つなぎ込み（StoreSession）が差し込む。未接続（null）でも落ちない。 */
     private Supplier<NotebookAccess> notebooks = () -> null;
@@ -95,7 +96,7 @@ public final class ScribbleUi {
     }
 
     private static long nowMs() {
-        return System.nanoTime() / 1_000_000L;
+        return NoticeTimer.nowMs();
     }
 
     public void onLoadFailed() {
@@ -129,6 +130,8 @@ public final class ScribbleUi {
     }
 
     private void renderInternal(Gfx g, int mouseX, int mouseY, Memo hoverMemo) {
+        // 手書きモードでない間・メニューを開いている間は説明の行を描かないので、表示中のお知らせの時間を止める
+        notice.tick(nowMs(), !state.isModeOn() || menu.isOpen());
         if (!state.isModeOn()) {
             return;
         }
@@ -143,13 +146,17 @@ public final class ScribbleUi {
         if (repo != null) {
             loadFailed = false;
         }
-        String noticeKey = notice.activeKey(now);
+        // メニューを開いている間は説明の行を描かないので、お知らせは取り出さない（時間も上の tick で止めている）
+        boolean loading = repo == null && !loadFailed && notebookExtras.get().isLoading();
+        String noticeKey = menu.isOpen() ? null : notice.activeKey(now);
         HintResolver.Line hint = HintResolver.resolve(new HintResolver.Input(
-                loadFailed, saveFailed, repo == null && !loadFailed, noticeKey, !state.isVisible(),
+                loadFailed, saveFailed, repo == null && !loadFailed && !loading, loading, noticeKey,
+                noticeKey == null ? List.of() : notice.activeArgs(),
+                !state.isVisible(),
                 repo != null && repo.memos().isEmpty() && state.tool() == Tool.ENCLOSE, state.tool()));
         float alpha = noticeKey != null && noticeKey.equals(hint.translationKey()) ? notice.alpha(now) : 1f;
         band.setMenuOpen(menu.isOpen());
-        band.render(g, mc.font, mouseX, mouseY, hint, alpha);
+        band.render(g, mc.font, mouseX, mouseY, hint, alpha, screenH);
         if (menu.isOpen()) {
             // メニューは帯より手前。開いている間は説明の行も、メモのホバーの文言も出さない
             menu.render(g, mc.font, mouseX, mouseY, state.bandX(), state.bandY(), screenW, screenH, menuItems());

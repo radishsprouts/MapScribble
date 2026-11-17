@@ -1,7 +1,9 @@
 package io.github.radishsprouts.mapscribble.ui;
 
 import io.github.radishsprouts.mapscribble.compat.Gfx;
+import io.github.radishsprouts.mapscribble.MapScribble;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
+import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
 import io.github.radishsprouts.mapscribble.draw.DrawingState;
 import io.github.radishsprouts.mapscribble.draw.Tool;
@@ -97,6 +99,14 @@ public final class ToolBand {
     private boolean tooltipTextVisible;
     private String tooltipKeyLabel;
     private List<Component> tooltip = List.of();
+
+    // 説明の行（全文が変わった時だけ切り直す）
+    private String hintFull = "";
+    private String hintShown = "";
+    private int hintShownWidth;
+    private Component hintShownComponent = Component.empty();
+    private boolean hintVisible;
+    private boolean widthsChecked;
 
     /** メニューを開いているか。開いている間はメニューのボタンを選択中の見え方にし、帯のホバーとツールチップを止める。 */
     private boolean menuOpen;
@@ -229,7 +239,7 @@ public final class ToolBand {
     // ---- 描画 ----
 
     public void render(Gfx g, Font font, int mouseX, int mouseY, HintResolver.Line hint,
-                       float hintAlpha) {
+                       float hintAlpha, int screenH) {
         int bx = state.bandX();
         int by = state.bandY();
         List<BandLayout.Cell> cells = cells(bx, by);
@@ -266,8 +276,86 @@ public final class ToolBand {
                     bx + BandLayout.NO_SETTINGS_X, by + BandLayout.NO_SETTINGS_Y, NO_SETTINGS_GRAY, false);
         }
 
-        if (!menuOpen) {
-            showTooltip(g, font, mouseX, mouseY, hint);
+        if (menuOpen) {
+            // メニューが説明の行の上に重なるので、行は描かない（AC131）
+            hintVisible = false;
+        } else {
+            drawHint(g, font, bx, by, screenH, hint, hintAlpha);
+            showTooltip(g, font, mouseX, mouseY, bx, by, screenH);
+        }
+    }
+
+    // ---- 説明の行 ----
+
+    /**
+     * 説明の行を、帯の左上から (HINT_DX, HINT_DY) に描く。帯の外なので、帯を動かすと一緒に動く。
+     * 帯が画面の下端近くにある時は帯の上に描く（{@link HintFit#hintY}）。文字の後ろに背景を敷く（地図の上で読めるように）。
+     * 行はクリックを受けない（帯の当たり判定には含めない）。
+     */
+    private void drawHint(Gfx g, Font font, int bx, int by, int screenH, HintResolver.Line hint, float alpha) {
+        checkHintWidths(font);
+        int a = Math.round(Math.max(0f, Math.min(1f, alpha)) * 255f);
+        hintVisible = a > 4;
+        if (!hintVisible) {
+            return;
+        }
+        String full = hint.args().isEmpty()
+                ? I18n.get(hint.translationKey())
+                : Component.translatable(hint.translationKey(), hint.args().toArray()).getString();
+        if (!full.equals(hintFull)) {
+            // 全文が変わった時だけ切り直す（毎フレーム幅を測らない）
+            hintFull = full;
+            hintShown = fit(font, hint, full);
+            hintShownComponent = Component.literal(hintShown);
+            hintShownWidth = font.width(hintShown);
+        }
+        HintFit.Rect bg = HintFit.background(bx, by, screenH, hintShownWidth);
+        // 薄れる間は、背景の不透明度にも文字と同じ係数を掛ける
+        int bgAlpha = Math.round(((HintFit.BG_COLOR >>> 24) & 0xFF) * (a / 255f));
+        GuiCompat.fill(g, bg.x1(), bg.y1(), bg.x2(), bg.y2(), (bgAlpha << 24) | (HintFit.BG_COLOR & 0xFFFFFF));
+        GuiCompat.text(g, font, hintShownComponent, HintFit.hintX(bx), HintFit.hintY(by, screenH),
+                (a << 24) | hint.rgb(), true);
+    }
+
+    /** 幅に収まらない時は、末尾を「…」で切る。使うメモ帳の名前だけは、前置きを残して名前の末尾を切る。 */
+    private static String fit(Font font, HintResolver.Line hint, String full) {
+        int max = BandLayout.HINT_MAX_WIDTH;
+        if (font.width(full) <= max) {
+            return full;
+        }
+        if (HintResolver.NOTICE_NOTEBOOK_SWITCHED.equals(hint.translationKey()) && hint.args().size() == 1
+                && hint.args().get(0) instanceof String name) {
+            int room = max - font.width(I18n.get(hint.translationKey(), ""));
+            String cut = cutWithEllipsis(font, name, room);
+            return Component.translatable(hint.translationKey(), cut).getString();
+        }
+        return cutWithEllipsis(font, full, max);
+    }
+
+    private static String cutWithEllipsis(Font font, String text, int width) {
+        if (font.width(text) <= width) {
+            return text;
+        }
+        String ellipsis = "…";
+        return font.plainSubstrByWidth(text, Math.max(0, width - font.width(ellipsis))) + ellipsis;
+    }
+
+    /** 開発環境だけ、最初の描画で帯に出る全文言の幅を 1 回測り、長すぎるものを警告に出す（本番では測らない）。 */
+    private void checkHintWidths(Font font) {
+        if (widthsChecked) {
+            return;
+        }
+        widthsChecked = true;
+        if (!ScreenCompat.isDevelopmentEnvironment()) {
+            return;
+        }
+        for (String key : HintFit.bandKeys()) {
+            // %s は空にして測る（名前・件数を除いた部分）
+            int width = font.width(I18n.get(key, ""));
+            if (HintFit.tooWide(width)) {
+                MapScribble.LOGGER.warn("帯の説明が長すぎます key={} 幅={}（上限 {}、行の幅 {}）",
+                        key, width, HintFit.WARN_WIDTH, BandLayout.HINT_MAX_WIDTH);
+            }
         }
     }
 
@@ -413,9 +501,14 @@ public final class ToolBand {
 
     // ---- ツールチップ ----
 
-    private void showTooltip(Gfx g, Font font, int mouseX, int mouseY, HintResolver.Line hint) {
+    private void showTooltip(Gfx g, Font font, int mouseX, int mouseY, int bx, int by, int screenH) {
         BandLayout.Cell cell = hover;
         if (cell == null) {
+            // 説明の行が「…」で切れている間、行の上にマウスがあれば全文を出す（AC56）
+            if (hintVisible && HintFit.showFullText(hintFull, hintShown, mouseX, mouseY, bx, by, screenH,
+                    hintShownWidth)) {
+                GuiCompat.drawTooltip(g, font, List.of(Component.literal(hintFull)), mouseX, mouseY);
+            }
             return;
         }
         boolean undo = controller.canUndo();

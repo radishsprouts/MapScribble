@@ -3,9 +3,9 @@ package io.github.radishsprouts.mapscribble.store;
 import io.github.radishsprouts.mapscribble.MapScribble;
 import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.compat.WorldIdentityCompat;
-import io.github.radishsprouts.mapscribble.draw.DrawingState;
-import io.github.radishsprouts.mapscribble.draw.ScribbleSession;
+import io.github.radishsprouts.mapscribble.ui.HintResolver;
 import io.github.radishsprouts.mapscribble.ui.NotebookExtras;
+import io.github.radishsprouts.mapscribble.ui.NoticeTimer;
 import io.github.radishsprouts.mapscribble.store.NotebookFile.Notebooks;
 import io.github.radishsprouts.mapscribble.store.NotebookRegistry.ManualSelection;
 import io.github.radishsprouts.mapscribble.store.NotebookRegistry.Resolution;
@@ -99,7 +99,9 @@ public final class StoreSession {
     }
 
     public static MemoRepository repository() {
-        return STORE;
+        // 0.1.0 のメモをメモ帳として取り込んでいる間は使えない扱い（描く・消す・編集・元に戻す・やり直すが何もしない。
+        // 説明の行は「読み込み中」になる）。取り込みが終わると鍵を作り直して元に戻る
+        return isNotebookLoading() ? null : STORE;
     }
 
     /** 保存先の画面から呼ぶ窓口（v0.4 設計 4.5）。 */
@@ -143,6 +145,8 @@ public final class StoreSession {
             currentDimension = null;
             lastSeedHash = WorldIdentityCompat.UNKNOWN;
             manualSelection = null;
+            // 接続を離れたら、待っているお知らせは捨てる（前の接続先の「使うメモ帳：」を次の接続先で出さない）
+            NoticeTimer.shared().clear();
             CONTROLLER.update(null, null);
             return;
         }
@@ -248,6 +252,7 @@ public final class StoreSession {
         if (target.kind() != Kind.MULTI) {
             return;
         }
+        notifyNoWorldIdIfSplit(target.saveDir());
         SplitDetector.Result r = DETECTOR.observe(connection, dimensionId, lastSeedHash);
         if (!r.split()) {
             return;
@@ -265,7 +270,13 @@ public final class StoreSession {
             }
             return;
         }
-        persist(dir, proposal, true, written -> setNotice(NOTICE_SPLIT), null);
+        // 分け始めたことを知らせ、続けて今どのメモ帳に書くかを知らせる（設計書 3.9。鍵の作り直しの後に名前を引く）
+        persist(dir, proposal, true, written -> setNotice(NOTICE_SPLIT), done -> {
+            String name = done ? currentNotebookName() : null;
+            if (name != null) {
+                setNotice(NOTICE_NOTEBOOK_SWITCHED, name);
+            }
+        });
     }
 
     // ---- notebooks.json への書き込み（書いてから使う） ----
@@ -360,14 +371,44 @@ public final class StoreSession {
         manualConnection = new WeakReference<>(selection == null ? null : WorldIdentityCompat.connectionToken());
     }
 
-    static final String NOTICE_SPLIT = "mapscribble.msg.split_started";
-    static final String NOTICE_JM010 = "mapscribble.msg.jm010_imported";
+    static final String NOTICE_SPLIT = HintResolver.NOTICE_SPLIT_STARTED;
+    static final String NOTICE_JM010 = HintResolver.NOTICE_JM010_IMPORTED;
+    static final String NOTICE_NO_WORLD_ID = HintResolver.NOTICE_NO_WORLD_ID;
+    static final String NOTICE_NOTEBOOK_SWITCHED = HintResolver.NOTICE_NOTEBOOK_SWITCHED;
 
-    /** 説明の行に出す知らせ（翻訳キー）。主スレッドで、今の帯へすぐ渡す。 */
-    static void setNotice(String key) {
-        DrawingState state = ScribbleSession.state();
-        if (state != null) {
-            state.notice(key);
+    /**
+     * 説明の行に出す知らせ（翻訳キーと引数）。主スレッドで、共有の待ち行列へ積む。
+     * 帯が出ていない間に起きたことも失わず、次に帯が出た時に1回出る（設計書 3.9）。
+     */
+    static void setNotice(String key, Object... args) {
+        NoticeTimer.shared().push(key, NoticeTimer.nowMs(), args);
+    }
+
+    /** 今書いているメモ帳の名前。直下（メモ帳なし）・見つからない時は null。 */
+    private static String currentNotebookName() {
+        Path dir = notebookAddressDir();
+        String id = currentNotebookId();
+        if (dir == null || id == null) {
+            return null;
+        }
+        NotebookFile.Notebook nb = REGISTRY.notebooks(dir).find(id);
+        return nb == null ? null : nb.name();
+    }
+
+    /**
+     * 分けている接続先で、ワールドの識別値が取れない時に知らせる（設計書 3.9・AC160）。
+     * その間に描いたメモは分ける前のメモへ書かれる（同じ判定が保存先の画面の「ワールドを見分けられない」）。
+     */
+    private static void notifyNoWorldIdIfSplit(Path dir) {
+        if (lastSeedHash != WorldIdentityCompat.UNKNOWN || manualSelection != null) {
+            return;
+        }
+        if (!REGISTRY.status(dir).canWrite()) {
+            return;
+        }
+        NotebookFile.Mode mode = REGISTRY.notebooks(dir).mode();
+        if (mode == NotebookFile.Mode.AUTO || mode == NotebookFile.Mode.USER) {
+            setNotice(NOTICE_NO_WORLD_ID);
         }
     }
 
@@ -379,6 +420,10 @@ public final class StoreSession {
 
     /** 0.1.0 のメモをメモ帳として取り込んでいる最中か。 */
     static boolean isNotebookLoading() {
+        if (IMPORTING.isEmpty()) {
+            // 毎フレーム呼ばれるので、取り込みが無い時はパスを組み立てない
+            return false;
+        }
         Target t = currentTarget;
         return t != null && IMPORTING.contains(normalize(t.saveDir()));
     }
@@ -449,7 +494,14 @@ public final class StoreSession {
                         } else if (count != null && count > 0) {
                             setNotice(NOTICE_JM010);
                         }
+                        String before = currentNotebookId();
                         rekey();
+                        // 取り込みで使うメモ帳が変わったら、取り込みの知らせの後に続けて知らせる（設計書 3.9）
+                        String after = currentNotebookId();
+                        String name = after == null || after.equals(before) ? null : currentNotebookName();
+                        if (name != null) {
+                            setNotice(NOTICE_NOTEBOOK_SWITCHED, name);
+                        }
                         notifyNotebookListeners();
                     }));
         } catch (RuntimeException e) {
