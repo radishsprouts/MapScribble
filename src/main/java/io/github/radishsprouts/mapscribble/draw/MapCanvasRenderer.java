@@ -1,5 +1,6 @@
 package io.github.radishsprouts.mapscribble.draw;
 
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.geom.CircleClip;
 import io.github.radishsprouts.mapscribble.geom.ClipRegion;
@@ -19,11 +20,6 @@ import java.util.Map;
 import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-//? if >=26.1 {
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-//?} else {
-/*import net.minecraft.client.gui.GuiGraphics;
-*///?}
 import net.minecraft.network.chat.Component;
 
 /**
@@ -89,19 +85,11 @@ public final class MapCanvasRenderer {
     }
 
     /** 全画面マップ用（回転なし・切り抜きは描画面いっぱい・すべてのメモ）。 */
-    //? if >=26.1 {
-    public void render(GuiGraphicsExtractor gfx, Projection projection, Object dimension, int guiScale) {
-    //?} else {
-    /*public void render(GuiGraphics gfx, Projection projection, Object dimension, int guiScale) {
-    *///?}
+    public void render(Gfx gfx, Projection projection, Object dimension, int guiScale) {
         render(gfx, MapFrame.fullscreen(projection, guiScale, dimension));
     }
 
-    //? if >=26.1 {
-    public void render(GuiGraphicsExtractor gfx, MapFrame mapFrame) {
-    //?} else {
-    /*public void render(GuiGraphics gfx, MapFrame mapFrame) {
-    *///?}
+    public void render(Gfx gfx, MapFrame mapFrame) {
         Minecraft mc = Minecraft.getInstance();
         DrawingState state = controller.state();
         ViewTransform view = mapFrame.view();
@@ -247,11 +235,7 @@ public final class MapCanvasRenderer {
         c.projectionVersion = projectionVersion;
     }
 
-    //? if >=26.1 {
-    private void drawShape(GuiGraphicsExtractor gfx, Cached c, ClipRegion clip) {
-    //?} else {
-    /*private void drawShape(GuiGraphics gfx, Cached c, ClipRegion clip) {
-    *///?}
+    private void drawShape(Gfx gfx, Cached c, ClipRegion clip) {
         if (c.fill != null && !c.fill.isEmpty()) {
             int fillArgb = MemoStyle.argb(c.memo.color(), c.memo.fillOpacity());
             for (int[] r : c.fill) {
@@ -268,11 +252,7 @@ public final class MapCanvasRenderer {
      * 同じ大きさになる（中心から各方向 {@link #MARK_RADIUS} ピクセル、縁 1 ピクセル）。
      * 色はメモの色。縁は黒 80%（黒のメモだけ白 80%）。
      */
-    //? if >=26.1 {
-    private static void drawTextMark(GuiGraphicsExtractor gfx, double sx, double sy, int rgb) {
-    //?} else {
-    /*private static void drawTextMark(GuiGraphics gfx, double sx, double sy, int rgb) {
-    *///?}
+    private static void drawTextMark(Gfx gfx, double sx, double sy, int rgb) {
         int cx = (int) Math.round(sx);
         int cy = (int) Math.round(sy);
         int edge = MemoStyle.isBlack(rgb) ? MARK_EDGE_ON_BLACK : MARK_EDGE;
@@ -281,22 +261,14 @@ public final class MapCanvasRenderer {
     }
 
     /** 中心 (cx, cy) から各方向 radius ピクセルの塗りつぶした菱形を、1 ピクセル高の横長の矩形で描く。 */
-    //? if >=26.1 {
-    private static void fillDiamond(GuiGraphicsExtractor gfx, int cx, int cy, int radius, int argb) {
-    //?} else {
-    /*private static void fillDiamond(GuiGraphics gfx, int cx, int cy, int radius, int argb) {
-    *///?}
+    private static void fillDiamond(Gfx gfx, int cx, int cy, int radius, int argb) {
         for (int dy = -radius; dy <= radius; dy++) {
             int half = radius - Math.abs(dy);
             GuiCompat.fill(gfx, cx - half, cy + dy, cx + half + 1, cy + dy + 1, argb);
         }
     }
 
-    //? if >=26.1 {
-    private void drawActiveStroke(GuiGraphicsExtractor gfx, MapFrame mapFrame) {
-    //?} else {
-    /*private void drawActiveStroke(GuiGraphics gfx, MapFrame mapFrame) {
-    *///?}
+    private void drawActiveStroke(Gfx gfx, MapFrame mapFrame) {
         DrawingController.ActiveStroke stroke = controller.activeStroke();
         if (stroke == null || stroke.points().isEmpty() || !controller.state().tool().isStrokeTool()) {
             return;
@@ -328,13 +300,8 @@ public final class MapCanvasRenderer {
         }
     }
 
-    //? if >=26.1 {
-    private static void drawPolyline(GuiGraphicsExtractor gfx, double[] sx, double[] sy, int n, boolean closed,
+    private static void drawPolyline(Gfx gfx, double[] sx, double[] sy, int n, boolean closed,
                                      int thickness, int argb, ClipRegion clip) {
-    //?} else {
-    /*private static void drawPolyline(GuiGraphics gfx, double[] sx, double[] sy, int n, boolean closed,
-                                     int thickness, int argb, ClipRegion clip) {
-    *///?}
         int count = closed ? n : n - 1;
         for (int i = 0; i < count; i++) {
             int j = (i + 1) % n;
@@ -353,13 +320,8 @@ public final class MapCanvasRenderer {
         }
     }
 
-    //? if >=26.1 {
-    private static void drawSegment(GuiGraphicsExtractor gfx, double x0, double y0, double x1, double y1, int thickness,
+    private static void drawSegment(Gfx gfx, double x0, double y0, double x1, double y1, int thickness,
                                     int argb, ClipRegion clip) {
-    //?} else {
-    /*private static void drawSegment(GuiGraphics gfx, double x0, double y0, double x1, double y1, int thickness,
-                                    int argb, ClipRegion clip) {
-    *///?}
         if (clip.hasCircle()) {
             // 円形のミニマップでは、矩形の scissor では落ちない角の部分を線分の側で切る
             double[] cut = CircleClip.clipSegment(x0, y0, x1, y1, clip.circleX(), clip.circleY(), clip.radius());
@@ -388,11 +350,7 @@ public final class MapCanvasRenderer {
         }
     }
 
-    //? if >=26.1 {
-    private void drawText(GuiGraphicsExtractor gfx, Font font, Cached c, MapFrame mapFrame) {
-    //?} else {
-    /*private void drawText(GuiGraphics gfx, Font font, Cached c, MapFrame mapFrame) {
-    *///?}
+    private void drawText(Gfx gfx, Font font, Cached c, MapFrame mapFrame) {
         Memo memo = c.memo;
         ViewTransform view = mapFrame.view();
         ClipRegion clip = mapFrame.clip();

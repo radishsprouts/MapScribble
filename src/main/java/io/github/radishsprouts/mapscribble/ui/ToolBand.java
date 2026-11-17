@@ -1,5 +1,6 @@
 package io.github.radishsprouts.mapscribble.ui;
 
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
 import io.github.radishsprouts.mapscribble.draw.DrawingState;
@@ -8,11 +9,6 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-//? if >=26.1 {
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-//?} else {
-/*import net.minecraft.client.gui.GuiGraphics;
-*///?}
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 //? if >=1.21.11 {
@@ -176,13 +172,8 @@ public final class ToolBand {
 
     // ---- 描画 ----
 
-    //? if >=26.1 {
-    public void render(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY, HintResolver.Line hint,
+    public void render(Gfx g, Font font, int mouseX, int mouseY, HintResolver.Line hint,
                        float hintAlpha) {
-    //?} else {
-    /*public void render(GuiGraphics g, Font font, int mouseX, int mouseY, HintResolver.Line hint,
-                       float hintAlpha) {
-    *///?}
         int bx = state.bandX();
         int by = state.bandY();
         updateHover(mouseX, mouseY, bx, by);
@@ -227,8 +218,8 @@ public final class ToolBand {
         return cell.kind() == BandLayout.Kind.EXIT ? cell.y() + 9 : cell.y() + 2;
     }
 
-    //? if >=26.1 {
-    private void drawButton(GuiGraphicsExtractor g, BandLayout.Cell cell, boolean selected, boolean enabled,
+    //? if >=1.21.11 {
+    private void drawButton(Gfx g, BandLayout.Cell cell, boolean selected, boolean enabled,
                             Identifier icon) {
         int face = buttonFace(cell, selected, enabled);
         int border = buttonBorder(cell, selected, enabled);
@@ -237,18 +228,8 @@ public final class ToolBand {
         GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), border);
         GuiCompat.blitIcon(g, icon, cell.x() + 2, iconY(cell), 16, tint);
     }
-    //?} elif >=1.21.11 {
-    /*private void drawButton(GuiGraphics g, BandLayout.Cell cell, boolean selected, boolean enabled,
-                            Identifier icon) {
-        int face = buttonFace(cell, selected, enabled);
-        int border = buttonBorder(cell, selected, enabled);
-        int tint = buttonIcon(cell, selected, enabled);
-        GuiCompat.fill(g, cell.x(), cell.y(), cell.x() + cell.w(), cell.y() + cell.h(), face);
-        GuiCompat.outline(g, cell.x(), cell.y(), cell.w(), cell.h(), border);
-        GuiCompat.blitIcon(g, icon, cell.x() + 2, iconY(cell), 16, tint);
-    }
-    *///?} else {
-    /*private void drawButton(GuiGraphics g, BandLayout.Cell cell, boolean selected, boolean enabled,
+    //?} else {
+    /*private void drawButton(Gfx g, BandLayout.Cell cell, boolean selected, boolean enabled,
                             ResourceLocation icon) {
         int face = buttonFace(cell, selected, enabled);
         int border = buttonBorder(cell, selected, enabled);
@@ -259,11 +240,7 @@ public final class ToolBand {
     }
     *///?}
 
-    //? if >=26.1 {
-    private void drawWidth(GuiGraphicsExtractor g, BandLayout.Cell cell, int rgb) {
-    //?} else {
-    /*private void drawWidth(GuiGraphics g, BandLayout.Cell cell, int rgb) {
-    *///?}
+    private void drawWidth(Gfx g, BandLayout.Cell cell, int rgb) {
         boolean selected = state.width() == cell.index();
         int face = buttonFace(cell, selected, true);
         int border = buttonBorder(cell, selected, true);
@@ -274,11 +251,7 @@ public final class ToolBand {
         GuiCompat.fill(g, cell.x() + 2, top, cell.x() + cell.w() - 2, top + thickness, rgb);
     }
 
-    //? if >=26.1 {
-    private void drawTextSize(GuiGraphicsExtractor g, Font font, BandLayout.Cell cell) {
-    //?} else {
-    /*private void drawTextSize(GuiGraphics g, Font font, BandLayout.Cell cell) {
-    *///?}
+    private void drawTextSize(Gfx g, Font font, BandLayout.Cell cell) {
         TextSize size = TextSize.values()[cell.index()];
         boolean selected = TextSize.nearest(state.textScale()) == size;
         int face = buttonFace(cell, selected, true);
@@ -296,11 +269,7 @@ public final class ToolBand {
         GuiCompat.text(g, font, Component.literal(label), textX, textY, color, true);
     }
 
-    //? if >=26.1 {
-    private void drawSwatch(GuiGraphicsExtractor g, BandLayout.Cell cell) {
-    //?} else {
-    /*private void drawSwatch(GuiGraphics g, BandLayout.Cell cell) {
-    *///?}
+    private void drawSwatch(Gfx g, BandLayout.Cell cell) {
         NoteColor color = NoteColor.list().get(cell.index());
         boolean selected = (state.color() & 0xFFFFFF) == color.rgb();
         boolean hovered = hover == cell;
@@ -351,11 +320,7 @@ public final class ToolBand {
 
     // ---- ツールチップ ----
 
-    //? if >=26.1 {
-    private void showTooltip(GuiGraphicsExtractor g, Font font, int mouseX, int mouseY, HintResolver.Line hint) {
-    //?} else {
-    /*private void showTooltip(GuiGraphics g, Font font, int mouseX, int mouseY, HintResolver.Line hint) {
-    *///?}
+    private void showTooltip(Gfx g, Font font, int mouseX, int mouseY, HintResolver.Line hint) {
         BandLayout.Cell cell = hover;
         if (cell == null) {
             return;

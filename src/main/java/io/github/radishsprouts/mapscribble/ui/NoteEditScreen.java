@@ -1,6 +1,7 @@
 package io.github.radishsprouts.mapscribble.ui;
 
 import io.github.radishsprouts.mapscribble.MapScribble;
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.model.MemoKind;
@@ -256,50 +257,46 @@ public final class NoteEditScreen extends Screen {
     //? if >=26.1 {
     @Override
     public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        renderCurtainAndPanelBg(g, partialTick);
+        renderCurtainAndPanelBg(Gfx.of(g), partialTick);
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
         super.extractRenderState(g, mouseX, mouseY, partialTick);
-        renderPanelForeground(g);
+        renderPanelForeground(Gfx.of(g));
     }
     //?} elif >=1.20.5 {
     /*@Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        renderCurtainAndPanelBg(g, partialTick);
+        renderCurtainAndPanelBg(Gfx.of(g), partialTick);
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
-        renderPanelForeground(g);
+        renderPanelForeground(Gfx.of(g));
     }
     *///?} else {
     /*@Override
     public void renderBackground(GuiGraphics g) {
-        renderCurtainAndPanelBg(g, 0f);
+        renderCurtainAndPanelBg(Gfx.of(g), 0f);
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
-        renderPanelForeground(g);
+        renderPanelForeground(Gfx.of(g));
     }
     *///?}
 
-    //? if >=26.1 {
-    private void renderCurtainAndPanelBg(GuiGraphicsExtractor g, float partialTick) {
-    //?} else {
-    /*private void renderCurtainAndPanelBg(GuiGraphics g, float partialTick) {
-    *///?}
+    private void renderCurtainAndPanelBg(Gfx g, float partialTick) {
         if (!renderParent(g, partialTick)) {
             //? if >=26.1 {
-            super.extractBackground(g, -1, -1, partialTick);
+            super.extractBackground(g.raw(), -1, -1, partialTick);
             //?} elif >=1.20.5 {
-            /*super.renderBackground(g, -1, -1, partialTick);*/
+            /*super.renderBackground(g.raw(), -1, -1, partialTick);*/
             //?} else {
-            /*super.renderBackground(g);*/
+            /*super.renderBackground(g.raw());*/
             //?}
         }
         GuiCompat.nextLayer(g);
@@ -310,13 +307,16 @@ public final class NoteEditScreen extends Screen {
         GuiCompat.outline(g, px, py, EditLayout.PANEL_WIDTH, layout.panelHeight(), PANEL_EDGE);
     }
 
-    //? if >=26.1 {
-    private boolean renderParent(GuiGraphicsExtractor g, float partialTick) {
+    private boolean renderParent(Gfx g, float partialTick) {
         if (parentFailed) {
             return false;
         }
         try {
-            parent.extractRenderState(g, -1, -1, partialTick);
+            //? if >=26.1 {
+            parent.extractRenderState(g.raw(), -1, -1, partialTick);
+            //?} else {
+            /*parent.render(g.raw(), -1, -1, partialTick);
+            *///?}
             return true;
         } catch (RuntimeException e) {
             parentFailed = true;
@@ -324,27 +324,8 @@ public final class NoteEditScreen extends Screen {
             return false;
         }
     }
-    //?} else {
-    /*private boolean renderParent(GuiGraphics g, float partialTick) {
-        if (parentFailed) {
-            return false;
-        }
-        try {
-            parent.render(g, -1, -1, partialTick);
-            return true;
-        } catch (RuntimeException e) {
-            parentFailed = true;
-            MapScribble.LOGGER.warn("MapScribble: 親の全画面マップを背後に描けなかったため、バニラの背景に切り替えます", e);
-            return false;
-        }
-    }
-    *///?}
 
-    //? if >=26.1 {
-    private void renderPanelForeground(GuiGraphicsExtractor g) {
-    //?} else {
-    /*private void renderPanelForeground(GuiGraphics g) {
-    *///?}
+    private void renderPanelForeground(Gfx g) {
         int px = layout.panelX(width);
         int py = layout.panelY();
         int left = px + EditLayout.MARGIN;

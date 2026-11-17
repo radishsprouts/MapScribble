@@ -1,12 +1,7 @@
 package io.github.radishsprouts.mapscribble.map;
 
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import net.minecraft.client.gui.screens.Screen;
-
-//? if >=26.1 {
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-//?} else {
-/*import net.minecraft.client.gui.GuiGraphics;
-*///?}
 
 //? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
@@ -26,11 +21,7 @@ public interface PrimaryMapBridge {
 
     void onScreenClose(Screen screen);
 
-    //? if >=26.1 {
-    void onScreenRender(GuiGraphicsExtractor gfx, Screen screen, int mouseX, int mouseY);
-    //?} else {
-    /*void onScreenRender(GuiGraphics gfx, Screen screen, int mouseX, int mouseY);
-    *///?}
+    void onScreenRender(Gfx gfx, Screen screen, int mouseX, int mouseY);
 
     boolean onMouseClicked(Screen screen, double mouseX, double mouseY, int button);
 

@@ -1,6 +1,7 @@
 package io.github.radishsprouts.mapscribble.map;
 
 import io.github.radishsprouts.mapscribble.MapScribble;
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
@@ -15,12 +16,6 @@ import io.github.radishsprouts.mapscribble.model.Memo;
 import io.github.radishsprouts.mapscribble.store.MemoRepository;
 import java.util.List;
 import net.minecraft.client.Minecraft;
-
-//? if >=26.1 {
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-//?} else {
-/*import net.minecraft.client.gui.GuiGraphics;
-*///?}
 
 /**
  * Xaero's Minimap のミニマップの枠の中へ、手書きメモを重ねて描く。
@@ -50,19 +45,11 @@ public final class MinimapHudRenderer {
         }
     }
 
-    //? if >=26.1 {
-    public static void render(GuiGraphicsExtractor gfx) {
-    //?} else {
-    /*public static void render(GuiGraphics gfx) {
-    *///?}
+    public static void render(Gfx gfx) {
         render(gfx, GuiCompat.partialTicks());
     }
 
-    //? if >=26.1 {
-    public static void render(GuiGraphicsExtractor gfx, float partialTicks) {
-    //?} else {
-    /*public static void render(GuiGraphics gfx, float partialTicks) {
-    *///?}
+    public static void render(Gfx gfx, float partialTicks) {
         Minecraft mc = Minecraft.getInstance();
         if (ScreenCompat.currentScreen() != null || mc.level == null || mc.player == null) {
             return;
