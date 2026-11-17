@@ -156,6 +156,7 @@
   "mapscribble.msg.moved": "%s件を移しました（Ctrl+Z で戻せます）",
   "mapscribble.msg.move_undone": "移したメモを元に戻しました",
   "mapscribble.msg.move_failed": "移せませんでした（ファイルはそのまま）",
+  "mapscribble.msg.move_busy": "移している最中です。終わるまでお待ちください",
   "mapscribble.note.presplit": "分ける前のメモ（どのサーバーにも出ます）",
   "mapscribble.screen.title.presplit": "（分ける前のメモ）"
 }

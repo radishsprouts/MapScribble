@@ -97,6 +97,9 @@ public final class MapCanvasRenderer {
         ClipRegion clip = mapFrame.clip();
         int guiScale = mapFrame.guiScale();
         Object dimension = mapFrame.dimension();
+        if (!mapFrame.minimapOnly()) {
+            controller.noteFullscreenProjection(mapFrame.projection());
+        }
 
         if (dimension != lastDimension) {
             if (lastDimension != null) {

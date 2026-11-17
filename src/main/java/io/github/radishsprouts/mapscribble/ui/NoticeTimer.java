@@ -10,11 +10,23 @@ public final class NoticeTimer {
 
     private String key;
     private long startedAt;
+    private Object[] args = new Object[0];
 
     /** 新しいお知らせで置き換える。 */
     public void push(String translationKey, long nowMs) {
+        push(translationKey, nowMs, new Object[0]);
+    }
+
+    /** 翻訳キーの引数（%s など）つきで置き換える。 */
+    public void push(String translationKey, long nowMs, Object... translationArgs) {
         this.key = translationKey;
         this.startedAt = nowMs;
+        this.args = translationArgs == null ? new Object[0] : translationArgs.clone();
+    }
+
+    /** 出ているお知らせの翻訳の引数。無ければ空。 */
+    public Object[] activeArgs() {
+        return args.clone();
     }
 
     /** 出ているお知らせの翻訳キー。無ければ（期限切れも含む）null。 */

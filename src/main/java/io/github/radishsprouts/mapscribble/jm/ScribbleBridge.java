@@ -145,6 +145,7 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         this.minimap = new MinimapOverlays(api);
         this.ui = new ScribbleUi(controller, ScreenCompat.gameDirectory().resolve("config").resolve(UiPrefs.FILE_NAME));
         // メモのファイルを読めなかった時は、帯の説明の行に出す（他の画面の受け手は消さずに足す）
+        ui.setNotebookAccess(StoreSession::notebooks, StoreSession::notebookExtras);
         StoreSession.addNotifier(message -> ui.onLoadFailed());
         // メモを保存できなかった時（と、その後に保存できた時）も、同じ行に出す・消す
         StoreSession.addSaveNotifier(ui::onSaveStateChanged);

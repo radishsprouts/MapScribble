@@ -246,6 +246,10 @@ public final class ScribbleUi {
                 state.notice("mapscribble.msg.move_failed");
             } else if (outcome.moveUndone()) {
                 state.notice("mapscribble.msg.move_undone");
+            } else if (outcome.movedCount() > 0) {
+                notice.push("mapscribble.msg.moved", nowMs(), outcome.movedCount());
+            } else if (outcome.switchedTo() != null) {
+                notice.push("mapscribble.msg.notebook_switched", nowMs(), outcome.switchedTo());
             }
         }));
     }

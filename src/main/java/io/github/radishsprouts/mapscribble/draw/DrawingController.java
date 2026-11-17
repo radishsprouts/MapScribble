@@ -245,6 +245,50 @@ public final class DrawingController {
         return true;
     }
 
+    /** 直前の操作が「分ける前のメモを移した」操作で、元に戻せるか。 */
+    public boolean canUndoMove() {
+        ensureFresh(repository());
+        return repository() != null && history.peekUndo() instanceof Move;
+    }
+
+    /**
+     * 直前に移した操作だけを元に戻す（直前が移す操作でなければ何もせず失敗を返す）。保存先の画面の「元に戻す」用。
+     * 結果は主スレッドで onDone に渡す。
+     */
+    public void undoMove(Consumer<MoveResult> onDone) {
+        MemoRepository repo = editableRepository();
+        if (repo == null || !(history.peekUndo() instanceof Move move)) {
+            if (onDone != null) {
+                onDone.accept(MoveResult.unsupported());
+            }
+            return;
+        }
+        history.popUndo();
+        long generation = repo.generation();
+        repo.move(move.ids(), move.direction().reverse(), result -> {
+            if (!result.ok() && repo.generation() == generation) {
+                history.restoreUndo(move);
+            }
+            if (onDone != null) {
+                onDone.accept(result);
+            }
+        });
+    }
+
+    /** 全画面マップが最後に描いた時の投影。保存先の画面が「見えている範囲」を数えるのに使う。 */
+    private volatile Projection fullscreenProjection;
+
+    /** 全画面マップの描画が毎フレーム呼ぶ（参照を置くだけ）。 */
+    public void noteFullscreenProjection(Projection projection) {
+        this.fullscreenProjection = projection;
+    }
+
+    /** 全画面マップに最後に映っていたワールドの範囲。まだ描いていなければ null。 */
+    public io.github.radishsprouts.mapscribble.geom.Rect fullscreenVisibleWorld() {
+        Projection p = fullscreenProjection;
+        return p == null ? null : p.visibleWorld();
+    }
+
     /** ディメンション（やワールド）が切り替わった時に、履歴と描いている最中の一筆を捨てる。 */
     public void onDimensionChanged() {
         history.clear();
