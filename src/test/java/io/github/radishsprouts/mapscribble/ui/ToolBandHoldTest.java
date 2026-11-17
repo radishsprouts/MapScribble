@@ -10,12 +10,17 @@ import io.github.radishsprouts.mapscribble.draw.DrawingController;
 import io.github.radishsprouts.mapscribble.draw.DrawingState;
 import io.github.radishsprouts.mapscribble.geom.Projection;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
  * 帯の上で押したドラッグは、帯が動いてカーソルが帯の外へ出ても帯のもので、地図の一筆にならない。
  * 帯が画面の下端寄り（bandY=186）の時、帯の余白から始めたドラッグで「線のメモ」の画面が開いた不具合の再現。
+ *
+ * <p>{@link ToolBand} は Minecraft のクラス（Identifier・Component）を読み込むので、試験に Minecraft が入る Fabric の構成でだけ回す
+ * （Forge・NeoForge の構成はビルドスクリプトで needs-minecraft のタグを外す）。
  */
+@Tag("needs-minecraft")
 class ToolBandHoldTest {
     private static final Projection ONE = new Projection(0, 0, 1.0, 1000, 1000);
 

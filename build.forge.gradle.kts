@@ -100,7 +100,8 @@ tasks.withType<JavaExec>().matching { it.name == "runClient" }.configureEach {
 }
 
 tasks.withType<Test> {
-    useJUnitPlatform()
+    // この構成の試験には Minecraft のクラスが入らないので、Minecraft のクラスを読み込む試験（@Tag("needs-minecraft")）は Fabric の構成でだけ回す
+    useJUnitPlatform { excludeTags("needs-minecraft") }
 }
 
 tasks.processResources {
