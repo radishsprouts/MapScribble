@@ -236,8 +236,14 @@ public final class ScribbleUi {
         } else {
             NotebookAccess.State st = access.state();
             int inUse = NotebookPanel.inUseIndex(st);
-            note = inUse >= 0 && NotebookPanel.isSplit(NotebookPanel.kindOf(st, false))
-                    ? NotebookNames.display(st.notebooks().get(inUse).name()) : I18n.get("mapscribble.menu.notebooks.shared");
+            if (!NotebookPanel.isSplit(NotebookPanel.kindOf(st, false))) {
+                note = I18n.get("mapscribble.menu.notebooks.shared");
+            } else if (inUse >= 0) {
+                note = NotebookNames.display(st.notebooks().get(inUse).name());
+            } else {
+                // 分けている接続先でワールドを見分けられない時は、補足を出さない（「分けていません」は誤り）
+                note = "";
+            }
         }
         return List.of(new BandMenu.Item(Component.translatable("mapscribble.menu.notebooks"), note, available, tooltip,
                 () -> openNotebooks(access)));
@@ -249,14 +255,16 @@ public final class ScribbleUi {
             return;
         }
         ScreenCompat.setScreen(new NotebookScreen(parent, access, notebookExtras.get(), outcome -> {
+            // 切り替えてから移した時も、切り替えたお知らせを落とさない（先に積み、移した結果を後に積む）
+            if (outcome.switchedTo() != null) {
+                notice.push("mapscribble.msg.notebook_switched", nowMs(), outcome.switchedTo());
+            }
             if (outcome.moveFailed()) {
                 state.notice("mapscribble.msg.move_failed");
             } else if (outcome.moveUndone()) {
                 state.notice("mapscribble.msg.move_undone");
             } else if (outcome.movedCount() > 0) {
                 notice.push("mapscribble.msg.moved", nowMs(), outcome.movedCount());
-            } else if (outcome.switchedTo() != null) {
-                notice.push("mapscribble.msg.notebook_switched", nowMs(), outcome.switchedTo());
             }
         }));
     }
