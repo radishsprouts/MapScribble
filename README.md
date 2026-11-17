@@ -16,6 +16,7 @@ JourneyMap・Xaero's World Map・FTB Chunks の全画面マップに、手書き
 - 線の太さは細・中・太の3段階です
 - なぞった形は小数のワールド座標で保存するので、地図を拡大しても、なぞったとおりの滑らかな形で表示されます
 - ミニマップにも表示できます（メモごとに表示・非表示を選べます）。対応するのは JourneyMap と Xaero's Minimap のミニマップで、FTB Chunks のミニマップには対応していません
+- Velocity などのプロキシの配下で、サーバーごとにメモを分けられます（0.4.0 から。[複数サーバー（Velocity）](#複数サーバーvelocity)）
 - 表示の文言は10言語あります（日本語・英語・ドイツ語・スペイン語・フランス語・韓国語・ポルトガル語（ブラジル）・ロシア語・中国語（簡体字・繁体字））
 
 ## 対応環境と必要な MOD
@@ -101,10 +102,16 @@ Forge・NeoForge の列は、その構成のビルドに使う Forge・NeoForge 
 
 手書きモードの間だけ、画面の左上にツールの帯が出ます。帯は、ボタンの無い余白を左ドラッグすると画面内の好きな位置へ動かせます（画面の外へは出ません）。置いた位置は次回も覚えています。
 
+帯の下には、1行の説明の行が出ます。選んでいる道具の説明のほか、メモを消した・元に戻した・使うメモ帳が変わったといった知らせを数秒だけ出します。説明の行は、明るい地形の上でも読めるよう暗い背景を敷き、クリックは受けません（地図や地図 MOD のボタンの操作を邪魔しません）。帯を画面の下端近くへ動かした時は、帯の上に出ます。
+
 帯に並ぶボタンは次のとおりです。
 
-- 上段: 道具5つ（囲み・線・文字・消しゴム・編集）／元に戻す・やり直す／文字だけの表示・非表示／メモ全体の表示・非表示／手書きモードを終える（右端の、上下2段にまたがる縦長のボタン）
-- 下段: 線の太さ3段／文字の大きさ3段／色10色
+- 上段: 道具5つ（囲み・線・文字・消しゴム・編集）／元に戻す・やり直す／文字だけの表示・非表示／メモ全体の表示・非表示／メニュー／手書きモードを終える（右端の、上下2段にまたがる縦長のボタン）
+- 下段: 選んでいる道具に合わせて変わります
+  - 囲み: 線の太さ3段／塗りの濃さ4段（なし・うすい・ふつう・こい）／色10色
+  - 線: 線の太さ3段／色10色
+  - 文字: 文字の大きさ3段（小・中・大）／色10色
+  - 消しゴム・編集: 設定は無く、「この道具に設定はありません」と出ます
 
 ### 道具
 
@@ -120,7 +127,7 @@ Forge・NeoForge の列は、その構成のビルドに使う Forge・NeoForge 
 
 ### 色・太さ・文字の大きさ
 
-帯の2段目で、線の太さ（細・中・太）、文字の大きさ（小・中・大）、色（赤・橙・黄・黄緑・水色・青・紫・桃・白・黒の10色）を選びます。最後に選んだ道具・色・太さ・塗りの濃さ・文字の大きさ・ミニマップへ出すかどうかは、ゲームを再起動しても覚えています。
+帯の下段で、線の太さ（細・中・太）、囲みの塗りの濃さ、文字の大きさ（小・中・大）、色（赤・橙・黄・黄緑・水色・青・紫・桃・白・黒の10色）を選びます。何が出るかは、選んでいる道具で変わります。最後に選んだ道具・色・太さ・塗りの濃さ・文字の大きさ・ミニマップへ出すかどうかは、ゲームを再起動しても覚えています。
 
 ### 文字入力の画面
 
@@ -141,7 +148,7 @@ Forge・NeoForge の列は、その構成のビルドに使う Forge・NeoForge 
 
 - 元に戻す: Ctrl+Z（帯のボタンでも）
 - やり直す: Ctrl+Y または Ctrl+Shift+Z（帯のボタンでも）
-- 履歴は100件までで、ディメンションや接続先が切り替わると破棄されます
+- 履歴は100件までで、ディメンションや接続先、サーバー（プロキシの先）が切り替わると破棄されます
 
 ### 表示の切替
 
@@ -149,6 +156,13 @@ Forge・NeoForge の列は、その構成のビルドに使う Forge・NeoForge 
 
 - **文字だけの表示・非表示**: 囲み・線・文字メモの文字をすべて隠します（囲みの輪郭や線は残ります）。全画面マップとミニマップの両方に効きます
 - **メモ全体の表示・非表示**（目のボタン）: 自分のメモを地図に出す・隠すを切り替えます。隠している間も、囲み・線・文字は描けます（描くと表示に戻ります）
+
+### メニュー（メモの保存先）
+
+帯の上段のメニューのボタンを押すと、縦の一覧が開きます。今の項目は「保存先…」で、メモの保存先の画面（次の節）を開きます。
+
+- Esc を押すと、メニューだけが閉じます（手書きモードは終わりません）。メニューの外をクリックしても閉じ、そのクリックは地図には届きません
+- 「保存先…」は、マルチプレイの時だけ押せます。シングルプレイでは灰色で「このワールド専用」と出ます（シングルプレイのメモは、ワールドごとに分かれているためです）
 
 ### ミニマップへの表示
 
@@ -178,23 +192,57 @@ Forge・NeoForge の列は、その構成のビルドに使う Forge・NeoForge 
 例: <.minecraft>/mapscribble/servers/mc.example.com_25565/minecraft__the_nether.json
 ```
 
+プロキシの配下でサーバーごとに分けている接続先（0.4.0 から）では、アドレスのフォルダの下に、メモ帳ごとのフォルダ `nb-…/` ができます。中身は、アドレスのフォルダ直下と同じ形のディメンションごとのファイルです。どのメモ帳を使っているかの記録は、同じアドレスのフォルダの `notebooks.json` に入ります。
+
+```
+<.minecraft>/mapscribble/servers/<接続先のアドレス>/nb-…/<namespace>__<path>.json
+<.minecraft>/mapscribble/servers/<接続先のアドレス>/notebooks.json
+```
+
 - マルチプレイのフォルダ名は、接続に使ったアドレスの `:` を `_` に置き換え、英数と `.` `_` `-` 以外の文字も `_` にしたものです
 - シングルプレイでもマルチプレイでもない（どちらの情報も取れない）時は `saves/unknown` を使います
 - メモは自分だけのものです。サーバーには何も送らず、ほかのプレイヤーにも見えません
-- 変更から約1秒後にまとめて書き出します
+- 変更から約1秒後にまとめて書き出します。ゲームを閉じる時（タイトルへ戻らずにウィンドウを閉じた時も）は、書き出し待ちのメモを書き切ってから終わります
 - MapScribble が知らない形式のファイルは、読み込まず、上書きもしません（その間は帯に「メモを読み込めません（ファイルはそのまま）」と出ます）
-- 0.1.0 では JourneyMap のデータフォルダの中（マルチは `<.minecraft>/journeymap/data/mp/<サーバーのフォルダ>/addon-data/mapscribble/`、シングルは `<.minecraft>/journeymap/data/sp/<ワールドのフォルダ>/addon-data/mapscribble/`）に保存していました。該当するフォルダがあり、新しい保存先に同じ名前のファイルが無い場合は、その保存先を初めて開いた時に自動でコピーして引き継ぎます（旧フォルダのファイルはそのまま残します）。同じアドレスに 0.1.0 のフォルダが2つ以上ある時（プロキシ配下で JourneyMap が分けていた時）は、混ざらないよう、フォルダごとに「メモ帳」として取り込み、帯の説明の行でお知らせします
+- 0.1.0 では JourneyMap のデータフォルダの中（マルチは `<.minecraft>/journeymap/data/mp/<サーバーのフォルダ>/addon-data/mapscribble/`、シングルは `<.minecraft>/journeymap/data/sp/<ワールドのフォルダ>/addon-data/mapscribble/`）に保存していました。0.4.0 は、そのフォルダを探して引き継ぎます（0.2.0・0.3.0 では引き継げていませんでした）。該当するフォルダが1つで、新しい保存先に同じ名前のファイルが無い場合は、その保存先を初めて開いた時にコピーします。同じアドレスに 0.1.0 のフォルダが2つ以上ある時（プロキシ配下で JourneyMap が分けていた時）は、混ざらないよう、フォルダごとに「メモ帳」として取り込み、帯の説明の行でお知らせします（メモ帳は、保存先の画面で選べます）。どちらも旧フォルダのファイルはそのまま残します
 - 道具・色・太さ・文字の大きさ・帯の位置といった UI の設定は、メモとは別に `<.minecraft>/config/mapscribble-ui.json` に保存します
 
 ## 複数サーバー（Velocity）
 
-保存先は、**接続に使ったアドレス**（クライアントがつないだ先）で分かれます。地図 MOD の区別には乗っていないので、JourneyMap・Xaero・FTB Chunks のどれを使っていても同じ分かれ方です。
+保存先は、**接続に使ったアドレス**（クライアントがつないだ先）で分かれます。地図 MOD の区別には乗っていないので、JourneyMap・Xaero・FTB Chunks のどれを使っていても同じ分かれ方です。ディメンションは、どの構成でもファイル単位で分かれます。
 
-そのため、同じアドレスで入るプロキシ（Velocity 等）の配下でサーバーを移動した場合、**サーバーが変わってもメモは同じフォルダのままになる**とコードから読めます（移動の前後でクライアントの接続先のアドレスは変わらないため）。プロキシの配下のサーバー同士でメモを分けたい場合は、サーバーごとに別のアドレスで接続してください。
+### 0.4.0 から: プロキシの先のサーバーごとに分ける
 
-- 別のアドレスのサーバーへ入り直せば、メモはそのアドレスのフォルダに分かれます
-- ディメンションは、どの構成でもファイル単位で分かれます
-- プロキシ配下での実際の挙動は、実機では確かめていません
+Velocity などのプロキシでは、同じアドレスのまま、中のサーバーが変わります。0.3.0 までは、サーバーが変わってもメモは同じフォルダのままでした。0.4.0 では、**同じ接続の中で、同じディメンションのワールドのシード（のハッシュ）が変わったのを見たら、そのアドレスを自動でサーバーごとに分け始めます**。サーバーごとに「メモ帳」ができ、メモはそのサーバーのメモ帳に保存されます。
+
+- 普通のサーバー（シードが変わらない）とシングルプレイの動きは、今までと同じです。分けるのは、シードの変化を見たアドレスと、利用者が分けると選んだアドレスだけです
+- サーバーがシードを隠していて値が取れない時は、自動では分けません（今までと同じ保存先に書きます）
+- 入るたびにシードが変わるサーバーで、メモ帳が増え続けないよう、1つのアドレスで自動で作るメモ帳は8個までです。超えたら自動で分けるのを止めます
+- 自動で分けても、利用者が止めることも、手で分けることもできます（次の「保存先の画面」）
+- 同じシードの2つのサーバーは、見分けがつかないので自動では分けられません。その場合は、保存先の画面で手で切り替えてください
+
+### 今までのメモは消えません
+
+分ける前にアドレスのフォルダ直下に保存されていたメモ（0.2.0・0.3.0 で描いたもの）は、**消えず・動かさず・名前も変えません**。分けた後も、**どのサーバーでも今までどおり見え、編集もできます**（編集は元のファイルへ書きます）。地図の見た目は変えていません。消しゴム・編集でメモにカーソルを合わせた時だけ、「分ける前のメモ（どのサーバーにも出ます）」と出ます。
+
+分ける前のメモを、使っているメモ帳へ移したい時は、保存先の画面から移せます（移すのは利用者が選んだ時だけです）。
+
+### 保存先の画面
+
+メニューの「保存先…」から開きます（マルチプレイの時だけ）。
+
+- **この接続先をサーバーごとに分ける**: オン・オフを切り替えます。オフにしても、作ったメモ帳は消えません（もう一度オンにすれば戻ります）
+- **メモ帳の一覧**: 行をクリックすると、使うメモ帳がその場で切り替わります（使用中は青い行）。件数と作った日が出ます
+- **名前を変える**: 使用中のメモ帳の名前を変えます（24文字まで）。Enter で決め、Esc で取りやめます
+- **新しいメモ帳**: 新しいメモ帳を作り、このワールドで使います
+- **分ける前のメモ**: 件数が出ます。「全部を移す」（この接続先の全ディメンション）と「見えている分を移す」（開いた時に地図に見えていた範囲）で、使用中のメモ帳へ移せます。確認の画面が出て、移したメモは、ほかのサーバーには出なくなります。移した後は、画面の「元に戻す」か、地図で Ctrl+Z で戻せます
+- メモ帳を削除する操作はありません
+
+分ける前のメモを移す時は、移す前の元のファイルを、同じフォルダに `<ファイル名>.before-split.bak`（例: `minecraft__overworld.json.before-split.bak`）として1回だけ残します。移し先へ書いて読み直せたことを確かめてから、元から除きます。途中で失敗した時は、元のファイルのまま残ります。
+
+### 古い版へ戻した時
+
+0.3.0 に戻しても、**分ける前のメモ（直下のファイル）はそのまま見えます**。メモ帳に描いたメモと、メモ帳へ移したメモは、古い版では見えません（ファイルは残っていて、0.4.0 に戻せば見えます。移したメモの元は `.before-split.bak` にも残っています）。
 
 ## その他の既知の制限
 
@@ -291,6 +339,9 @@ MapScribble lets you draw handwritten notes on the fullscreen map of JourneyMap,
 - Minimaps: JourneyMap (as JourneyMap overlays) and Xaero's Minimap (drawn by MapScribble inside the minimap frame) are supported. FTB Chunks' minimap is not. The 1.20.6 builds do not use the JourneyMap API (no 2.0 distribution for that version), so they draw on the JourneyMap fullscreen map by reflection and do not show notes on the JourneyMap minimap.
 - Turn on scribble mode with the pencil button: in the right column of the fullscreen map with JourneyMap's official plugin, or at the top right of the screen with Xaero's World Map and FTB Chunks. Tool keys are 1 to 5 (outline, line, text, eraser, edit), and Ctrl+Z / Ctrl+Y undo and redo. The mode-toggle key is unassigned by default (Controls, category MapScribble).
 - The pencil button that MapScribble draws itself (Xaero's World Map, FTB Chunks, JourneyMap without its official plugin) can be moved: drag it with the left button, or Shift+click it and click again to place it; right-click resets it, and Esc cancels a move. Releasing the button without moving still toggles scribble mode. The position is remembered per map mod as a distance from the nearest screen edge. The buttons in JourneyMap's right column cannot be moved.
-- The tool band can be dragged anywhere on the screen by its empty area, and remembers where you put it. It holds the five tools, undo / redo, a text-only visibility toggle, an overall visibility toggle, the exit button, three line widths, three text sizes and ten colors. Note text can be up to 1000 characters. UI texts are available in 10 languages.
-- Notes are separated by the address you connected to, not by the map mod's own per-server folders. On a proxy network (Velocity and the like), moving between backend servers keeps the same folder, because the client's server address does not change — this is what the code says; it has not been verified on a live network. Connect through a different address if you want separate notes.
+- The tool band can be dragged anywhere on the screen by its empty area, and remembers where you put it. The top row holds the five tools, undo / redo, a text-only visibility toggle, an overall visibility toggle, the menu button and the exit button. The bottom row changes with the selected tool (line width, fill opacity for outlines, text size, and ten colors). Note text can be up to 1000 characters. A hint line below the band shows what the selected tool does and short notices; it sits above the band when the band is near the bottom edge of the screen. UI texts are available in 10 languages.
+- The menu button opens a list with "Notebooks…" (multiplayer only; in singleplayer notes are already kept per world).
+- Notes are separated by the address you connected to, not by the map mod's own per-server folders. Since 0.4.0, on a proxy network (Velocity and the like), when the world seed hash of the same dimension changes within one connection, that address is split automatically: each backend server gets its own notebook (a folder `nb-…` under the address folder, recorded in `notebooks.json`). Ordinary servers and singleplayer behave as before. You can turn the split on or off, switch notebooks, create new ones and rename them on the Notebooks screen (menu button, "Notebooks…"). No notebook is ever deleted.
+- Your existing notes are not removed: notes saved before the split stay in the address folder and show up on every server there, and you can still edit them. On the Notebooks screen you can move them into the notebook in use ("Move all" or "Move visible"); a `.before-split.bak` copy of the original file is kept the first time, and the move can be undone. If you go back to 0.3.0, the notes in the address folder are still shown; notes that live in notebooks are not visible in older versions (the files stay on disk).
+- Notes drawn in 0.1.0 (saved inside JourneyMap's data folder) are now imported when you first open the matching save location. If one address had two or more 0.1.0 folders, each is imported as its own notebook.
 - Build: `./gradlew buildAndCollect` produces one jar per Minecraft version and loader (21 configurations) in `build/libs/<mod version>/`. License: MIT.
