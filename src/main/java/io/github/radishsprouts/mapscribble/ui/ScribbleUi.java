@@ -1,6 +1,7 @@
 package io.github.radishsprouts.mapscribble.ui;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.draw.Draft;
@@ -13,11 +14,6 @@ import io.github.radishsprouts.mapscribble.store.MemoRepository;
 import java.nio.file.Path;
 import java.util.List;
 import net.minecraft.client.Minecraft;
-//? if >=26.1 {
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-//?} else {
-/*import net.minecraft.client.gui.GuiGraphics;
-*///?}
 import net.minecraft.client.gui.screens.Screen;
 //? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
@@ -93,21 +89,11 @@ public final class ScribbleUi {
         }
     }
 
-    //? if >=26.1 {
-    public void render(GuiGraphicsExtractor g, int mouseX, int mouseY, Memo hoverMemo) {
+    public void render(Gfx g, int mouseX, int mouseY, Memo hoverMemo) {
         renderInternal(g, mouseX, mouseY, hoverMemo);
     }
-    //?} else {
-    /*public void render(GuiGraphics g, int mouseX, int mouseY, Memo hoverMemo) {
-        renderInternal(g, mouseX, mouseY, hoverMemo);
-    }
-    *///?}
 
-    //? if >=26.1 {
-    private void renderInternal(GuiGraphicsExtractor g, int mouseX, int mouseY, Memo hoverMemo) {
-    //?} else {
-    /*private void renderInternal(GuiGraphics g, int mouseX, int mouseY, Memo hoverMemo) {
-    *///?}
+    private void renderInternal(Gfx g, int mouseX, int mouseY, Memo hoverMemo) {
         if (!state.isModeOn()) {
             return;
         }

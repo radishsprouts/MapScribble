@@ -1,6 +1,7 @@
 package io.github.radishsprouts.mapscribble.map;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
@@ -25,12 +26,6 @@ import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-
-//? if >=26.1 {
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-//?} else {
-/*import net.minecraft.client.gui.GuiGraphics;
-*///?}
 
 //? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
@@ -193,11 +188,7 @@ public final class ScreenMapHost {
         }
     }
 
-    //? if >=26.1 {
-    public static void onScreenRender(GuiGraphicsExtractor gfx, Screen screen, int mouseX, int mouseY, float delta) {
-    //?} else {
-    /*public static void onScreenRender(GuiGraphics gfx, Screen screen, int mouseX, int mouseY, float delta) {
-    *///?}
+    public static void onScreenRender(Gfx gfx, Screen screen, int mouseX, int mouseY, float delta) {
         if (primaryBridge != null && primaryBridge.handles(screen)) {
             primaryBridge.onScreenRender(gfx, screen, mouseX, mouseY);
             return;
@@ -360,13 +351,8 @@ public final class ScreenMapHost {
         return false;
     }
 
-    //? if >=26.1 {
-    private static void renderToggleButton(GuiGraphicsExtractor gfx, Screen screen, MapAdapter adapter, int mouseX, int mouseY,
+    private static void renderToggleButton(Gfx gfx, Screen screen, MapAdapter adapter, int mouseX, int mouseY,
                                            boolean modeOn) {
-    //?} else {
-    /*private static void renderToggleButton(GuiGraphics gfx, Screen screen, MapAdapter adapter, int mouseX, int mouseY,
-                                           boolean modeOn) {
-    *///?}
         int bx = toggleX(screen, adapter);
         int by = toggleY(screen, adapter);
         boolean moving = movePhase != MovePhase.NONE;

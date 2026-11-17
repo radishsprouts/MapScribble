@@ -1,5 +1,6 @@
 package io.github.radishsprouts.mapscribble.ui;
 
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import java.util.List;
 import java.util.function.Consumer;
@@ -62,20 +63,16 @@ public final class ColorSwatchRow extends AbstractWidget {
     //? if >=26.1 {
     @Override
     protected void extractWidgetRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        renderSwatches(g, mouseX, mouseY);
+        renderSwatches(Gfx.of(g), mouseX, mouseY);
     }
     //?} else {
     /*@Override
     protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        renderSwatches(g, mouseX, mouseY);
+        renderSwatches(Gfx.of(g), mouseX, mouseY);
     }
     *///?}
 
-    //? if >=26.1 {
-    private void renderSwatches(GuiGraphicsExtractor g, int mouseX, int mouseY) {
-    //?} else {
-    /*private void renderSwatches(GuiGraphics g, int mouseX, int mouseY) {
-    *///?}
+    private void renderSwatches(Gfx g, int mouseX, int mouseY) {
         int hovered = isHovered() ? indexAt(mouseX) : -1;
         List<NoteColor> colors = NoteColor.list();
         for (int i = 0; i < colors.size(); i++) {

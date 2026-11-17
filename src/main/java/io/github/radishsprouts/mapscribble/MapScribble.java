@@ -1,5 +1,6 @@
 package io.github.radishsprouts.mapscribble;
 
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
 import io.github.radishsprouts.mapscribble.draw.ScribbleSession;
 import io.github.radishsprouts.mapscribble.map.MinimapHudRenderer;
@@ -119,10 +120,10 @@ implements ClientModInitializer
 
             //? if >=26.1 {
             ScreenEvents.afterExtract(screen).register((drawn, gfx, mouseX, mouseY, tickDelta) ->
-                    ScreenMapHost.onScreenRender(gfx, drawn, mouseX, mouseY, tickDelta));
+                    ScreenMapHost.onScreenRender(Gfx.of(gfx), drawn, mouseX, mouseY, tickDelta));
             //?} else {
             /*ScreenEvents.afterRender(screen).register((drawn, gfx, mouseX, mouseY, tickDelta) ->
-                    ScreenMapHost.onScreenRender(gfx, drawn, mouseX, mouseY, tickDelta));
+                    ScreenMapHost.onScreenRender(Gfx.of(gfx), drawn, mouseX, mouseY, tickDelta));
             *///?}
 
             //? if >=1.21.11 {
@@ -150,9 +151,9 @@ implements ClientModInitializer
         //? if >=26.1 {
         HudElementRegistry.attachElementAfter(VanillaHudElements.SLEEP,
                 Identifier.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
-                (graphics, deltaTracker) -> MinimapHudRenderer.render(graphics));
+                (graphics, deltaTracker) -> MinimapHudRenderer.render(Gfx.of(graphics)));
         //?} else {
-        /*HudRenderCallback.EVENT.register((graphics, tickDelta) -> MinimapHudRenderer.render(graphics));
+        /*HudRenderCallback.EVENT.register((graphics, tickDelta) -> MinimapHudRenderer.render(Gfx.of(graphics)));
         *///?}
 
         LOGGER.info("MapScribble initialized (Fabric)");
@@ -172,21 +173,21 @@ implements ClientModInitializer
             //? if >=26.1 {
             event.registerAbove(VanillaGuiLayers.SLEEP_OVERLAY,
                     Identifier.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
-                    (graphics, deltaTracker) -> MinimapHudRenderer.render(graphics));
+                    (graphics, deltaTracker) -> MinimapHudRenderer.render(Gfx.of(graphics)));
             //?} elif >=1.21.11 {
             event.registerAbove(VanillaGuiLayers.SLEEP_OVERLAY,
                     Identifier.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
-                    (graphics, partialTick) -> MinimapHudRenderer.render(graphics));
+                    (graphics, partialTick) -> MinimapHudRenderer.render(Gfx.of(graphics)));
             //?} elif >=1.21 {
             event.registerAbove(VanillaGuiLayers.SLEEP_OVERLAY,
                     ResourceLocation.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
-                    (graphics, partialTick) -> MinimapHudRenderer.render(graphics));
+                    (graphics, partialTick) -> MinimapHudRenderer.render(Gfx.of(graphics)));
             //?} else {
             // 1.20.6: fromNamespaceAndPath は 1.21 で入ったので、素の 1.20.6 では使えない
             // （Forge はパッチで先取りしているが NeoForge と Fabric には無い）。コンストラクタを使う
             event.registerAbove(VanillaGuiLayers.SLEEP_OVERLAY,
                     new ResourceLocation(MOD_ID, "minimap_overlay"),
-                    (graphics, partialTick) -> MinimapHudRenderer.render(graphics));
+                    (graphics, partialTick) -> MinimapHudRenderer.render(Gfx.of(graphics)));
             //?}
         });
 
@@ -212,7 +213,7 @@ implements ClientModInitializer
 
         // ScreenEvent.Render#getPartialTick は 1.21.1〜26.3 のすべてにあるので、版で分けずにそのまま渡す
         forgeBus.addListener((ScreenEvent.Render.Post event) ->
-                ScreenMapHost.onScreenRender(event.getGuiGraphics(), event.getScreen(), event.getMouseX(), event.getMouseY(), event.getPartialTick()));
+                ScreenMapHost.onScreenRender(Gfx.of(event.getGuiGraphics()), event.getScreen(), event.getMouseX(), event.getMouseY(), event.getPartialTick()));
 
         forgeBus.addListener((ScreenEvent.MouseButtonPressed.Pre event) -> {
             if (ScreenMapHost.onMouseClicked(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton())) {
@@ -280,7 +281,7 @@ implements ClientModInitializer
             event.getLayeredDraw().addAbove(ForgeLayeredDraw.POST_SLEEP_STACK,
                     Identifier.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
                     ForgeLayeredDraw.SUBTITLE_OVERLAY,
-                    (graphics, deltaTracker) -> MinimapHudRenderer.render(graphics));
+                    (graphics, deltaTracker) -> MinimapHudRenderer.render(Gfx.of(graphics)));
         });
 
         ClientPlayerNetworkEvent.LoggingIn.BUS.addListener((ClientPlayerNetworkEvent.LoggingIn event) -> {
@@ -304,7 +305,7 @@ implements ClientModInitializer
         ScreenEvent.Init.Post.BUS.addListener((ScreenEvent.Init.Post event) -> ScreenMapHost.onScreenInit(event.getScreen()));
         ScreenEvent.Closing.BUS.addListener((ScreenEvent.Closing event) -> ScreenMapHost.onScreenClose(event.getScreen()));
         ScreenEvent.Render.Post.BUS.addListener((ScreenEvent.Render.Post event) ->
-                ScreenMapHost.onScreenRender(event.getGuiGraphics(), event.getScreen(), event.getMouseX(), event.getMouseY(), event.getPartialTick()));
+                ScreenMapHost.onScreenRender(Gfx.of(event.getGuiGraphics()), event.getScreen(), event.getMouseX(), event.getMouseY(), event.getPartialTick()));
 
         ScreenEvent.MouseButtonPressed.Pre.BUS.addListener((ScreenEvent.MouseButtonPressed.Pre event) -> {
             return ScreenMapHost.onMouseClicked(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton());
@@ -340,12 +341,12 @@ implements ClientModInitializer
             event.getLayeredDraw().addAbove(ForgeLayeredDraw.POST_SLEEP_STACK,
                     ResourceLocation.fromNamespaceAndPath(MOD_ID, "minimap_overlay"),
                     ForgeLayeredDraw.SUBTITLE_OVERLAY,
-                    (graphics, partialTick) -> MinimapHudRenderer.render(graphics));
+                    (graphics, partialTick) -> MinimapHudRenderer.render(Gfx.of(graphics)));
         });
         //?} else {
         modBus.addListener((RegisterGuiOverlaysEvent event) -> {
             event.registerAbove(VanillaGuiOverlay.SLEEP_FADE.id(), "minimap_overlay",
-                    (gui, graphics, partialTick, width, height) -> MinimapHudRenderer.render(graphics));
+                    (gui, graphics, partialTick, width, height) -> MinimapHudRenderer.render(Gfx.of(graphics)));
         });
         //?}
 
@@ -371,7 +372,7 @@ implements ClientModInitializer
         forgeBus.addListener((ScreenEvent.Init.Post event) -> ScreenMapHost.onScreenInit(event.getScreen()));
         forgeBus.addListener((ScreenEvent.Closing event) -> ScreenMapHost.onScreenClose(event.getScreen()));
         forgeBus.addListener((ScreenEvent.Render.Post event) ->
-                ScreenMapHost.onScreenRender(event.getGuiGraphics(), event.getScreen(), event.getMouseX(), event.getMouseY(), event.getPartialTick()));
+                ScreenMapHost.onScreenRender(Gfx.of(event.getGuiGraphics()), event.getScreen(), event.getMouseX(), event.getMouseY(), event.getPartialTick()));
 
         forgeBus.addListener((ScreenEvent.MouseButtonPressed.Pre event) -> {
             if (ScreenMapHost.onMouseClicked(event.getScreen(), event.getMouseX(), event.getMouseY(), event.getButton())) {

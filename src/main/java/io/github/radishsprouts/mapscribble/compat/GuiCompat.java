@@ -5,11 +5,6 @@ import io.github.radishsprouts.mapscribble.MapScribble;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-//? if >=26.1 {
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-//?} else {
-/*import net.minecraft.client.gui.GuiGraphics;
-*///?}
 
 //? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
@@ -56,100 +51,65 @@ public final class GuiCompat {
     }
     *///?}
 
-    //? if >=26.1 {
-    public static void pushPose(GuiGraphicsExtractor g) {
-        g.pose().pushMatrix();
+    //? if >=1.21.11 {
+    public static void pushPose(Gfx g) {
+        g.raw().pose().pushMatrix();
     }
 
-    public static void popPose(GuiGraphicsExtractor g) {
-        g.pose().popMatrix();
+    public static void popPose(Gfx g) {
+        g.raw().pose().popMatrix();
     }
 
-    public static void translate2D(GuiGraphicsExtractor g, float x, float y) {
-        g.pose().translate(x, y);
+    public static void translate2D(Gfx g, float x, float y) {
+        g.raw().pose().translate(x, y);
     }
 
-    public static void scale2D(GuiGraphicsExtractor g, float sx, float sy) {
-        g.pose().scale(sx, sy);
+    public static void scale2D(Gfx g, float sx, float sy) {
+        g.raw().pose().scale(sx, sy);
     }
 
-    public static void rotate2D(GuiGraphicsExtractor g, float degrees) {
-        g.pose().rotate((float) Math.toRadians(degrees));
-    }
-    //?} elif >=1.21.11 {
-    /*public static void pushPose(GuiGraphics g) {
-        g.pose().pushMatrix();
-    }
-
-    public static void popPose(GuiGraphics g) {
-        g.pose().popMatrix();
-    }
-
-    public static void translate2D(GuiGraphics g, float x, float y) {
-        g.pose().translate(x, y);
-    }
-
-    public static void scale2D(GuiGraphics g, float sx, float sy) {
-        g.pose().scale(sx, sy);
-    }
-
-    public static void rotate2D(GuiGraphics g, float degrees) {
-        g.pose().rotate((float) Math.toRadians(degrees));
-    }
-    *///?} else {
-    /*public static void pushPose(GuiGraphics g) {
-        g.pose().pushPose();
-    }
-
-    public static void popPose(GuiGraphics g) {
-        g.pose().popPose();
-    }
-
-    public static void translate2D(GuiGraphics g, float x, float y) {
-        g.pose().translate(x, y, 0f);
-    }
-
-    public static void scale2D(GuiGraphics g, float sx, float sy) {
-        g.pose().scale(sx, sy, 1f);
-    }
-
-    public static void rotate2D(GuiGraphics g, float degrees) {
-        // 1.20.1〜1.21.4 の PoseStack.mulPose
-        g.pose().mulPose(com.mojang.math.Axis.ZP.rotationDegrees(degrees));
-    }
-    *///?}
-
-    //? if >=26.1 {
-    public static void nextLayer(GuiGraphicsExtractor g) {
+    public static void rotate2D(Gfx g, float degrees) {
+        g.raw().pose().rotate((float) Math.toRadians(degrees));
     }
     //?} else {
-    /*public static void nextLayer(GuiGraphics g) {
+    /*public static void pushPose(Gfx g) {
+        g.raw().pose().pushPose();
+    }
+
+    public static void popPose(Gfx g) {
+        g.raw().pose().popPose();
+    }
+
+    public static void translate2D(Gfx g, float x, float y) {
+        g.raw().pose().translate(x, y, 0f);
+    }
+
+    public static void scale2D(Gfx g, float sx, float sy) {
+        g.raw().pose().scale(sx, sy, 1f);
+    }
+
+    public static void rotate2D(Gfx g, float degrees) {
+        // 1.20.1〜1.21.4 の PoseStack.mulPose
+        g.raw().pose().mulPose(com.mojang.math.Axis.ZP.rotationDegrees(degrees));
     }
     *///?}
+
+    public static void nextLayer(Gfx g) {
+    }
 
     /**
      * 描画を矩形の内側へ切り抜く。<strong>引数は GUI 座標</strong>（Minecraft が内部で GUI 倍率を掛ける）。
-     * メソッド名・引数は 1.20.1〜26.x で同じなので、吸収するのはクラス名の差だけ。
+     * メソッド名・引数は 1.20.1〜26.x で同じ。
      * 必ず {@code try}/{@code finally} で {@link #disableScissor} と対にする
      * （切り抜きが残ると HUD 全体が切り抜かれたままになる）。
      */
-    //? if >=26.1 {
-    public static void enableScissor(GuiGraphicsExtractor g, int minX, int minY, int maxX, int maxY) {
-        g.enableScissor(minX, minY, maxX, maxY);
+    public static void enableScissor(Gfx g, int minX, int minY, int maxX, int maxY) {
+        g.raw().enableScissor(minX, minY, maxX, maxY);
     }
 
-    public static void disableScissor(GuiGraphicsExtractor g) {
-        g.disableScissor();
+    public static void disableScissor(Gfx g) {
+        g.raw().disableScissor();
     }
-    //?} else {
-    /*public static void enableScissor(GuiGraphics g, int minX, int minY, int maxX, int maxY) {
-        g.enableScissor(minX, minY, maxX, maxY);
-    }
-
-    public static void disableScissor(GuiGraphics g) {
-        g.disableScissor();
-    }
-    *///?}
 
     /** 描画中のカメラの yaw（度）。ミニマップの回転角の計算に使う。 */
     public static float cameraYaw() {
@@ -186,130 +146,102 @@ public final class GuiCompat {
         *///?}
     }
 
-    //? if >=26.1 {
-    public static void fill(GuiGraphicsExtractor g, int minX, int minY, int maxX, int maxY, int color) {
-        g.fill(minX, minY, maxX, maxY, color);
+    //? if >=1.21.11 {
+    public static void fill(Gfx g, int minX, int minY, int maxX, int maxY, int color) {
+        g.raw().fill(minX, minY, maxX, maxY, color);
     }
 
-    public static void fill(GuiGraphicsExtractor g, int minX, int minY, int maxX, int maxY, int z, int color) {
-        g.fill(minX, minY, maxX, maxY, color);
+    public static void fill(Gfx g, int minX, int minY, int maxX, int maxY, int z, int color) {
+        g.raw().fill(minX, minY, maxX, maxY, color);
     }
-    //?} elif >=1.21.11 {
-    /*public static void fill(GuiGraphics g, int minX, int minY, int maxX, int maxY, int color) {
-        g.fill(minX, minY, maxX, maxY, color);
-    }
-
-    public static void fill(GuiGraphics g, int minX, int minY, int maxX, int maxY, int z, int color) {
-        g.fill(minX, minY, maxX, maxY, color);
-    }
-    *///?} else {
-    /*public static void fill(GuiGraphics g, int minX, int minY, int maxX, int maxY, int color) {
-        g.fill(minX, minY, maxX, maxY, color);
+    //?} else {
+    /*public static void fill(Gfx g, int minX, int minY, int maxX, int maxY, int color) {
+        g.raw().fill(minX, minY, maxX, maxY, color);
     }
 
-    public static void fill(GuiGraphics g, int minX, int minY, int maxX, int maxY, int z, int color) {
-        g.fill(minX, minY, maxX, maxY, z, color);
+    public static void fill(Gfx g, int minX, int minY, int maxX, int maxY, int z, int color) {
+        g.raw().fill(minX, minY, maxX, maxY, z, color);
     }
     *///?}
 
     //? if >=26.1 {
-    public static void outline(GuiGraphicsExtractor g, int x, int y, int width, int height, int color) {
-        g.outline(x, y, width, height, color);
+    public static void outline(Gfx g, int x, int y, int width, int height, int color) {
+        g.raw().outline(x, y, width, height, color);
     }
     //?} else {
-    /*public static void outline(GuiGraphics g, int x, int y, int width, int height, int color) {
+    /*public static void outline(Gfx g, int x, int y, int width, int height, int color) {
         // 1.20.1〜1.21.4 の renderOutline
-        g.renderOutline(x, y, width, height, color);
+        g.raw().renderOutline(x, y, width, height, color);
     }
     *///?}
 
     //? if >=26.1 {
-    public static void text(GuiGraphicsExtractor g, Font font, Component text, int x, int y, int color, boolean shadow) {
-        g.text(font, text, x, y, color, shadow);
+    public static void text(Gfx g, Font font, Component text, int x, int y, int color, boolean shadow) {
+        g.raw().text(font, text, x, y, color, shadow);
     }
     //?} else {
-    /*public static void text(GuiGraphics g, Font font, Component text, int x, int y, int color, boolean shadow) {
-        g.drawString(font, text, x, y, color, shadow);
+    /*public static void text(Gfx g, Font font, Component text, int x, int y, int color, boolean shadow) {
+        g.raw().drawString(font, text, x, y, color, shadow);
     }
     *///?}
 
     //? if >=26.1 {
-    public static void centeredText(GuiGraphicsExtractor g, Font font, Component text, int x, int y, int color, boolean shadow) {
-        g.centeredText(font, text, x, y, color);
+    public static void centeredText(Gfx g, Font font, Component text, int x, int y, int color, boolean shadow) {
+        g.raw().centeredText(font, text, x, y, color);
     }
     //?} else {
-    /*public static void centeredText(GuiGraphics g, Font font, Component text, int x, int y, int color, boolean shadow) {
-        g.drawCenteredString(font, text, x, y, color);
+    /*public static void centeredText(Gfx g, Font font, Component text, int x, int y, int color, boolean shadow) {
+        g.raw().drawCenteredString(font, text, x, y, color);
     }
     *///?}
 
-    //? if >=26.1 {
-    public static void blitIcon(GuiGraphicsExtractor g, Identifier texture, int x, int y, int size, int tint) {
-        g.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0f, 0f, size, size, size, size, tint);
+    //? if >=1.21.11 {
+    public static void blitIcon(Gfx g, Identifier texture, int x, int y, int size, int tint) {
+        g.raw().blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0f, 0f, size, size, size, size, tint);
     }
 
-    public static void blitIcon(GuiGraphicsExtractor g, Identifier texture, int x, int y, int size) {
+    public static void blitIcon(Gfx g, Identifier texture, int x, int y, int size) {
         blitIcon(g, texture, x, y, size, 0xFFFFFFFF);
     }
-    //?} elif >=1.21.11 {
-    /*public static void blitIcon(GuiGraphics g, Identifier texture, int x, int y, int size, int tint) {
-        g.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0f, 0f, size, size, size, size, tint);
+    //?} elif >=1.21.4 {
+    /*public static void blitIcon(Gfx g, ResourceLocation texture, int x, int y, int size, int tint) {
+        g.raw().blit(net.minecraft.client.renderer.RenderType::guiTextured, texture, x, y, 0f, 0f, size, size, size, size, tint);
     }
 
-    public static void blitIcon(GuiGraphics g, Identifier texture, int x, int y, int size) {
-        blitIcon(g, texture, x, y, size, 0xFFFFFFFF);
-    }
-    *///?} elif >=1.21.4 {
-    /*public static void blitIcon(GuiGraphics g, ResourceLocation texture, int x, int y, int size, int tint) {
-        g.blit(net.minecraft.client.renderer.RenderType::guiTextured, texture, x, y, 0f, 0f, size, size, size, size, tint);
-    }
-
-    public static void blitIcon(GuiGraphics g, ResourceLocation texture, int x, int y, int size) {
+    public static void blitIcon(Gfx g, ResourceLocation texture, int x, int y, int size) {
         blitIcon(g, texture, x, y, size, 0xFFFFFFFF);
     }
     *///?} else {
-    /*public static void blitIcon(GuiGraphics g, ResourceLocation texture, int x, int y, int size, int tint) {
+    /*public static void blitIcon(Gfx g, ResourceLocation texture, int x, int y, int size, int tint) {
         float a = ((tint >> 24) & 0xFF) / 255.0f;
         float r = ((tint >> 16) & 0xFF) / 255.0f;
         float gr = ((tint >> 8) & 0xFF) / 255.0f;
         float b = (tint & 0xFF) / 255.0f;
         com.mojang.blaze3d.systems.RenderSystem.enableBlend();
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(r, gr, b, a);
-        g.blit(texture, x, y, 0f, 0f, size, size, size, size);
+        g.raw().blit(texture, x, y, 0f, 0f, size, size, size, size);
         com.mojang.blaze3d.systems.RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
     }
 
-    public static void blitIcon(GuiGraphics g, ResourceLocation texture, int x, int y, int size) {
+    public static void blitIcon(Gfx g, ResourceLocation texture, int x, int y, int size) {
         blitIcon(g, texture, x, y, size, 0xFFFFFFFF);
     }
     *///?}
 
     /** ツールチップ描画。 */
-    //? if >=26.1 {
-    public static void drawTooltip(GuiGraphicsExtractor g, Font font, List<Component> lines, int mouseX, int mouseY) {
-        g.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
+    //? if >=1.21.11 {
+    public static void drawTooltip(Gfx g, Font font, List<Component> lines, int mouseX, int mouseY) {
+        g.raw().setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
     }
-
-    public static void drawTooltip(GuiGraphicsExtractor g, Font font, Component component, int mouseX, int mouseY) {
-        drawTooltip(g, font, List.of(component), mouseX, mouseY);
-    }
-    //?} elif >=1.21.11 {
-    /*public static void drawTooltip(GuiGraphics g, Font font, List<Component> lines, int mouseX, int mouseY) {
-        g.setComponentTooltipForNextFrame(font, lines, mouseX, mouseY);
-    }
-
-    public static void drawTooltip(GuiGraphics g, Font font, Component component, int mouseX, int mouseY) {
-        drawTooltip(g, font, List.of(component), mouseX, mouseY);
-    }
-    *///?} else {
-    /*public static void drawTooltip(GuiGraphics g, Font font, List<Component> lines, int mouseX, int mouseY) {
-        g.renderComponentTooltip(font, lines, mouseX, mouseY);
-    }
-
-    public static void drawTooltip(GuiGraphics g, Font font, Component component, int mouseX, int mouseY) {
-        drawTooltip(g, font, List.of(component), mouseX, mouseY);
+    //?} else {
+    /*public static void drawTooltip(Gfx g, Font font, List<Component> lines, int mouseX, int mouseY) {
+        g.raw().renderComponentTooltip(font, lines, mouseX, mouseY);
     }
     *///?}
+
+    public static void drawTooltip(Gfx g, Font font, Component component, int mouseX, int mouseY) {
+        drawTooltip(g, font, List.of(component), mouseX, mouseY);
+    }
 
     /** 1.20.1 に存在しない MutableComponent.withColor(int) を吸収する。 */
     public static MutableComponent withColor(MutableComponent component, int rgb) {

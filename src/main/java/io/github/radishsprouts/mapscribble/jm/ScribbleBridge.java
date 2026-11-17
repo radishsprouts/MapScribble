@@ -2,6 +2,7 @@ package io.github.radishsprouts.mapscribble.jm;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.radishsprouts.mapscribble.MapScribble;
+import io.github.radishsprouts.mapscribble.compat.Gfx;
 import io.github.radishsprouts.mapscribble.compat.GuiCompat;
 import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingController;
@@ -32,10 +33,7 @@ import journeymap.api.v2.client.IClientAPI;
 import journeymap.api.v2.client.event.FullscreenMapEvent;
 //? if >=26.1 {
 import journeymap.api.v2.client.event.FullscreenRenderEvent;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-//?} else {
-/*import net.minecraft.client.gui.GuiGraphics;
-*///?}
+//?}
 import journeymap.api.v2.client.fullscreen.IFullscreen;
 import journeymap.api.v2.client.fullscreen.IThemeButton;
 import journeymap.api.v2.client.fullscreen.ThemeButtonDisplay;
@@ -323,7 +321,7 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         syncToggleButton();
         int mouseX = event.getMouseX();
         int mouseY = event.getMouseY();
-        ui.render(event.getGraphics(), mouseX, mouseY, hoverMemo(event.getFullscreen(), mouseX, mouseY));
+        ui.render(Gfx.of(event.getGraphics()), mouseX, mouseY, hoverMemo(event.getFullscreen(), mouseX, mouseY));
 
         // 中ボタンドラッグ中のスクロール追従
         if (MidDragHandler.isDragging()) {
@@ -339,13 +337,8 @@ public final class ScribbleBridge implements PrimaryMapBridge {
     }
     //?}
 
-    //? if >=26.1 {
     @Override
-    public void onScreenRender(GuiGraphicsExtractor gfx, Screen screen, int mouseX, int mouseY) {
-    //?} else {
-    /*@Override
-    public void onScreenRender(GuiGraphics gfx, Screen screen, int mouseX, int mouseY) {
-    *///?}
+    public void onScreenRender(Gfx gfx, Screen screen, int mouseX, int mouseY) {
         IFullscreen fs = current();
         if (fs == null || fs.getScreen() != screen) {
             return;
