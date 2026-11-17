@@ -84,6 +84,7 @@ public final class ToolBand {
     private BandLayout.Cell pressed;
 
     private boolean dragging;
+    private boolean held;
     private double dragOffsetX;
     private double dragOffsetY;
 
@@ -114,6 +115,9 @@ public final class ToolBand {
         if (!leftButton) {
             return true;
         }
+        // 帯の上で押した左ボタンは、離すまで帯のもの。帯を動かすと帯はカーソルより1フレーム遅れて付いてくるので、
+        // カーソルが帯の外へ出ても、その間のドラッグを地図の一筆として受けない（{@link #isHeld}）
+        held = true;
         BandLayout.Cell cell = BandLayout.cellAt(gx, gy, bx, by);
         if (cell == null) {
             // ボタン以外の余白をクリックした場合はドラッグ移動を開始
@@ -160,10 +164,19 @@ public final class ToolBand {
         return dragging;
     }
 
+    /**
+     * 帯の上で押した左ボタンを、まだ離していないか。true の間のドラッグは帯のものなので、カーソルが帯の外へ出ても
+     * 地図の一筆を始めない・進めない。
+     */
+    public boolean isHeld() {
+        return held;
+    }
+
     /** マウスのボタンを離した。押下中・ドラッグ中の状態を解除。 */
     public void release() {
         pressed = null;
         dragging = false;
+        held = false;
     }
 
     private boolean isEnabled(BandLayout.Cell cell) {

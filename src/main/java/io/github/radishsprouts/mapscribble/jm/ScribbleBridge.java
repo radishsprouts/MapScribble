@@ -606,7 +606,9 @@ public final class ScribbleBridge implements PrimaryMapBridge {
             return;
         }
 
-        if (state.isOverBand(pos.x / guiScale, pos.y / guiScale)) {
+        // 帯の上で押したドラッグは、帯が動いてカーソルが帯の外へ出ても帯のもの。ここで一筆を始めない
+        // （extendStroke は一筆が無いと始めてしまう）ので、離した時に「線のメモ」の画面が開かない
+        if (ui.band().isHeld() || state.isOverBand(pos.x / guiScale, pos.y / guiScale)) {
             cancel(event);
             return;
         }
