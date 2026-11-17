@@ -94,5 +94,6 @@
   "mapscribble.text_visibility.hide.desc": "Hides the text on outlines, lines and text notes",
   "mapscribble.text_visibility.show": "Show Text",
   "mapscribble.text_visibility.show.desc": "Shows all hidden text again",
-  "mapscribble.text_size.tooltip": "Text size: %s"
+  "mapscribble.text_size.tooltip": "Text size: %s",
+  "mapscribble.msg.jm010_imported": "Imported 0.1.0 notes as notebooks"
 }

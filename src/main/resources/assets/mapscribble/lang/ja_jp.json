@@ -94,5 +94,6 @@
   "mapscribble.text_visibility.hide.desc": "囲み・線・文字メモの文字をすべて隠します",
   "mapscribble.text_visibility.show": "文字を表示する",
   "mapscribble.text_visibility.show.desc": "隠している文字をすべて表示します",
-  "mapscribble.text_size.tooltip": "文字の大きさ：%s"
+  "mapscribble.text_size.tooltip": "文字の大きさ：%s",
+  "mapscribble.msg.jm010_imported": "0.1.0 のメモをメモ帳として取り込みました"
 }
