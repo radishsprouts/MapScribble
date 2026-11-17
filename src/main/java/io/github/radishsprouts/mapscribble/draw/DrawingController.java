@@ -8,8 +8,14 @@ import io.github.radishsprouts.mapscribble.model.MapPoint;
 import io.github.radishsprouts.mapscribble.model.Memo;
 import io.github.radishsprouts.mapscribble.model.MemoKind;
 import io.github.radishsprouts.mapscribble.store.MemoRepository;
+import io.github.radishsprouts.mapscribble.store.MoveDirection;
+import io.github.radishsprouts.mapscribble.store.MoveResult;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -27,9 +33,19 @@ public final class DrawingController {
     public static final String NOTICE_TOO_SHORT = "mapscribble.msg.too_short";
     public static final String NOTICE_NO_NOTE = "mapscribble.msg.no_note";
     public static final String NOTICE_HIDDEN_PICK = "mapscribble.msg.hidden_pick";
+    /** 分ける前のメモを移している最中で、編集を受け付けない（文言は W6 で足す）。 */
+    public static final String NOTICE_BUSY = "mapscribble.msg.move_busy";
 
     /** 履歴 1 件。before が null なら追加、after が null なら削除、両方あれば変更。 */
-    record Edit(Memo before, Memo after) {
+    record Edit(Memo before, Memo after) implements HistoryEntry {
+    }
+
+    /** 履歴 1 件の型。メモの編集か、分ける前のメモをメモ帳へ移した操作。 */
+    sealed interface HistoryEntry permits Edit, Move {
+    }
+
+    /** 分ける前のメモを移した操作。元に戻すと逆向きに移す。 */
+    record Move(List<UUID> ids, MoveDirection direction) implements HistoryEntry {
     }
 
     /** 描いている最中の一筆。 */
@@ -59,8 +75,10 @@ public final class DrawingController {
 
     private final DrawingState state;
     private final Supplier<MemoRepository> repositorySupplier;
-    private final UndoHistory<Edit> history = new UndoHistory<>();
+    private final UndoHistory<HistoryEntry> history = new UndoHistory<>();
     private ActiveStroke stroke;
+    /** 履歴を作った時の保存先の世代。変わっていたら履歴を捨てる（別のサーバー・メモ帳へ書かないため）。 */
+    private long historyGeneration;
 
     public DrawingController(DrawingState state, Supplier<MemoRepository> repositorySupplier) {
         this.state = state;
@@ -86,7 +104,7 @@ public final class DrawingController {
 
     /** メモを追加して履歴に積む。メモを隠していたら表示へ戻す（描いたのに見えない、を防ぐ）。 */
     public void add(Memo memo) {
-        MemoRepository repo = repository();
+        MemoRepository repo = editableRepository();
         if (repo == null) {
             return;
         }
@@ -97,7 +115,7 @@ public final class DrawingController {
 
     /** メモを変更して履歴に積む（変更の前後を持つ）。 */
     public void update(Memo before, Memo after) {
-        MemoRepository repo = repository();
+        MemoRepository repo = editableRepository();
         if (repo == null) {
             return;
         }
@@ -108,7 +126,7 @@ public final class DrawingController {
 
     /** メモを削除して履歴に積む。 */
     public void remove(Memo memo) {
-        MemoRepository repo = repository();
+        MemoRepository repo = editableRepository();
         if (repo == null) {
             return;
         }
@@ -118,23 +136,69 @@ public final class DrawingController {
     }
 
     public boolean canUndo() {
+        ensureFresh(repository());
         return history.canUndo() && repository() != null;
     }
 
     public boolean canRedo() {
+        ensureFresh(repository());
         return history.canRedo() && repository() != null;
     }
 
-    /** 直前の追加・変更・削除を取り消す。取り消したら true。 */
-    public boolean undo() {
+    /**
+     * 変更してよい窓口。保存先が決まっていなければ null。移している最中は何もせず null（お知らせを出す）。
+     * 保存先が変わっていたら、先に履歴と描いている最中の一筆を捨てる。
+     */
+    private MemoRepository editableRepository() {
         MemoRepository repo = repository();
+        if (repo == null) {
+            return null;
+        }
+        ensureFresh(repo);
+        if (repo.isBusy()) {
+            state.notice(NOTICE_BUSY);
+            return null;
+        }
+        return repo;
+    }
+
+    /** 保存先が開き直されていたら（サーバー・メモ帳が変わった）、履歴と一筆を捨てる。 */
+    private void ensureFresh(MemoRepository repo) {
+        if (repo == null) {
+            return;
+        }
+        long generation = repo.generation();
+        if (generation != historyGeneration) {
+            history.clear();
+            stroke = null;
+            historyGeneration = generation;
+        }
+    }
+
+    /** 直前の追加・変更・削除・移す操作を取り消す。取り消したら（移す操作は始めたら）true。 */
+    public boolean undo() {
+        MemoRepository repo = editableRepository();
         if (repo == null) {
             return false;
         }
-        Edit edit = history.popUndo();
-        if (edit == null) {
+        HistoryEntry entry = history.popUndo();
+        if (entry == null) {
             return false;
         }
+        if (entry instanceof Move move) {
+            long generation = repo.generation();
+            repo.move(move.ids(), move.direction().reverse(), result -> {
+                if (!result.ok()) {
+                    if (repo.generation() == generation) {
+                        history.restoreUndo(entry);
+                    }
+                    state.notice(result.messageKey());
+                }
+            });
+            state.notice(NOTICE_UNDONE);
+            return true;
+        }
+        Edit edit = (Edit) entry;
         if (edit.before() == null) {
             repo.remove(edit.after().id());
         } else if (edit.after() == null) {
@@ -148,14 +212,28 @@ public final class DrawingController {
 
     /** 取り消した操作をやり直す。やり直したら true。 */
     public boolean redo() {
-        MemoRepository repo = repository();
+        MemoRepository repo = editableRepository();
         if (repo == null) {
             return false;
         }
-        Edit edit = history.popRedo();
-        if (edit == null) {
+        HistoryEntry entry = history.popRedo();
+        if (entry == null) {
             return false;
         }
+        if (entry instanceof Move move) {
+            long generation = repo.generation();
+            repo.move(move.ids(), move.direction(), result -> {
+                if (!result.ok()) {
+                    if (repo.generation() == generation) {
+                        history.restoreRedo(entry);
+                    }
+                    state.notice(result.messageKey());
+                }
+            });
+            state.notice(NOTICE_REDONE);
+            return true;
+        }
+        Edit edit = (Edit) entry;
         if (edit.before() == null) {
             repo.add(edit.after());
         } else if (edit.after() == null) {
@@ -171,6 +249,37 @@ public final class DrawingController {
     public void onDimensionChanged() {
         history.clear();
         stroke = null;
+    }
+
+    /**
+     * 分ける前のメモを今のメモ帳へ移し、成功したら履歴に積む（元に戻すで戻せる）。
+     *
+     * @param ids    移すメモ。null なら今のディメンションの分ける前のメモ全部
+     * @param onDone 結果（主スレッドで呼ばれる）。null 可
+     */
+    public void moveLegacyToNotebook(Collection<UUID> ids, Consumer<MoveResult> onDone) {
+        MemoRepository repo = editableRepository();
+        if (repo == null) {
+            if (onDone != null) {
+                onDone.accept(MoveResult.unsupported());
+            }
+            return;
+        }
+        List<UUID> target = new ArrayList<>();
+        for (Memo m : repo.memos()) {
+            if (repo.isLegacy(m.id()) && (ids == null || ids.contains(m.id()))) {
+                target.add(m.id());
+            }
+        }
+        long generation = repo.generation();
+        repo.move(target, MoveDirection.LEGACY_TO_PRIMARY, result -> {
+            if (result.ok() && result.moved() > 0 && repo.generation() == generation) {
+                history.push(new Move(List.copyOf(target), MoveDirection.LEGACY_TO_PRIMARY));
+            }
+            if (onDone != null) {
+                onDone.accept(result);
+            }
+        });
     }
 
     int historySize() {

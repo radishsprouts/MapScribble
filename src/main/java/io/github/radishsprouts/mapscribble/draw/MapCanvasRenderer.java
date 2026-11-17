@@ -79,6 +79,7 @@ public final class MapCanvasRenderer {
     private int projectionVersion;
     private long frame;
     private Object lastDimension;
+    private long lastGeneration;
 
     public MapCanvasRenderer(DrawingController controller) {
         this.controller = controller;
@@ -102,6 +103,13 @@ public final class MapCanvasRenderer {
                 controller.onDimensionChanged();
             }
             lastDimension = dimension;
+            cache.clear();
+        }
+        // 同じディメンションのままサーバー・メモ帳が変わった時も、描画のキャッシュを捨てる
+        MemoRepository generationSource = controller.repository();
+        long generation = generationSource == null ? 0 : generationSource.generation();
+        if (generation != lastGeneration) {
+            lastGeneration = generation;
             cache.clear();
         }
 
