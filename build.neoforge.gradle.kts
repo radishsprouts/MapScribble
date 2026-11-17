@@ -47,6 +47,9 @@ repositories {
 
 neoForge {
     version = project.property("neoforge_version").toString()
+    // hashed seed（BiomeManager.biomeZoomSeed）を読むための Access Transformer（compat/WorldIdentityCompat）
+    accessTransformers.from(rootProject.file("src/main/accesstransformer/mojmap.cfg"))
+    validateAccessTransformers = true
     runs {
         create("client") {
             client()
@@ -101,6 +104,9 @@ tasks.withType<Test> {
 tasks.processResources {
     filteringCharset = "UTF-8"
     exclude("META-INF/mods.toml", "fabric.mod.json")
+    from(rootProject.file("src/main/accesstransformer/mojmap.cfg")) {
+        into("META-INF"); rename { "accesstransformer.cfg" }
+    }
     val props = mapOf(
         "version" to rootProject.version.toString(),
         "minecraft" to minecraftVersion,

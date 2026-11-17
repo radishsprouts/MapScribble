@@ -49,6 +49,8 @@ repositories {
 
 legacyForge {
     version = project.property("forge_version").toString()
+    // hashed seed（BiomeManager.biomeZoomSeed）を読むための Access Transformer（compat/WorldIdentityCompat）。開発時の指定
+    accessTransformers.from(rootProject.file("src/main/accesstransformer/srg.cfg"))
     runs {
         create("client") {
             client()
@@ -104,6 +106,9 @@ tasks.withType<Test> {
 tasks.processResources {
     filteringCharset = "UTF-8"
     exclude("META-INF/neoforge.mods.toml", "fabric.mod.json")
+    from(rootProject.file("src/main/accesstransformer/srg.cfg")) {
+        into("META-INF"); rename { "accesstransformer.cfg" }
+    }
     val props = mapOf(
         "version" to rootProject.version.toString(),
         "minecraft" to minecraftVersion,
