@@ -156,6 +156,7 @@
   "mapscribble.msg.moved": "Notes moved: %s (Ctrl+Z to undo)",
   "mapscribble.msg.move_undone": "Moved notes put back",
   "mapscribble.msg.move_failed": "Move failed (files untouched)",
+  "mapscribble.msg.move_busy": "A move is in progress. Please wait",
   "mapscribble.note.presplit": "Pre-split note (shown on every server)",
   "mapscribble.screen.title.presplit": "(pre-split)"
 }

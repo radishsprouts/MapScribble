@@ -131,6 +131,7 @@ public final class ScreenMapHost {
             canvasRenderer = new MapCanvasRenderer(controller);
             scribbleUi = new ScribbleUi(controller,
                     ScreenCompat.gameDirectory().resolve("config").resolve(UiPrefs.FILE_NAME));
+            scribbleUi.setNotebookAccess(StoreSession::notebooks, StoreSession::notebookExtras);
             StoreSession.addNotifier(message -> scribbleUi.onLoadFailed());
             StoreSession.addSaveNotifier(scribbleUi::onSaveStateChanged);
         }

@@ -66,6 +66,11 @@ public final class UndoHistory<T> {
         }
     }
 
+    /** 次に取り消す操作を、取り出さずに見る。無ければ null。 */
+    public T peekUndo() {
+        return undo.peekLast();
+    }
+
     public boolean canUndo() {
         return !undo.isEmpty();
     }

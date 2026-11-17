@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 //? if fabric {
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -42,6 +43,7 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.GameShuttingDownEvent;
     //? if >=1.21.11 {
     import net.minecraft.resources.Identifier;
     //?} else {
@@ -51,6 +53,7 @@ import net.neoforged.neoforge.common.NeoForge;
 /*import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.event.GameShuttingDownEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.fml.IExtensionPoint;
 import net.minecraftforge.fml.common.Mod;
@@ -106,6 +109,8 @@ implements ClientModInitializer
             }
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> StoreSession.updateDimension(null));
+        // 切断せずにゲームを閉じても、書き込みの待ち時間の間の変更を失わない（予備は StoreSession の JVM 終了フック）
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> StoreSession.shutdown());
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.level != null) {
@@ -199,6 +204,8 @@ implements ClientModInitializer
             }
         });
         forgeBus.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> StoreSession.updateDimension(null));
+        // 切断せずにゲームを閉じても、書き込みの待ち時間の間の変更を失わない（予備は StoreSession の JVM 終了フック）
+        forgeBus.addListener((GameShuttingDownEvent event) -> StoreSession.shutdown());
 
         forgeBus.addListener((ClientTickEvent.Post event) -> {
             Minecraft mc = Minecraft.getInstance();
@@ -292,6 +299,8 @@ implements ClientModInitializer
         });
         ClientPlayerNetworkEvent.LoggingOut.BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) ->
                 StoreSession.updateDimension(null));
+        // 切断せずにゲームを閉じても、書き込みの待ち時間の間の変更を失わない（予備は StoreSession の JVM 終了フック）
+        GameShuttingDownEvent.BUS.addListener((GameShuttingDownEvent event) -> StoreSession.shutdown());
 
         // Post だけなので phase の判定は要らない
         TickEvent.ClientTickEvent.Post.BUS.addListener((TickEvent.ClientTickEvent.Post event) -> {
@@ -358,6 +367,8 @@ implements ClientModInitializer
             }
         });
         forgeBus.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> StoreSession.updateDimension(null));
+        // 切断せずにゲームを閉じても、書き込みの待ち時間の間の変更を失わない（予備は StoreSession の JVM 終了フック）
+        forgeBus.addListener((GameShuttingDownEvent event) -> StoreSession.shutdown());
 
         forgeBus.addListener((TickEvent.ClientTickEvent event) -> {
             if (event.phase == TickEvent.Phase.END) {

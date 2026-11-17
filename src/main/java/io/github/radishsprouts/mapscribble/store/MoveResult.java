@@ -8,8 +8,8 @@ package io.github.radishsprouts.mapscribble.store;
  * @param moved      実際に移したメモの数
  */
 public record MoveResult(boolean ok, String messageKey, int moved) {
-    public static final String KEY_UNAVAILABLE = "mapscribble.move.unavailable";
-    public static final String KEY_FAILED = "mapscribble.move.failed";
+    public static final String KEY_UNAVAILABLE = "mapscribble.msg.move_failed";
+    public static final String KEY_FAILED = "mapscribble.msg.move_failed";
 
     public static MoveResult success(int moved) {
         return new MoveResult(true, null, moved);
