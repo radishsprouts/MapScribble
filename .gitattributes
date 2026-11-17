@@ -7,3 +7,6 @@
 # These are Windows script files and should use crlf
 *.bat           text eol=crlf
 
+
+# Past-version memo fixtures for regression tests: byte-exact, no EOL conversion
+src/test/resources/legacy/** -text
