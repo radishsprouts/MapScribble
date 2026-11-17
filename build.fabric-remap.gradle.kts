@@ -50,6 +50,12 @@ repositories {
     maven("https://api.modrinth.com/maven") { name = "Modrinth" }
 }
 
+// hashed seed（BiomeManager.biomeZoomSeed）を読むための Access Widener（compat/WorldIdentityCompat）。
+// 共有の resources には置かず、この構成の名前（named）のファイルだけを jar の直下へ固定の名前で入れる
+loom {
+    accessWidenerPath = rootProject.file("src/main/accesswidener/named.accesswidener")
+}
+
 dependencies {
     minecraft("com.mojang:minecraft:$minecraftVersion")
     mappings(loom.officialMojangMappings())
@@ -94,6 +100,9 @@ tasks.withType<Test> {
 
 tasks.processResources {
     filteringCharset = "UTF-8"
+    from(rootProject.file("src/main/accesswidener/named.accesswidener")) {
+        rename { "mapscribble.accesswidener" }
+    }
     exclude("META-INF/mods.toml", "META-INF/neoforge.mods.toml")
     val props = mapOf(
         "version" to rootProject.version.toString(),

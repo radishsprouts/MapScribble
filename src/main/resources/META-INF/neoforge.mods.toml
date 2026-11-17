@@ -10,6 +10,9 @@ description="Handwritten notes and scribbles on full-screen and mini maps (Journ
 authors="radishsprouts"
 logoFile="assets/mapscribble/icon.png"
 
+[[accessTransformers]]
+file="META-INF/accesstransformer.cfg"
+
 [[dependencies.mapscribble]]
 modId="neoforge"
 type="required"

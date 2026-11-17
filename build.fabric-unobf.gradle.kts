@@ -63,6 +63,12 @@ fabricApi {
     }
 }
 
+// hashed seed（BiomeManager.biomeZoomSeed）を読むための Access Widener（compat/WorldIdentityCompat）。
+// 共有の resources には置かず、この構成の名前（official）のファイルだけを jar の直下へ固定の名前で入れる
+loom {
+    accessWidenerPath = rootProject.file("src/main/accesswidener/official.accesswidener")
+}
+
 dependencies {
     minecraft("com.mojang:minecraft:$minecraftVersion")
 
@@ -113,6 +119,9 @@ tasks.withType<Test> {
 
 tasks.processResources {
     filteringCharset = "UTF-8"
+    from(rootProject.file("src/main/accesswidener/official.accesswidener")) {
+        rename { "mapscribble.accesswidener" }
+    }
     exclude("META-INF/mods.toml", "META-INF/neoforge.mods.toml")
     val props = mapOf(
         "version" to rootProject.version.toString(),

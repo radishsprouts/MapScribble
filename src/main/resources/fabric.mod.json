@@ -15,6 +15,7 @@
   "license": "MIT",
   "icon": "assets/mapscribble/icon.png",
   "environment": "client",
+  "accessWidener": "mapscribble.accesswidener",
   "entrypoints": {
     "client": [
       "io.github.radishsprouts.mapscribble.MapScribble"
