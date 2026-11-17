@@ -171,6 +171,8 @@ public final class StoreSession {
         // メモ帳が変わると鍵が変わるので、SessionController が「書き切る → 捨てる → 読み直す」を行う
         String notebookBefore = currentNotebookId();
         if (CONTROLLER.update(createKey(target, dimension), StoreSession::beforeOpen)) {
+            // 開き直すと元に戻すの履歴を捨てるので、「Ctrl+Z で戻せます」の知らせも捨てる（切り替えの知らせより先に）
+            NoticeTimer.shared().discardUndoHints();
             announceIfNotebookChanged(notebookBefore);
             notifyNotebookListeners();
         }
@@ -341,6 +343,8 @@ public final class StoreSession {
         }
         String notebookBefore = currentNotebookId();
         if (CONTROLLER.update(createKey(target, dimension), StoreSession::beforeOpen)) {
+            // 開き直すと元に戻すの履歴を捨てるので、「Ctrl+Z で戻せます」の知らせも捨てる（切り替えの知らせより先に）
+            NoticeTimer.shared().discardUndoHints();
             announceIfNotebookChanged(notebookBefore);
             notifyNotebookListeners();
         }

@@ -185,4 +185,26 @@ class NoticeTimerTest {
         assertEquals(false, NoticeTimer.isEvent("mapscribble.msg.move_busy"));
         assertEquals(false, NoticeTimer.isEvent(OP));
     }
+
+    /** サーバーを移って元に戻すの履歴を捨てた後に、「Ctrl+Z で戻せます」の知らせを残さない。 */
+    @Test
+    void 開き直すと_Ctrl_Zを案内する知らせだけを捨てる() {
+        NoticeTimer t = new NoticeTimer();
+        t.push(HintResolver.NOTICE_MOVED, 0, 4);
+        t.push(A, 0);
+        assertEquals(HintResolver.NOTICE_MOVED, t.activeKey(0));
+        t.discardUndoHints();
+        assertEquals(A, t.activeKey(0));
+        assertEquals(1, t.size());
+
+        NoticeTimer d = new NoticeTimer();
+        d.push("mapscribble.msg.deleted", 0);
+        d.discardUndoHints();
+        assertNull(d.activeKey(0));
+
+        NoticeTimer u = new NoticeTimer();
+        u.push(OP, 0);
+        u.discardUndoHints();
+        assertEquals(OP, u.activeKey(0));
+    }
 }

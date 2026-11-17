@@ -196,6 +196,19 @@ public final class NoticeTimer {
         return queue.size();
     }
 
+    /**
+     * 「Ctrl+Z で戻せます」と案内する知らせ（移した・消した）のキー。保存先が開き直されると元に戻すの履歴を捨てるので
+     * （v0.4-server-split.md の「元に戻す」）、その後に残ると戻せないのに戻せると案内してしまう。
+     */
+    private static final Set<String> UNDO_HINT_KEYS = Set.of(
+            HintResolver.NOTICE_MOVED,
+            "mapscribble.msg.deleted");
+
+    /** 保存先が開き直された時（サーバー・ディメンション・メモ帳が変わった時）に、Ctrl+Z を案内する知らせを表示中も含めて捨てる。 */
+    public void discardUndoHints() {
+        queue.removeIf(e -> UNDO_HINT_KEYS.contains(e.key));
+    }
+
     /** 全部捨てる（接続を離れた時）。 */
     public void clear() {
         queue.clear();
