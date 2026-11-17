@@ -19,8 +19,27 @@ public final class NotebookLayout {
     public static final int ROW_INNER_PAD = 2;
     public static final int NAME_X = 4;
     public static final int NAME_MAX_WIDTH = 160;
-    public static final int COUNT_RIGHT_X = 220;
+    /** 日付の右端（行内の x）。件数・名前の位置は、日付と件数の実際の幅からここを基準に毎回出す。 */
     public static final int DATE_RIGHT_X = 274;
+    /** 日付の左端と件数の右端の間。 */
+    public static final int DATE_COUNT_GAP = 8;
+    /** 件数の左端と名前の右端の上限の間。 */
+    public static final int COUNT_NAME_GAP = 6;
+
+    /** 件数の右端（行内の x）。日付の左端 − 8。 */
+    public static int countRightX(int dateWidth) {
+        return DATE_RIGHT_X - dateWidth - DATE_COUNT_GAP;
+    }
+
+    /** 名前（［使用中］を含む）の右端の上限（行内の x）。件数の左端 − 6。 */
+    public static int nameRightLimitX(int dateWidth, int countWidth) {
+        return countRightX(dateWidth) - countWidth - COUNT_NAME_GAP;
+    }
+
+    /** 名前の最大幅。min(160, 上限 − 4)。負にはしない。 */
+    public static int nameMaxWidth(int dateWidth, int countWidth) {
+        return Math.max(0, Math.min(NAME_MAX_WIDTH, nameRightLimitX(dateWidth, countWidth) - NAME_X));
+    }
     public static final int SCROLLBAR_X = 279;
     public static final int SCROLLBAR_WIDTH = 4;
 

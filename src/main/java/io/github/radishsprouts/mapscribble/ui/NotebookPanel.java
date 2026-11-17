@@ -1,6 +1,7 @@
 package io.github.radishsprouts.mapscribble.ui;
 
 import io.github.radishsprouts.mapscribble.store.NotebookAccess;
+import io.github.radishsprouts.mapscribble.store.NotebookFile;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -112,11 +113,23 @@ public final class NotebookPanel {
 
     /** 分ける前のメモの行の翻訳キー（空なら null）。 */
     public static String legacyKey(Kind kind, int total) {
+        return legacyKey(kind, total, 0);
+    }
+
+    /**
+     * 分ける前のメモの行の翻訳キー。{@code total} は全ディメンションの合計、{@code otherDimensions} はほかのディメンションの件数。
+     * 分けている接続先（自動・利用者）で、ほかのディメンションにもある時は「ここに○件・ほかのディメンションに○件」の行にする。
+     * 合計が 0 なら「ありません」のまま。
+     */
+    public static String legacyKey(Kind kind, int total, int otherDimensions) {
         if (kind == Kind.LOADING) {
             return null;
         }
         if (total <= 0) {
             return "mapscribble.notebook.presplit.none";
+        }
+        if ((kind == Kind.SPLIT_AUTO || kind == Kind.SPLIT_USER) && otherDimensions > 0) {
+            return "mapscribble.notebook.presplit.dims";
         }
         return switch (kind) {
             case UNSPLIT -> "mapscribble.notebook.presplit.unsplit";
@@ -176,8 +189,22 @@ public final class NotebookPanel {
             return "mapscribble.notebook.error.empty";
         }
         for (NotebookAccess.Info info : notebooks) {
-            if (!info.id().equals(ownId) && info.name().equals(name)) {
+            if (!info.id().equals(ownId) && NotebookFile.sameName(info.name(), name)) {
                 return "mapscribble.notebook.error.duplicate";
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 名前が重なっている既存のメモ帳の名前（無ければ null。重なる相手は名前が空ではない）。大文字・小文字、全角・半角の違いは同じ名前とみなす。
+     * ownId のメモ帳（名前を変える本人）は除く。エラーに既存の名前を出すために使う。
+     */
+    public static String conflictingName(String raw, List<NotebookAccess.Info> notebooks, String ownId) {
+        String name = normalizeName(raw);
+        for (NotebookAccess.Info info : notebooks) {
+            if (!info.id().equals(ownId) && NotebookFile.sameName(info.name(), name)) {
+                return info.name();
             }
         }
         return null;
@@ -198,7 +225,7 @@ public final class NotebookPanel {
             String candidate = nameOf.apply(n);
             boolean used = false;
             for (NotebookAccess.Info info : notebooks) {
-                if (info.name().equals(candidate)) {
+                if (NotebookFile.sameName(info.name(), candidate)) {
                     used = true;
                     break;
                 }

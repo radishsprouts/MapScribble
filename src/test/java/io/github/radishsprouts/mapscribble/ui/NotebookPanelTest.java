@@ -104,6 +104,59 @@ class NotebookPanelTest {
     }
 
     @Test
+    void 名前の重複は大文字小文字と全角半角を区別しない() {
+        List<NotebookAccess.Info> list = List.of(info("a", "Bk"), info("b", "鉱山"));
+        assertEquals("mapscribble.notebook.error.duplicate", NotebookPanel.validateName("bk", list, "b"));
+        assertEquals("mapscribble.notebook.error.duplicate", NotebookPanel.validateName("ＢＫ", list, "b"));
+        assertEquals("mapscribble.notebook.error.duplicate", NotebookPanel.validateName(" Bk ", list, "b"));
+        assertEquals("Bk", NotebookPanel.conflictingName("bk", list, "b"));
+        assertNull(NotebookPanel.conflictingName("別の名前", list, "b"));
+        // 自分自身の大文字・小文字だけの変更は通る
+        assertNull(NotebookPanel.validateName("BK", list, "a"));
+        assertNull(NotebookPanel.conflictingName("BK", list, "a"));
+    }
+
+    @Test
+    void 既定の名前は全角の番号も使用中とみなす() {
+        List<NotebookAccess.Info> list = List.of(info("a", "メモ帳 １"));
+        assertEquals("メモ帳 2", NotebookPanel.defaultName(list, n -> "メモ帳 " + n));
+    }
+
+    @Test
+    void 分ける前のメモの行の分岐() {
+        // ほかのディメンションに無ければ今までどおり
+        assertEquals("mapscribble.notebook.presplit", NotebookPanel.legacyKey(NotebookPanel.Kind.SPLIT_AUTO, 4, 0));
+        assertEquals("mapscribble.notebook.presplit", NotebookPanel.legacyKey(NotebookPanel.Kind.SPLIT_USER, 4));
+        // 分けていて、ほかのディメンションにもある時
+        assertEquals("mapscribble.notebook.presplit.dims",
+                NotebookPanel.legacyKey(NotebookPanel.Kind.SPLIT_AUTO, 7, 3));
+        assertEquals("mapscribble.notebook.presplit.dims",
+                NotebookPanel.legacyKey(NotebookPanel.Kind.SPLIT_USER, 3, 3));
+        // 分けていない・ワールドを見分けられない・読み込み中は合計のまま
+        assertEquals("mapscribble.notebook.presplit.unsplit",
+                NotebookPanel.legacyKey(NotebookPanel.Kind.UNSPLIT, 7, 3));
+        assertEquals("mapscribble.notebook.presplit.writing",
+                NotebookPanel.legacyKey(NotebookPanel.Kind.NO_WORLD_ID, 7, 3));
+        assertNull(NotebookPanel.legacyKey(NotebookPanel.Kind.LOADING, 7, 3));
+        // 合計が 0 なら「ありません」
+        assertEquals("mapscribble.notebook.presplit.none", NotebookPanel.legacyKey(NotebookPanel.Kind.SPLIT_AUTO, 0, 0));
+    }
+
+    @Test
+    void 一覧の列は日付から逆算し_件数と日付が重ならない() {
+        int dateW = 60;
+        int countW = 40;
+        int dateLeft = NotebookLayout.DATE_RIGHT_X - dateW;
+        int countRight = NotebookLayout.countRightX(dateW);
+        assertEquals(8, dateLeft - countRight);
+        int nameRight = NotebookLayout.nameRightLimitX(dateW, countW);
+        assertEquals(6, countRight - countW - nameRight);
+        assertEquals(Math.min(160, nameRight - NotebookLayout.NAME_X), NotebookLayout.nameMaxWidth(dateW, countW));
+        // 件数の幅が狭ければ名前は 160 まで
+        assertEquals(160, NotebookLayout.nameMaxWidth(dateW, 10));
+    }
+
+    @Test
     void 日付と使用中の行() {
         assertEquals("2026-11-01", NotebookPanel.dateLabel(Instant.parse("2026-11-01T00:00:00Z"), ZoneId.of("UTC")));
         assertEquals("", NotebookPanel.dateLabel(null, ZoneId.of("UTC")));

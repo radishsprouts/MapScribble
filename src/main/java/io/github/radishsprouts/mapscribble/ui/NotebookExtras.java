@@ -36,6 +36,16 @@ public interface NotebookExtras {
         }
 
         @Override
+        public int legacyHere() {
+            return 0;
+        }
+
+        @Override
+        public int legacyOtherDimensions() {
+            return 0;
+        }
+
+        @Override
         public int legacyVisible() {
             return 0;
         }
@@ -77,6 +87,12 @@ public interface NotebookExtras {
 
     /** 分ける前のメモの件数（この接続先の全ディメンション）。 */
     int legacyTotal();
+
+    /** 分ける前のメモのうち、今のディメンションの件数（「ここの分を移す」で移る件数と一致する）。 */
+    int legacyHere();
+
+    /** 分ける前のメモのうち、ほかのディメンションにある件数（移さない）。 */
+    int legacyOtherDimensions();
 
     /** 分ける前のメモのうち、画面を開いた時に全画面マップに（一部でも）見えていた分の件数。 */
     int legacyVisible();

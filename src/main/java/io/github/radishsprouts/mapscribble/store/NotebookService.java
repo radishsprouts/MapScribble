@@ -155,7 +155,7 @@ public final class NotebookService implements NotebookAccess {
             return KEY_EMPTY;
         }
         for (Notebook nb : StoreSession.registry().notebooks(dir).notebooks()) {
-            if (!nb.id().equals(selfId) && nb.name().equals(clean)) {
+            if (!nb.id().equals(selfId) && NotebookFile.sameName(nb.name(), clean)) {
                 return KEY_DUPLICATE;
             }
         }

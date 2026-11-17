@@ -29,6 +29,8 @@ final class StoreNotebookExtras implements NotebookExtras {
     /** 件数の覚え。変わった時に true にして、次に聞かれた時に数え直す。 */
     private boolean dirty = true;
     private int legacyTotal;
+    /** 分ける前のメモのうち、いま開いているディメンションのファイル以外（ほかのディメンション）の件数。 */
+    private int legacyOther;
     private final Map<String, Integer> notebookCounts = new HashMap<>();
 
     /** 画面を開いた時に見えていた分（開いた後に地図を動かしても変わらない）。 */
@@ -81,6 +83,31 @@ final class StoreNotebookExtras implements NotebookExtras {
     public int legacyTotal() {
         refresh();
         return legacyTotal;
+    }
+
+    @Override
+    public int legacyHere() {
+        return countLegacyHere(store);
+    }
+
+    /**
+     * 今のディメンションの分ける前のメモの件数。移す操作が対象にするメモ（DrawingController#moveLegacyToNotebook）と
+     * 同じ条件（開いているメモのうち isLegacy のもの）で数える。ボタンの件数と実際に移る件数を一致させるため。
+     */
+    static int countLegacyHere(MemoRepository repo) {
+        int n = 0;
+        for (Memo memo : repo.memos()) {
+            if (repo.isLegacy(memo.id())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    @Override
+    public int legacyOtherDimensions() {
+        refresh();
+        return legacyOther;
     }
 
     @Override
@@ -144,6 +171,9 @@ final class StoreNotebookExtras implements NotebookExtras {
         Path dir = StoreSession.notebookAddressDir();
         notebookCounts.clear();
         legacyTotal = 0;
+        legacyOther = 0;
+        Path openLegacy = StoreSession.currentLegacyFile();
+        String openLegacyName = openLegacy == null ? null : openLegacy.getFileName().toString();
         if (dir == null || !Files.isDirectory(dir)) {
             return;
         }
@@ -157,7 +187,11 @@ final class StoreNotebookExtras implements NotebookExtras {
                         notebookCounts.put(name, countFolder(entry));
                     }
                 } else if (name.endsWith(".json") && !name.equals(NotebookFile.FILE_NAME)) {
-                    legacyTotal += countFile(entry);
+                    int n = countFile(entry);
+                    legacyTotal += n;
+                    if (!name.equals(openLegacyName)) {
+                        legacyOther += n;
+                    }
                 }
             }
         } catch (IOException e) {

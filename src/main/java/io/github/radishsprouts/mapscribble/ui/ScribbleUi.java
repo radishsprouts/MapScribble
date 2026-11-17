@@ -237,7 +237,7 @@ public final class ScribbleUi {
             NotebookAccess.State st = access.state();
             int inUse = NotebookPanel.inUseIndex(st);
             note = inUse >= 0 && NotebookPanel.isSplit(NotebookPanel.kindOf(st, false))
-                    ? st.notebooks().get(inUse).name() : I18n.get("mapscribble.menu.notebooks.shared");
+                    ? NotebookNames.display(st.notebooks().get(inUse).name()) : I18n.get("mapscribble.menu.notebooks.shared");
         }
         return List.of(new BandMenu.Item(Component.translatable("mapscribble.menu.notebooks"), note, available, tooltip,
                 () -> openNotebooks(access)));

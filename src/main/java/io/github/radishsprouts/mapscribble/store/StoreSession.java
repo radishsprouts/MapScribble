@@ -5,6 +5,7 @@ import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.compat.WorldIdentityCompat;
 import io.github.radishsprouts.mapscribble.ui.HintResolver;
 import io.github.radishsprouts.mapscribble.ui.NotebookExtras;
+import io.github.radishsprouts.mapscribble.ui.NotebookNames;
 import io.github.radishsprouts.mapscribble.ui.NoticeTimer;
 import io.github.radishsprouts.mapscribble.store.NotebookFile.Notebooks;
 import io.github.radishsprouts.mapscribble.store.NotebookRegistry.ManualSelection;
@@ -21,6 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.LevelResource;
@@ -167,7 +169,9 @@ public final class StoreSession {
         }
         importLegacyOnce(target);
         // メモ帳が変わると鍵が変わるので、SessionController が「書き切る → 捨てる → 読み直す」を行う
+        String notebookBefore = currentNotebookId();
         if (CONTROLLER.update(createKey(target, dimension), StoreSession::beforeOpen)) {
+            announceIfNotebookChanged(notebookBefore);
             notifyNotebookListeners();
         }
     }
@@ -221,7 +225,7 @@ public final class StoreSession {
         String notebook = null;
         if (target.kind() == Kind.MULTI) {
             Path dir = target.saveDir();
-            Resolution r = REGISTRY.resolveFull(dir, lastSeedHash, manualSelection);
+            Resolution r = REGISTRY.resolveFull(dir, lastSeedHash, manualSelection, StoreSession::autoNotebookName);
             notebook = r.notebookId();
             if (r.proposal() != null) {
                 if (inFlight > 0 || IMPORTING.contains(normalize(dir))) {
@@ -262,7 +266,8 @@ public final class StoreSession {
             // 他の記録の書き込み中。ハッシュが違う間は次の ClientLevel でも split になるので、その時に改めて判定する
             return;
         }
-        Notebooks proposal = REGISTRY.proposeSplit(dir, r.previous(), r.current(), Instant.now());
+        Notebooks proposal = REGISTRY.proposeSplit(dir, r.previous(), r.current(), Instant.now(),
+                StoreSession::autoNotebookName);
         if (proposal == null) {
             // 提案できない理由が「読めない」なら知らせる（mode が決まっている・書き込み中は静かに何もしない）
             if (!REGISTRY.status(dir).canWrite() && UNREADABLE_NOTIFIED.add(normalize(dir))) {
@@ -334,7 +339,9 @@ public final class StoreSession {
         if (target == null || dimension == null) {
             return;
         }
+        String notebookBefore = currentNotebookId();
         if (CONTROLLER.update(createKey(target, dimension), StoreSession::beforeOpen)) {
+            announceIfNotebookChanged(notebookBefore);
             notifyNotebookListeners();
         }
     }
@@ -349,6 +356,12 @@ public final class StoreSession {
     static Path notebookAddressDir() {
         Target t = currentTarget;
         return t != null && t.kind() == Kind.MULTI ? t.saveDir() : null;
+    }
+
+    /** いま開いている分ける前のファイル（メモ帳を開いている時だけ。直下なら null）。 */
+    static Path currentLegacyFile() {
+        SessionKey key = CONTROLLER.current();
+        return key == null ? null : key.legacyFile();
     }
 
     static long currentSeedHash() {
@@ -392,7 +405,27 @@ public final class StoreSession {
             return null;
         }
         NotebookFile.Notebook nb = REGISTRY.notebooks(dir).find(id);
-        return nb == null ? null : nb.name();
+        return nb == null ? null : NotebookNames.display(nb.name());
+    }
+
+    /** 自動で作るメモ帳の名前（「メモ帳 N」/「Notebook N」。作った時のゲームの言語）。 */
+    private static String autoNotebookName(int n) {
+        return I18n.get("mapscribble.notebook.default_name", n);
+    }
+
+    /**
+     * 使うメモ帳の id が、before と違う値（null でない）に変わっていたら、切り替えを知らせる（設計書 3.9）。
+     * ディメンションの移動だけ（id が同じ）と、直下（null）へ替わった時は知らせない。
+     */
+    private static void announceIfNotebookChanged(String before) {
+        String after = currentNotebookId();
+        if (after == null || after.equals(before)) {
+            return;
+        }
+        String name = currentNotebookName();
+        if (name != null) {
+            setNotice(NOTICE_NOTEBOOK_SWITCHED, name);
+        }
     }
 
     /**

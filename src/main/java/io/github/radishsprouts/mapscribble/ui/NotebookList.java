@@ -26,8 +26,11 @@ import net.minecraft.client.input.MouseButtonEvent;
  * スクロールはホイールと ↑↓ で行う。行の見た目・位置は {@link NotebookLayout} の値に合わせる。
  */
 public final class NotebookList extends AbstractWidget {
-    /** 一覧の 1 行。件数・日付は表示用の文字列で受け取る。 */
-    public record Row(String id, String name, String count, String date, boolean inUse) {
+    /**
+     * 一覧の 1 行。件数・日付は表示用の文字列で受け取る。name は表示名（名前が空なら「（名前なし）」）、
+     * untitled はその名前が空だったことの印（灰色で描く。使用中の行は #E0E0E0）。
+     */
+    public record Row(String id, String name, String count, String date, boolean inUse, boolean untitled) {
     }
 
     private static final int FACE_HOVER = 0x1FFFFFFF;
@@ -48,6 +51,8 @@ public final class NotebookList extends AbstractWidget {
     private Component emptyLine1;
     private Component emptyLine2;
     private boolean pickable = true;
+    /** 分けていない接続先の、押せない灰色の行（ホバーの面も出さない）。pickable とは別に持つ。 */
+    private boolean dimmed;
     private boolean renamingInUse;
     private int scroll;
     private int keySelected = -1;
@@ -80,6 +85,11 @@ public final class NotebookList extends AbstractWidget {
     /** 行を押して切り替えられるか。 */
     public void setPickable(boolean pickable) {
         this.pickable = pickable;
+    }
+
+    /** 行を灰色にして押せない見た目にするか（分けていない接続先）。真なら名前・件数・日付が灰色で、ホバーの面も出ない。 */
+    public void setDimmed(boolean dimmed) {
+        this.dimmed = dimmed;
     }
 
     /** 名前を変えている間は、使用中の行の名前を描かない（上に入力欄が重なる）。 */
@@ -153,10 +163,14 @@ public final class NotebookList extends AbstractWidget {
         return row.inUse() ? row.name() + "　" + inUseLabel : row.name();
     }
 
-    /** 名前の幅（名前と［使用中］で最大 160）に収めた表示。収まらない時は名前の末尾を「…」で切る。 */
+    /**
+     * 名前の幅（名前と［使用中］で、件数の左端 − 6 まで。最大 160）に収めた表示。
+     * 収まらない時は名前の末尾を「…」で切る。列の位置は日付・件数の実際の幅から出す。
+     */
     private String nameShown(Row row) {
         String suffix = row.inUse() ? "　" + inUseLabel : "";
-        int room = NotebookLayout.NAME_MAX_WIDTH - font.width(suffix);
+        int maxWidth = NotebookLayout.nameMaxWidth(font.width(row.date()), font.width(row.count()));
+        int room = maxWidth - font.width(suffix);
         String name = NotebookPanel.ellipsize(row.name(), Math.max(0, room), font::width);
         return name + suffix;
     }
@@ -189,13 +203,13 @@ public final class NotebookList extends AbstractWidget {
             return;
         }
         boolean scrollbar = rows.size() > visibleRows;
-        int hovered = pickable ? rowIndexAt(mouseX, mouseY) : -1;
+        int hovered = pickable && !dimmed ? rowIndexAt(mouseX, mouseY) : -1;
         for (int v = 0; v < visibleRows; v++) {
             int index = scroll + v;
             if (index >= rows.size()) {
                 break;
             }
-            drawRow(g, rows.get(index), v, index == hovered, isFocused() && index == keySelected);
+            drawRow(g, rows.get(index), v, index == hovered, !dimmed && isFocused() && index == keySelected);
         }
         if (scrollbar) {
             int trackH = visibleRows * NotebookLayout.ROW_HEIGHT;
@@ -223,13 +237,19 @@ public final class NotebookList extends AbstractWidget {
         }
         int textY = y + (h - font.lineHeight) / 2 + 1;
         if (!(row.inUse() && renamingInUse)) {
-            GuiCompat.text(g, font, Component.literal(nameShown(row)), x + NotebookLayout.NAME_X, textY, WHITE, true);
+            int nameColor = dimmed ? GRAY
+                    : (row.untitled() ? (row.inUse() ? GRAY_IN_USE : GRAY) : WHITE);
+            GuiCompat.text(g, font, Component.literal(nameShown(row)), x + NotebookLayout.NAME_X, textY, nameColor,
+                    !dimmed && !row.untitled());
         }
-        int sub = row.inUse() ? GRAY_IN_USE : (hovered || keyed ? GRAY_HOVER : GRAY);
-        GuiCompat.text(g, font, Component.literal(row.count()),
-                x + NotebookLayout.COUNT_RIGHT_X - font.width(row.count()), textY, sub, false);
-        GuiCompat.text(g, font, Component.literal(row.date()),
-                x + NotebookLayout.DATE_RIGHT_X - font.width(row.date()), textY, sub, false);
+        int sub = dimmed ? GRAY : (row.inUse() ? GRAY_IN_USE : (hovered || keyed ? GRAY_HOVER : GRAY));
+        // 列の位置は日付の右端（274）から逆算する。件数の右端 = 日付の左端 − 8
+        int dateWidth = font.width(row.date());
+        int countWidth = font.width(row.count());
+        GuiCompat.text(g, font, Component.literal(row.date()), x + NotebookLayout.DATE_RIGHT_X - dateWidth, textY, sub,
+                false);
+        GuiCompat.text(g, font, Component.literal(row.count()), x + NotebookLayout.countRightX(dateWidth) - countWidth,
+                textY, sub, false);
     }
 
     @Override

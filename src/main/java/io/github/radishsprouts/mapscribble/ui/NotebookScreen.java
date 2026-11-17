@@ -67,6 +67,8 @@ public final class NotebookScreen extends Screen {
 
     private boolean renaming;
     private String renameError;
+    /** 名前が重なった既存のメモ帳の名前（renameError が error.duplicate の時だけ。無ければ null）。 */
+    private String renameErrorName;
     private boolean moving;
     private boolean moveFailed;
     private int movedCount;
@@ -186,13 +188,15 @@ public final class NotebookScreen extends Screen {
         splitButton.active = NotebookPanel.switchEnabled(kind) && idle;
 
         list.setPickable(NotebookPanel.listEnabled(kind) && idle);
+        // 分けていない接続先でも、記録にあるメモ帳は灰色の押せない行で出す（設計書 3.7）
+        list.setDimmed(kind == NotebookPanel.Kind.UNSPLIT);
         list.setRows(listRows());
         list.setRenamingInUse(renaming);
         if (kind == NotebookPanel.Kind.LOADING) {
             list.setEmptyLines(Component.translatable("mapscribble.notebook.loading"), null);
         } else if (kind == NotebookPanel.Kind.LOAD_FAILED) {
             list.setEmptyLines(Component.translatable("mapscribble.notebook.load_failed.list"), null);
-        } else if (kind == NotebookPanel.Kind.UNSPLIT) {
+        } else if (kind == NotebookPanel.Kind.UNSPLIT && notebooks().isEmpty()) {
             list.setEmptyLines(Component.translatable("mapscribble.notebook.empty"),
                     Component.translatable("mapscribble.notebook.empty.hint"));
         } else {
@@ -224,7 +228,8 @@ public final class NotebookScreen extends Screen {
     private void refreshMoveButtons(NotebookPanel.Kind kind, boolean idle) {
         boolean split = NotebookPanel.isSplit(kind);
         boolean available = NotebookPanel.moveAvailable(kind) && inUse() != null;
-        int total = extras.legacyTotal();
+        // ボタンの件数は、実際に移る件数（今のディメンションの分ける前のメモ）と同じ値
+        int total = extras.legacyHere();
         int visible = extras.legacyVisible();
 
         boolean undoShown = movedCount > 0 && !moveUndone && extras.canUndoMove();
@@ -251,7 +256,8 @@ public final class NotebookScreen extends Screen {
         Tooltip disabledOff = Tooltip.create(Component.translatable("mapscribble.notebook.move.disabled_off"));
         NotebookAccess.Info current = inUse();
         Tooltip movable = current == null ? null : Tooltip.create(Component.empty()
-                .append(Component.translatable("mapscribble.notebook.move.desc", current.name()))
+                .append(Component.translatable("mapscribble.notebook.move.desc",
+                        NotebookNames.display(current.name())))
                 .append(Component.literal("\n"))
                 .append(Component.translatable("mapscribble.notebook.move.desc2")));
         moveAllButton.setTooltip(undoShown ? null : (kind == NotebookPanel.Kind.UNSPLIT ? disabledOff
@@ -267,19 +273,21 @@ public final class NotebookScreen extends Screen {
     private List<NotebookList.Row> listRows() {
         NotebookAccess.State s = state();
         NotebookPanel.Kind kind = kind();
-        if (s == null || !NotebookPanel.isSplit(kind)) {
+        if (s == null || kind == NotebookPanel.Kind.LOADING || kind == NotebookPanel.Kind.LOAD_FAILED) {
             return List.of();
         }
         ZoneId zone = ZoneId.systemDefault();
-        int inUseIndex = NotebookPanel.inUseIndex(s);
+        // 分けていない接続先では使用中の行を出さない（灰色の押せない行として並べるだけ）
+        int inUseIndex = NotebookPanel.isSplit(kind) ? NotebookPanel.inUseIndex(s) : -1;
         List<NotebookList.Row> rows = new ArrayList<>();
         for (int i = 0; i < s.notebooks().size(); i++) {
             NotebookAccess.Info info = s.notebooks().get(i);
             int n = extras.noteCount(info.id());
             String count = n == 1 ? Component.translatable("mapscribble.notebook.count.one").getString()
-                    : Component.translatable("mapscribble.notebook.count", n).getString();
-            rows.add(new NotebookList.Row(info.id(), info.name(), count, NotebookPanel.dateLabel(info.created(), zone),
-                    i == inUseIndex));
+                    : Component.translatable("mapscribble.notebook.count", NotebookPanel.countLabel(n)).getString();
+            rows.add(new NotebookList.Row(info.id(), NotebookNames.display(info.name()), count,
+                    NotebookPanel.dateLabel(info.created(), zone), i == inUseIndex,
+                    NotebookNames.isBlank(info.name())));
         }
         return rows;
     }
@@ -308,7 +316,7 @@ public final class NotebookScreen extends Screen {
             if (result.ok()) {
                 for (NotebookAccess.Info info : notebooks()) {
                     if (info.id().equals(id)) {
-                        switchedTo = info.name();
+                        switchedTo = NotebookNames.display(info.name());
                     }
                 }
             }
@@ -393,8 +401,11 @@ public final class NotebookScreen extends Screen {
         if (error != null) {
             // 入力欄と入力した文字は残す
             renameError = error;
+            renameErrorName = "mapscribble.notebook.error.duplicate".equals(error)
+                    ? NotebookPanel.conflictingName(renameEdit.getValue(), notebooks(), current.id()) : null;
             return;
         }
+        renameErrorName = null;
         String name = NotebookPanel.normalizeName(renameEdit.getValue());
         access.rename(current.id(), name, result -> {
             if (result.ok()) {
@@ -440,16 +451,17 @@ public final class NotebookScreen extends Screen {
         if (current == null || busy() || renaming) {
             return;
         }
-        int n = all ? extras.legacyTotal() : extras.legacyVisible();
+        int n = all ? extras.legacyHere() : extras.legacyVisible();
         if (n <= 0) {
             return;
         }
+        String shownName = NotebookNames.display(current.name());
         Component message = Component.translatable(
-                all ? "mapscribble.notebook.confirm.all" : "mapscribble.notebook.confirm.visible", n, current.name());
+                all ? "mapscribble.notebook.confirm.all" : "mapscribble.notebook.confirm.visible", n, shownName);
         ScreenCompat.setScreen(new ConfirmScreen(yes -> {
             ScreenCompat.setScreen(this);
             if (yes) {
-                doMove(all, n, current.name());
+                doMove(all, n, shownName);
             }
         }, Component.translatable("mapscribble.notebook.confirm.title"), message,
                 Component.translatable("mapscribble.notebook.confirm.yes"), Component.translatable("gui.cancel")));
@@ -666,11 +678,15 @@ public final class NotebookScreen extends Screen {
             String hint = Component.translatable("mapscribble.notebook.list.hint").getString();
             GuiCompat.text(g, font, Component.literal(hint), left + NotebookLayout.CONTENT_WIDTH - font.width(hint),
                     py + layout.labelY(), GRAY, false);
+        } else if (kind == NotebookPanel.Kind.UNSPLIT && !notebooks().isEmpty()) {
+            // 分けていない接続先に記録のメモ帳がある時は、押せない理由を灰色で示す
+            String hint = Component.translatable("mapscribble.notebook.list.hint.off").getString();
+            GuiCompat.text(g, font, Component.literal(hint), left + NotebookLayout.CONTENT_WIDTH - font.width(hint),
+                    py + layout.labelY(), GRAY, false);
         }
 
         if (renameError != null) {
-            drawLine(g, Component.translatable(renameError).getString(), left, py + layout.errorY(),
-                    0xFF000000 | HintResolver.COLOR_FAILURE);
+            drawLine(g, renameErrorText(), left, py + layout.errorY(), 0xFF000000 | HintResolver.COLOR_FAILURE);
         }
 
         drawLegacyLine(g, kind, left, py + layout.legacyY());
@@ -703,12 +719,39 @@ public final class NotebookScreen extends Screen {
                     WHITE);
             return;
         }
-        String key = NotebookPanel.legacyKey(kind, extras.legacyTotal());
+        String key = NotebookPanel.legacyKey(kind, extras.legacyTotal(), extras.legacyOtherDimensions());
         if (key == null) {
             return;
         }
-        drawLine(g, Component.translatable(key, NotebookPanel.countLabel(extras.legacyTotal())).getString(), x, y,
-                NotebookPanel.legacyGray(kind) ? GRAY : LABEL);
+        String text;
+        if ("mapscribble.notebook.presplit.dims".equals(key)) {
+            text = Component.translatable(key, NotebookPanel.countLabel(extras.legacyHere()),
+                    NotebookPanel.countLabel(extras.legacyOtherDimensions())).getString();
+        } else {
+            // ほかのディメンションに無い時は、合計 = 今のディメンションの件数
+            text = Component.translatable(key, NotebookPanel.countLabel(extras.legacyTotal())).getString();
+        }
+        drawLine(g, text, x, y, NotebookPanel.legacyGray(kind) ? GRAY : LABEL);
+    }
+
+    /** 名前を変える失敗の文。重なった既存の名前が分かる時は名前つき。行全体が 286 を超える時だけ名前の末尾を「…」で切る。 */
+    private String renameErrorText() {
+        if ("mapscribble.notebook.error.duplicate".equals(renameError) && renameErrorName != null) {
+            String key = "mapscribble.notebook.error.duplicate.named";
+            String full = Component.translatable(key, renameErrorName).getString();
+            if (font.width(full) <= NotebookLayout.CONTENT_WIDTH) {
+                return full;
+            }
+            String name = renameErrorName;
+            while (!name.isEmpty()) {
+                name = name.substring(0, name.offsetByCodePoints(name.length(), -1));
+                String candidate = Component.translatable(key, name + "…").getString();
+                if (font.width(candidate) <= NotebookLayout.CONTENT_WIDTH) {
+                    return candidate;
+                }
+            }
+        }
+        return Component.translatable(renameError).getString();
     }
 
     /** 1 行を幅 286 に収めて描く。収まらない時は「…」で切り、ホバーで全文を出す。 */

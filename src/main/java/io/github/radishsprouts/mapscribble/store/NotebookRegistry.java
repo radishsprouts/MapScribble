@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 
 /**
@@ -89,11 +90,11 @@ public final class NotebookRegistry {
 
     /** 書き込み先のメモ帳の id。null は直下。proposal は無視する（呼び出し側が不要な時用）。 */
     public String resolve(Path addressDir, long seedHash, ManualSelection manual) {
-        return resolveFull(addressDir, seedHash, manual).notebookId();
+        return resolveFull(addressDir, seedHash, manual, null).notebookId();
     }
 
     /** 設計 4.4 の順で決める。 */
-    public Resolution resolveFull(Path addressDir, long seedHash, ManualSelection manual) {
+    public Resolution resolveFull(Path addressDir, long seedHash, ManualSelection manual, IntFunction<String> nameOf) {
         Entry e = entry(addressDir);
         // 1. 手で選んだもの（読めない時でも、id の形が正しければ使う）
         if (manual != null && manual.seedHash() == seedHash) {
@@ -131,10 +132,34 @@ public final class NotebookRegistry {
         String id = seedId(seedHash);
         Notebooks next = e.data;
         if (next.find(id) == null) {
-            next = next.withNotebook(new Notebook(id, "", Instant.now(), NotebookFile.ORIGIN_SEED));
+            String name = nextAutoName(next, nameOf);
+            next = next.withNotebook(new Notebook(id, name, Instant.now(), NotebookFile.ORIGIN_SEED));
         }
         e.pending = true;
         return new Resolution(null, next.withBinding(seedHash, id));
+    }
+
+    /**
+     * 自動で作るメモ帳の名前。nameOf(n) が、この接続先の既存のメモ帳の名前と重ならない最小の n の名前を返す
+     * （重なりの比べ方は {@link NotebookFile#sameName}）。nameOf が null なら空の名前（画面が「名前なし」と表示する）。
+     */
+    static String nextAutoName(Notebooks current, IntFunction<String> nameOf) {
+        if (nameOf == null) {
+            return "";
+        }
+        for (int n = 1; ; n++) {
+            String candidate = NotebookFile.cleanName(nameOf.apply(n));
+            boolean used = false;
+            for (Notebook nb : current.notebooks()) {
+                if (NotebookFile.sameName(nb.name(), candidate)) {
+                    used = true;
+                    break;
+                }
+            }
+            if (!used) {
+                return candidate;
+            }
+        }
     }
 
     /**
@@ -142,7 +167,8 @@ public final class NotebookRegistry {
      * 提案できない時（読めない・mode が既に決まっている・書き込み中・失敗済み）は null。
      * 読めない時の通知は、呼び出し側が {@link #status} を見て行う。
      */
-    public Notebooks proposeSplit(Path addressDir, long previous, long current, Instant now) {
+    public Notebooks proposeSplit(Path addressDir, long previous, long current, Instant now,
+            IntFunction<String> nameOf) {
         Entry e = entry(addressDir);
         if (!e.status.canWrite() || e.data.mode() != null || e.pending || e.failed) {
             return null;
@@ -151,7 +177,7 @@ public final class NotebookRegistry {
         for (long hash : new long[] {previous, current}) {
             String id = seedId(hash);
             if (n.find(id) == null) {
-                n = n.withNotebook(new Notebook(id, "", now, NotebookFile.ORIGIN_SEED));
+                n = n.withNotebook(new Notebook(id, nextAutoName(n, nameOf), now, NotebookFile.ORIGIN_SEED));
             }
             n = n.withBinding(hash, id);
         }

@@ -285,6 +285,19 @@ public final class NotebookFile {
         }
     }
 
+    /**
+     * 名前の重複の比べ方（設計書 4.5）。前後の空白を除いて NFKC で正規化し、小文字にしたものが等しければ同じ名前。
+     * 大文字・小文字、全角・半角の違いは同じとみなす。保存は入力どおりで、ここは比べるためだけに使う。
+     */
+    public static boolean sameName(String a, String b) {
+        return foldName(a).equals(foldName(b));
+    }
+
+    private static String foldName(String s) {
+        String t = s == null ? "" : s.strip();
+        return java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFKC).toLowerCase(java.util.Locale.ROOT);
+    }
+
     /** 制御文字を除き、64 文字（コードポイント）までに切る。 */
     public static String cleanName(String name) {
         if (name == null) {

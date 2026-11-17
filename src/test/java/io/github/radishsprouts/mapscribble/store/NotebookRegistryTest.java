@@ -24,6 +24,35 @@ import org.junit.jupiter.api.io.TempDir;
 class NotebookRegistryTest {
     private static final Instant T = Instant.parse("2026-11-17T12:34:56Z");
 
+    /** 自動作成の名前の作り方（呼び出し側が渡す。画面では「メモ帳 N」）。 */
+    private static final java.util.function.IntFunction<String> NAMES = n -> "メモ帳 " + n;
+
+    @Test
+    void 分ける提案で作る2つのメモ帳の名前は_メモ帳_Nと_N足す1(@TempDir Path dir) {
+        NotebookRegistry reg = new NotebookRegistry();
+        Notebooks p = reg.proposeSplit(dir, 0x11L, 0x22L, T, NAMES);
+        assertNotNull(p);
+        assertEquals("メモ帳 1", p.find("nb-0000000000000011").name());
+        assertEquals("メモ帳 2", p.find("nb-0000000000000022").name());
+    }
+
+    @Test
+    void 自動作成の名前は使われている番号を飛ばす_全角半角と大文字小文字は同じ名前(@TempDir Path dir) throws Exception {
+        writeRaw(dir, "{\"format\":1,\"mode\":\"user\",\"notebooks\":["
+                + "{\"id\":\"nb-aaa\",\"name\":\"メモ帳 １\",\"created\":\"2026-11-01T00:00:00Z\",\"origin\":\"manual\"},"
+                + "{\"id\":\"nb-bbb\",\"name\":\"メモ帳 3\",\"created\":\"2026-11-01T00:00:00Z\",\"origin\":\"manual\"}],"
+                + "\"bindings\":{}}");
+        NotebookRegistry reg = new NotebookRegistry();
+        assertEquals(Status.OK, reg.status(dir));
+        Resolution r = reg.resolveFull(dir, 0x33L, null, NAMES);
+        assertNotNull(r.proposal());
+        assertEquals("メモ帳 2", r.proposal().find("nb-0000000000000033").name());
+        assertEquals("Bk 1", NotebookRegistry.nextAutoName(
+                new Notebooks(null, null, false, java.util.List.of(), java.util.Map.of(),
+                        new com.google.gson.JsonObject()), n -> "Bk " + n));
+        assertEquals("", NotebookRegistry.nextAutoName(Notebooks.empty(), null));
+    }
+
     private static DebouncedWriter writer() {
         return new DebouncedWriter(60_000, (file, snapshot) -> { });
     }
@@ -46,7 +75,7 @@ class NotebookRegistryTest {
     void 記録が無ければ直下_どのハッシュでも新しいメモ帳を作らない(@TempDir Path dir) {
         NotebookRegistry reg = new NotebookRegistry();
         assertEquals(Status.MISSING, reg.status(dir));
-        Resolution r = reg.resolveFull(dir, 123L, null);
+        Resolution r = reg.resolveFull(dir, 123L, null, NAMES);
         assertNull(r.notebookId());
         assertNull(r.proposal());
     }
@@ -57,10 +86,10 @@ class NotebookRegistryTest {
         byte[] before = Files.readAllBytes(dir.resolve("notebooks.json"));
         NotebookRegistry reg = new NotebookRegistry();
         assertEquals(Status.UNSUPPORTED, reg.status(dir));
-        Resolution r = reg.resolveFull(dir, 123L, null);
+        Resolution r = reg.resolveFull(dir, 123L, null, NAMES);
         assertNull(r.notebookId());
         assertNull(r.proposal());
-        assertNull(reg.proposeSplit(dir, 1L, 2L, T));
+        assertNull(reg.proposeSplit(dir, 1L, 2L, T, NAMES));
         assertNull(reg.proposeManual(dir, "x", T));
         assertNull(reg.proposeJm010(dir, "Example~Server_1a2b", T));
         assertEquals(new String(before, StandardCharsets.UTF_8),
@@ -70,7 +99,7 @@ class NotebookRegistryTest {
     @Test
     void 分ける提案は2つのハッシュにメモ帳を作り_書いてから使う(@TempDir Path dir) throws Exception {
         NotebookRegistry reg = new NotebookRegistry();
-        Notebooks p = reg.proposeSplit(dir, 0x11L, 0x22L, T);
+        Notebooks p = reg.proposeSplit(dir, 0x11L, 0x22L, T, NAMES);
         assertNotNull(p);
         assertEquals(Mode.AUTO, p.mode());
         assertEquals(T, p.splitAt());
@@ -78,7 +107,7 @@ class NotebookRegistryTest {
         assertEquals("nb-0000000000000011", p.bindings().get(0x11L));
         // 書き込みが終わるまではメモリ上は変わらず直下
         assertNull(reg.resolve(dir, 0x22L, null));
-        assertNull(reg.proposeSplit(dir, 0x11L, 0x22L, T), "書き込み中は重ねて提案しない");
+        assertNull(reg.proposeSplit(dir, 0x11L, 0x22L, T, NAMES), "書き込み中は重ねて提案しない");
         apply(reg, dir, p);
         assertEquals("nb-0000000000000011", reg.resolve(dir, 0x11L, null));
         assertEquals("nb-0000000000000022", reg.resolve(dir, 0x22L, null));
@@ -89,12 +118,12 @@ class NotebookRegistryTest {
     @Test
     void 書けなかったらメモリ上も分けないまま(@TempDir Path dir) throws Exception {
         NotebookRegistry reg = new NotebookRegistry();
-        Notebooks p = reg.proposeSplit(dir, 0x11L, 0x22L, T);
+        Notebooks p = reg.proposeSplit(dir, 0x11L, 0x22L, T, NAMES);
         assertNotNull(p);
         reg.abandon(dir);
         assertNull(reg.notebooks(dir).mode());
         assertNull(reg.resolve(dir, 0x22L, null));
-        assertNull(reg.proposeSplit(dir, 0x11L, 0x22L, T), "失敗した後は繰り返さない");
+        assertNull(reg.proposeSplit(dir, 0x11L, 0x22L, T, NAMES), "失敗した後は繰り返さない");
     }
 
     @Test
@@ -106,14 +135,14 @@ class NotebookRegistryTest {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-            assertNull(new NotebookRegistry().proposeSplit(sub, 1L, 2L, T), mode);
+            assertNull(new NotebookRegistry().proposeSplit(sub, 1L, 2L, T, NAMES), mode);
         }
     }
 
     @Test
     void resolveは4_4の順_off_ハッシュ0_紐付け済み(@TempDir Path dir) throws Exception {
         NotebookRegistry reg = new NotebookRegistry();
-        apply(reg, dir, reg.proposeSplit(dir, 0x11L, 0x22L, T));
+        apply(reg, dir, reg.proposeSplit(dir, 0x11L, 0x22L, T, NAMES));
         assertNull(reg.resolve(dir, 0L, null), "ハッシュ0は選ばない");
         assertEquals("nb-0000000000000011", reg.resolve(dir, 0x11L, null));
         // off にすると全部直下
@@ -121,13 +150,13 @@ class NotebookRegistryTest {
         apply(reg, dir, off);
         assertNull(reg.resolve(dir, 0x11L, null));
         assertNull(reg.resolve(dir, 0x99L, null));
-        assertNull(reg.resolveFull(dir, 0x99L, null).proposal());
+        assertNull(reg.resolveFull(dir, 0x99L, null, NAMES).proposal());
     }
 
     @Test
     void 手で選んだものが最優先_ハッシュ0でも_直下を選ぶこともできる(@TempDir Path dir) throws Exception {
         NotebookRegistry reg = new NotebookRegistry();
-        apply(reg, dir, reg.proposeSplit(dir, 0x11L, 0x22L, T));
+        apply(reg, dir, reg.proposeSplit(dir, 0x11L, 0x22L, T, NAMES));
         assertEquals("nb-0000000000000022",
                 reg.resolve(dir, 0x11L, new ManualSelection(0x11L, "nb-0000000000000022")));
         assertEquals("nb-0000000000000022", reg.resolve(dir, 0L, new ManualSelection(0L, "nb-0000000000000022")));
@@ -152,12 +181,12 @@ class NotebookRegistryTest {
     @Test
     void 分けているアドレスの新しいハッシュは書いてから使う(@TempDir Path dir) throws Exception {
         NotebookRegistry reg = new NotebookRegistry();
-        apply(reg, dir, reg.proposeSplit(dir, 0x11L, 0x22L, T));
-        Resolution r = reg.resolveFull(dir, 0x33L, null);
+        apply(reg, dir, reg.proposeSplit(dir, 0x11L, 0x22L, T, NAMES));
+        Resolution r = reg.resolveFull(dir, 0x33L, null, NAMES);
         assertNull(r.notebookId(), "書き込みが終わるまでは直下");
         assertNotNull(r.proposal());
         assertEquals("nb-0000000000000033", r.proposal().bindings().get(0x33L));
-        assertNull(reg.resolveFull(dir, 0x33L, null).proposal(), "書き込み中は重ねて提案しない");
+        assertNull(reg.resolveFull(dir, 0x33L, null, NAMES).proposal(), "書き込み中は重ねて提案しない");
         apply(reg, dir, r.proposal());
         assertEquals("nb-0000000000000033", reg.resolve(dir, 0x33L, null));
     }
@@ -165,22 +194,22 @@ class NotebookRegistryTest {
     @Test
     void autoの上限8を超えたら自動の作成を止める(@TempDir Path dir) throws Exception {
         NotebookRegistry reg = new NotebookRegistry();
-        apply(reg, dir, reg.proposeSplit(dir, 1L, 2L, T));
+        apply(reg, dir, reg.proposeSplit(dir, 1L, 2L, T, NAMES));
         for (long h = 3; h <= NotebookRegistry.AUTO_LIMIT; h++) {
-            Resolution r = reg.resolveFull(dir, h, null);
+            Resolution r = reg.resolveFull(dir, h, null, NAMES);
             assertNotNull(r.proposal(), "hash " + h);
             apply(reg, dir, r.proposal());
             assertEquals(NotebookRegistry.seedId(h), reg.resolve(dir, h, null));
         }
         assertEquals(NotebookRegistry.AUTO_LIMIT, reg.notebooks(dir).bindings().size());
         // 9個目
-        Resolution over = reg.resolveFull(dir, 100L, null);
+        Resolution over = reg.resolveFull(dir, 100L, null, NAMES);
         assertNull(over.notebookId());
         assertTrue(over.proposal().autoStopped());
         assertFalse(over.proposal().bindings().containsKey(100L));
         apply(reg, dir, over.proposal());
         assertNull(reg.resolve(dir, 100L, null));
-        assertNull(reg.resolveFull(dir, 101L, null).proposal(), "止めた後は提案しない");
+        assertNull(reg.resolveFull(dir, 101L, null, NAMES).proposal(), "止めた後は提案しない");
         assertEquals(NotebookRegistry.seedId(1L), reg.resolve(dir, 1L, null), "紐付け済みは使える");
         assertTrue(new NotebookRegistry().notebooks(dir).autoStopped(), "記録に残る");
     }
@@ -190,7 +219,7 @@ class NotebookRegistryTest {
         NotebookRegistry reg = new NotebookRegistry();
         apply(reg, dir, Notebooks.empty().withMode(Mode.USER));
         for (long h = 1; h <= NotebookRegistry.AUTO_LIMIT + 3; h++) {
-            Resolution r = reg.resolveFull(dir, h, null);
+            Resolution r = reg.resolveFull(dir, h, null, NAMES);
             assertNotNull(r.proposal(), "hash " + h);
             assertFalse(r.proposal().autoStopped());
             apply(reg, dir, r.proposal());
