@@ -24,6 +24,7 @@ import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 //? if >=1.21.11 {
 import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 //?}
 import net.minecraft.network.chat.Component;
 
@@ -66,6 +67,12 @@ public final class NotebookScreen extends Screen {
     private boolean parentFailed;
 
     private boolean renaming;
+    /** マウスのクリックの処理の最中か（その間に名前の入力欄へ移したフォーカスは、バニラが押したボタンへ上書きする）。 */
+    /** 名前の変更を始めたボタン（「名前を変える」か「新しいメモ帳」）。キーで終えた時にフォーカスを戻す先。 */
+    private Button renameStarter;
+    private boolean inMouseClick;
+    /** クリックの処理の最中に名前の変更へ入った。クリックの処理が終わった後で、もう一度入力欄へフォーカスを移す。 */
+    private boolean focusRenameAfterClick;
     private String renameError;
     /** 名前が重なった既存のメモ帳の名前（renameError が error.duplicate の時だけ。無ければ null）。 */
     private String renameErrorName;
@@ -326,20 +333,22 @@ public final class NotebookScreen extends Screen {
 
     private void onRenameButton() {
         if (renaming) {
-            confirmRename();
+            confirmRename(false);
         } else {
+            renameStarter = renameButton;
             startRename();
         }
     }
 
     private void onNewButton() {
         if (renaming) {
-            cancelRename();
+            cancelRename(false);
             return;
         }
         if (access == null) {
             return;
         }
+        renameStarter = newButton;
         String name = NotebookPanel.defaultName(notebooks(),
                 n -> Component.translatable("mapscribble.notebook.default_name", n).getString());
         access.create(name, created -> {
@@ -389,12 +398,50 @@ public final class NotebookScreen extends Screen {
         renameEdit.visible = true;
         renameEdit.active = true;
         setFocused(renameEdit);
+        // ボタンのクリックの最中なら、バニラが子の mouseClicked の後に押したボタンへフォーカスを移し直すので、
+        // クリックの処理が終わった後にもう一度入力欄へ移す
+        if (inMouseClick) {
+            focusRenameAfterClick = true;
+        }
     }
 
-    private void confirmRename() {
+    /** クリックの処理（バニラのフォーカスの移し直しを含む）が終わった後に、名前の入力欄へフォーカスを戻す。 */
+    private void afterMouseClick() {
+        inMouseClick = false;
+        if (focusRenameAfterClick) {
+            focusRenameAfterClick = false;
+            if (renaming) {
+                setFocused(renameEdit);
+            }
+        }
+    }
+
+    //? if >=1.21.11 {
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        inMouseClick = true;
+        try {
+            return super.mouseClicked(event, doubleClick);
+        } finally {
+            afterMouseClick();
+        }
+    }
+    //?} else {
+    /*@Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        inMouseClick = true;
+        try {
+            return super.mouseClicked(mouseX, mouseY, button);
+        } finally {
+            afterMouseClick();
+        }
+    }
+    *///?}
+
+    private void confirmRename(boolean byKey) {
         NotebookAccess.Info current = inUse();
         if (current == null || access == null) {
-            cancelRename();
+            cancelRename(byKey);
             return;
         }
         String error = NotebookPanel.validateName(renameEdit.getValue(), notebooks(), current.id());
@@ -410,7 +457,7 @@ public final class NotebookScreen extends Screen {
         access.rename(current.id(), name, result -> {
             if (result.ok()) {
                 renameError = null;
-                endRename();
+                endRename(byKey);
             } else {
                 renameError = errorKey(result);
                 refresh();
@@ -424,17 +471,26 @@ public final class NotebookScreen extends Screen {
                 : "mapscribble.notebook.error.save_failed";
     }
 
-    private void cancelRename() {
+    private void cancelRename(boolean byKey) {
         renameError = null;
-        endRename();
+        endRename(byKey);
     }
 
-    private void endRename() {
+    /**
+     * 名前の変更を終える。キーボード（Enter で決めた・Esc で取りやめた）で終えた時は、始めたボタンへフォーカスを戻す
+     * （フォーカスを無くすと、次の Tab が分ける切替からやり直しになるため）。マウスで「決定」「キャンセル」を押した時は
+     * バニラのまま（押したボタンにフォーカスが残る）なので、フォーカスを触らない。
+     */
+    private void endRename(boolean byKey) {
         renaming = false;
         renameEdit.visible = false;
         renameEdit.active = false;
-        setFocused(null);
         refresh();
+        if (byKey && renameStarter != null) {
+            setFocused(renameStarter);
+        } else if (getFocused() == renameEdit) {
+            setFocused(null);
+        }
     }
 
     private void onMoveAllButton() {
@@ -504,7 +560,7 @@ public final class NotebookScreen extends Screen {
 
     private void close() {
         if (renaming) {
-            cancelRename();
+            cancelRename(false);
         }
         if (callbacks != null) {
             callbacks.onClosed(new Outcome(switchedTo, moveUndone ? 0 : movedCount, moveUndone, moveFailed));
@@ -515,7 +571,7 @@ public final class NotebookScreen extends Screen {
     @Override
     public void onClose() {
         if (renaming) {
-            cancelRename();
+            cancelRename(false);
             return;
         }
         if (busy()) {
@@ -548,11 +604,11 @@ public final class NotebookScreen extends Screen {
             return false;
         }
         if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
-            confirmRename();
+            confirmRename(true);
             return true;
         }
         if (keyCode == InputConstants.KEY_ESCAPE) {
-            cancelRename();
+            cancelRename(true);
             return true;
         }
         return false;
