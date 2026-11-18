@@ -33,6 +33,8 @@ public class AllClientGameTest implements FabricClientGameTest {
             closeScreen(context);
             ToggleButtonClientGameTest.run(context);
             closeScreen(context);
+            NotebookScreenClientGameTest.run(context);
+            closeScreen(context);
             ScreenshotClientGameTest.run(context);
             closeScreen(context);
             CloseDuringDragClientGameTest.run(context);

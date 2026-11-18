@@ -16,10 +16,12 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 //?} else {
 /*import net.minecraft.client.gui.GuiGraphics;
 *///?}
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 //? if >=1.21.11 {
@@ -88,6 +90,15 @@ public final class NotebookScreen extends Screen {
     private record Truncated(int x, int y, int w, String full) {
     }
 
+    /** フォーカスのあった部品の役目（作り直しで部品が新しくなっても、役目で対応づける。設計書 3.7）。 */
+    private enum Role { NONE, SPLIT, LIST, EDIT, RENAME, NEW, MOVE_ALL, MOVE_VISIBLE, DONE }
+
+    /** 作り直し（窓の大きさ・GUI の倍率の変更、確認画面からの戻り）の前に覚え、作り直しの後に戻すもの。 */
+    private record Kept(Role focus, NotebookList.Snapshot list) {
+    }
+
+    private Kept kept;
+
     public NotebookScreen(Screen parent, NotebookAccess access, NotebookExtras extras, Callbacks callbacks) {
         super(Component.translatable("mapscribble.notebook.title"));
         this.parent = parent;
@@ -128,6 +139,8 @@ public final class NotebookScreen extends Screen {
         int px = layout.panelX(width);
         int py = layout.panelY(height);
         int left = px + NotebookLayout.MARGIN;
+        // 名前を変え始めたボタンは、作り直しで部品が新しくなるので、役目で覚えて付け直す
+        boolean starterIsNew = renameStarter != null && renameStarter == newButton;
 
         splitButton = splitButton(left, py + layout.switchY());
         addRenderableWidget(splitButton);
@@ -136,11 +149,16 @@ public final class NotebookScreen extends Screen {
                 layout.visibleRows(), this::onPickNotebook);
         addRenderableWidget(list);
 
-        renameEdit = new EditBox(font, left, py + layout.listY(), RENAME_EDIT_WIDTH, NotebookLayout.ROW_HEIGHT,
-                Component.translatable("mapscribble.notebook.rename.label"));
-        renameEdit.setMaxLength(NotebookPanel.NAME_MAX);
-        renameEdit.visible = false;
-        renameEdit.active = false;
+        // 入力欄は作り直しをまたいで同じものを使う（打った文字・カーソル・選んでいる範囲がそのまま残る）
+        if (renameEdit == null) {
+            renameEdit = new EditBox(font, left, py + layout.listY(), RENAME_EDIT_WIDTH, NotebookLayout.ROW_HEIGHT,
+                    Component.translatable("mapscribble.notebook.rename.label"));
+            renameEdit.setMaxLength(NotebookPanel.NAME_MAX);
+        }
+        renameEdit.setX(left);
+        renameEdit.setY(py + layout.listY());
+        renameEdit.visible = renaming;
+        renameEdit.active = renaming;
         addRenderableWidget(renameEdit);
 
         renameButton = addRenderableWidget(Button.builder(Component.translatable("mapscribble.notebook.rename"),
@@ -161,8 +179,124 @@ public final class NotebookScreen extends Screen {
                 .bounds(px + layout.doneX(), py + layout.doneY(), layout.doneWidth(), NotebookLayout.BUTTON_HEIGHT)
                 .build());
 
+        if (renameStarter != null) {
+            renameStarter = starterIsNew ? newButton : renameButton;
+        }
         refresh();
+        if (renaming) {
+            positionRenameEdit();
+        }
     }
+
+    /** 名前を変えている間、入力欄を使用中の行に重ねる（行が見えていなければそのまま）。 */
+    private void positionRenameEdit() {
+        int[] bounds = list.inUseRowBounds();
+        if (bounds != null) {
+            renameEdit.setX(bounds[0] + 2);
+            renameEdit.setY(bounds[1]);
+        }
+    }
+
+    // ---- 作り直しで保つもの（設計書 3.7「画面の作り直しで保つもの」） ----
+
+    private Role roleOf(GuiEventListener f) {
+        if (f == null) {
+            return Role.NONE;
+        }
+        if (f == splitButton) {
+            return Role.SPLIT;
+        } else if (f == list) {
+            return Role.LIST;
+        } else if (f == renameEdit) {
+            return renaming ? Role.EDIT : Role.NONE;
+        } else if (f == renameButton) {
+            return Role.RENAME;
+        } else if (f == newButton) {
+            return Role.NEW;
+        } else if (f == moveAllButton) {
+            return Role.MOVE_ALL;
+        } else if (f == moveVisibleButton) {
+            return Role.MOVE_VISIBLE;
+        } else if (f == doneButton) {
+            return Role.DONE;
+        }
+        return Role.NONE;
+    }
+
+    private GuiEventListener targetOf(Role role) {
+        return switch (role) {
+            case SPLIT -> splitButton;
+            case LIST -> list;
+            case EDIT -> renameEdit;
+            case RENAME -> renameButton;
+            case NEW -> newButton;
+            case MOVE_ALL -> moveAllButton;
+            case MOVE_VISIBLE -> moveVisibleButton;
+            case DONE -> doneButton;
+            case NONE -> null;
+        };
+    }
+
+    /** 作り直す前に、フォーカスのあった部品と一覧の状態を覚える。 */
+    private void keepForRebuild() {
+        if (list == null) {
+            return;
+        }
+        kept = new Kept(roleOf(getFocused()), list.snapshot());
+    }
+
+    /**
+     * 作り直した後に、覚えたものを戻す。バニラの初期フォーカス（setInitialFocus）の後に呼ぶ。
+     * 作り直しの前にどの部品にもフォーカスが無ければ、後も無しにする。
+     */
+    private void restoreKept() {
+        Kept k = kept;
+        if (k == null || list == null) {
+            return;
+        }
+        kept = null;
+        list.restore(k.list());
+        if (renaming) {
+            // 名前の変更中は、入力欄の行（使用中の行）が見える位置に収める
+            list.scrollToInUse();
+            positionRenameEdit();
+        }
+        setFocused(targetOf(k.focus()));
+    }
+
+    /** 移し終えた時、フォーカスのある部品が押せなければ、Tab の順で次の押せる部品へ置く（最後は「完了」）。 */
+    private void advanceFocusIfInactive() {
+        GuiEventListener f = getFocused();
+        if (!(f instanceof AbstractWidget w) || w.active) {
+            return;
+        }
+        List<AbstractWidget> order = List.of(moveAllButton, moveVisibleButton, doneButton);
+        for (int i = order.indexOf(f) + 1; i > 0 && i < order.size(); i++) {
+            if (order.get(i).active) {
+                setFocused(order.get(i));
+                return;
+            }
+        }
+    }
+
+    /**
+     * 引数なしの setInitialFocus を持たない版（1.20.1。作り直しの後に初期フォーカスも置かない）で、作り直しの直後に呼ぶ。
+     * 持つ版では setInitialFocus の上書きで戻すので、何もしない。
+     */
+    private void restoreWithoutInitialFocus() {
+        //? if <1.20.5 {
+        /*restoreKept();
+        *///?}
+    }
+
+    //? if >=1.20.5 {
+    /** バニラは作り直しのたびに、部品を作った後にここで初期フォーカスを置く。その後に覚えたものを戻す。 */
+    @Override
+    protected void setInitialFocus() {
+        super.setInitialFocus();
+        restoreKept();
+    }
+    //?}
 
     private CycleButton<Boolean> splitButton(int x, int y) {
         boolean on = NotebookPanel.switchOn(kind());
@@ -514,8 +648,11 @@ public final class NotebookScreen extends Screen {
         String shownName = NotebookNames.display(current.name());
         Component message = Component.translatable(
                 all ? "mapscribble.notebook.confirm.all" : "mapscribble.notebook.confirm.visible", n, shownName);
+        // 確認画面から戻ると部品が作り直されるので、開く前のフォーカス（確認画面を開いたボタン）・一覧の状態を覚える
+        keepForRebuild();
         ScreenCompat.setScreen(new ConfirmScreen(yes -> {
             ScreenCompat.setScreen(this);
+            restoreWithoutInitialFocus();
             if (yes) {
                 doMove(all, n, shownName);
             }
@@ -538,6 +675,7 @@ public final class NotebookScreen extends Screen {
                 moveFailed = true;
             }
             refresh();
+            advanceFocusIfInactive();
         });
     }
 
@@ -553,6 +691,7 @@ public final class NotebookScreen extends Screen {
                 moveFailed = true;
             }
             refresh();
+            advanceFocusIfInactive();
         });
     }
 
@@ -617,14 +756,17 @@ public final class NotebookScreen extends Screen {
     //? if >=1.21.11 {
     @Override
     public void resize(int newWidth, int newHeight) {
+        keepForRebuild();
         parent.resize(newWidth, newHeight);
         super.resize(newWidth, newHeight);
     }
     //?} else {
     /*@Override
     public void resize(Minecraft mc, int newWidth, int newHeight) {
+        keepForRebuild();
         parent.resize(mc, newWidth, newHeight);
         super.resize(mc, newWidth, newHeight);
+        restoreWithoutInitialFocus();
     }
     *///?}
 
@@ -817,6 +959,28 @@ public final class NotebookScreen extends Screen {
         if (!shown.equals(text)) {
             truncated.add(new Truncated(x, y, font.width(shown), text));
         }
+    }
+
+    // ---- 画面の確認（client gametest）用の読み取り口。状態は変えない ----
+
+    /** メモ帳の一覧。 */
+    public NotebookList notebookList() {
+        return list;
+    }
+
+    /** 名前を変える入力欄。 */
+    public EditBox renameBox() {
+        return renameEdit;
+    }
+
+    /** 名前を変えている最中か。 */
+    public boolean isRenaming() {
+        return renaming;
+    }
+
+    /** フォーカスのある部品の役目の名前（SPLIT・LIST・EDIT・RENAME・NEW・MOVE_ALL・MOVE_VISIBLE・DONE。無ければ NONE）。 */
+    public String focusedPartName() {
+        return roleOf(getFocused()).name();
     }
 
     @Override
