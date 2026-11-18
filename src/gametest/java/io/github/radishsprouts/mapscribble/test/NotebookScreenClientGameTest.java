@@ -608,7 +608,8 @@ public final class NotebookScreenClientGameTest {
         key(ctx, InputConstants.KEY_RETURN);
         key(ctx, InputConstants.KEY_RETURN);
         check(extras.moving, "AC210(2): 移す操作が始まらない");
-        arrowsOn(ctx, s, "(2) 移している間", 2);
+        // 移している間は完了を含めボタンがすべて押せない（設計書 695 行）ので、Shift+Tab でも一覧に残るのが正しい
+        arrowsOn(ctx, s, "(2) 移している間", 2, false);
         ctx.runOnClient(client -> extras.finishMove());
         closeScreen(ctx);
 
@@ -629,12 +630,16 @@ public final class NotebookScreenClientGameTest {
                                    int expectedScrollAfterDown) {
         NotebookScreen s = open(ctx, access, extras);
         tabTo(ctx, s, "LIST");
-        arrowsOn(ctx, s, label, expectedScrollAfterDown);
+        arrowsOn(ctx, s, label, expectedScrollAfterDown, true);
         closeScreen(ctx);
     }
 
-    /** 一覧にフォーカスがある画面で ↓ ↑ をそれぞれ 5 回押し、フォーカスが出ないこと、Tab では出られることを確かめる。 */
-    private static void arrowsOn(ClientGameTestContext ctx, NotebookScreen s, String label, int expectedScrollAfterDown) {
+    /**
+     * 一覧にフォーカスがある画面で ↓ ↑ をそれぞれ 5 回押し、フォーカスが出ないことを確かめる。
+     * Shift+Tab は、一覧の外に押せる部品がある時（canLeave）は一覧から出られること、無い時（移している間）は一覧に残ることを確かめる。
+     */
+    private static void arrowsOn(ClientGameTestContext ctx, NotebookScreen s, String label, int expectedScrollAfterDown,
+                                 boolean canLeave) {
         if (!focusOf(ctx, s).equals("LIST")) {
             tabTo(ctx, s, "LIST");
         }
@@ -652,7 +657,12 @@ public final class NotebookScreenClientGameTest {
         ctx.getInput().holdShift();
         key(ctx, InputConstants.KEY_TAB);
         ctx.getInput().releaseShift();
-        check(!focusOf(ctx, s).equals("LIST"), "AC210" + label + ": Shift+Tab で一覧から出られない");
+        if (canLeave) {
+            check(!focusOf(ctx, s).equals("LIST"), "AC210" + label + ": Shift+Tab で一覧から出られない");
+        } else {
+            check(focusOf(ctx, s).equals("LIST"),
+                    "AC210" + label + ": 押せる部品が無いのに Shift+Tab でフォーカスが一覧から出た: " + focusOf(ctx, s));
+        }
     }
 
     // ---- AC211: 移し終えた時に、フォーカス中の一覧へカーソルが置かれる ----
