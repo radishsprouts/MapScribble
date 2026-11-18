@@ -67,9 +67,9 @@ public final class NotebookScreen extends Screen {
     private boolean parentFailed;
 
     private boolean renaming;
-    /** マウスのクリックの処理の最中か（その間に名前の入力欄へ移したフォーカスは、バニラが押したボタンへ上書きする）。 */
     /** 名前の変更を始めたボタン（「名前を変える」か「新しいメモ帳」）。キーで終えた時にフォーカスを戻す先。 */
     private Button renameStarter;
+    /** マウスのクリックの処理の最中か（その間に名前の入力欄へ移したフォーカスは、バニラが押したボタンへ上書きする）。 */
     private boolean inMouseClick;
     /** クリックの処理の最中に名前の変更へ入った。クリックの処理が終わった後で、もう一度入力欄へフォーカスを移す。 */
     private boolean focusRenameAfterClick;

@@ -19,10 +19,12 @@ import net.minecraft.client.input.KeyEvent;
  * 旧実装がカーソルを -1（無し）から始めたため ↓ 2回で使用中の行に乗り、使用中の行を選んでも画面が何もしないことだった。
  * 今はフォーカスが入った時にカーソルを使用中の行へ置く。
  *
- * <p>{@link NotebookList} は Minecraft のクラスを読み込むので、Fabric の構成でだけ回す（needs-minecraft）。
+ * <p>{@link NotebookList} は Minecraft のクラスをコンパイルの時点で参照するので、Fabric の構成でだけ回す。
+ * クラス名を NeedsMinecraftTest で終えると、Forge・NeoForge の構成ではコンパイルの対象から外れる（build.*.gradle.kts の
+ * sourceSets.test の exclude）。今後同じ種類の試験もこの名前にする。
  */
 @Tag("needs-minecraft")
-class NotebookListKeyTest {
+class NotebookListKeyNeedsMinecraftTest {
     private final List<String> picked = new ArrayList<>();
 
     /** 4 行の一覧。inUseIndex が -1 なら使用中の行なし。フォーカス済み。 */
