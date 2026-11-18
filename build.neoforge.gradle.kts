@@ -102,6 +102,12 @@ tasks.withType<Test> {
     useJUnitPlatform { excludeTags("needs-minecraft") }
 }
 
+// Minecraft のクラスをコンパイルの時点で参照する試験（クラス名が NeedsMinecraftTest で終わる）は、この構成ではコンパイルの対象から外す
+// （試験のクラスパスに Minecraft が入らない。実行の時に外すだけでは compileTestJava が落ちる）。今後同じ種類の試験は同じ名前にする
+sourceSets.test {
+    java.exclude("**/*NeedsMinecraftTest.java")
+}
+
 tasks.processResources {
     filteringCharset = "UTF-8"
     exclude("META-INF/mods.toml", "fabric.mod.json")

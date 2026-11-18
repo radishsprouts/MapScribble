@@ -55,8 +55,14 @@ public final class NotebookList extends AbstractWidget {
     private boolean dimmed;
     private boolean renamingInUse;
     private int scroll;
-    private int keySelected = -1;
+    /** キーのカーソルの行（一覧の中の位置。-1 は無し）。フォーカス中で押せる時は必ず 0 以上になる。 */
+    private int cursor = -1;
+    /** カーソルの行のメモ帳の id。一覧の中身が変わっても id で追う。 */
+    private String cursorId;
+    /** 行を押した処理（onClick）が済み、バニラのフォーカスの取得（setFocused）が続く間だけ真。取得時の初期化で押した行を上書きしない。 */
+    private boolean clickedRow;
     private final String inUseLabel;
+    private static final int CURSOR_OVER = 0x1FFFFFFF;
 
     public NotebookList(Font font, int x, int y, int width, int visibleRows, Consumer<String> onPick) {
         super(x, y, width, visibleRows * NotebookLayout.ROW_HEIGHT + 2,
@@ -71,8 +77,64 @@ public final class NotebookList extends AbstractWidget {
     public void setRows(List<Row> newRows) {
         this.rows = newRows;
         clampScroll();
-        if (keySelected >= rows.size()) {
-            keySelected = rows.isEmpty() ? -1 : rows.size() - 1;
+        if (cursor >= 0) {
+            // カーソルは id で追う。行が無くなったら範囲内へ丸める
+            int found = indexOfId(cursorId);
+            if (found >= 0) {
+                cursor = found;
+            } else {
+                cursor = rows.isEmpty() ? -1 : Math.min(cursor, rows.size() - 1);
+            }
+            cursorId = cursor >= 0 ? rows.get(cursor).id() : null;
+        }
+    }
+
+    private int indexOfId(String id) {
+        for (int i = 0; i < rows.size(); i++) {
+            if (rows.get(i).id().equals(id)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void setCursor(int index) {
+        cursor = index;
+        cursorId = index >= 0 && index < rows.size() ? rows.get(index).id() : null;
+    }
+
+    /** カーソルを使用中の行へ（無ければ先頭へ）置き、見えなければスクロールする。 */
+    private void placeCursorInitially() {
+        if (rows.isEmpty()) {
+            setCursor(-1);
+            return;
+        }
+        int target = 0;
+        for (int i = 0; i < rows.size(); i++) {
+            if (rows.get(i).inUse()) {
+                target = i;
+                break;
+            }
+        }
+        setCursor(target);
+        scrollTo(target);
+    }
+
+    /** 行を押してカーソルが描かれ、キーで切り替えられる状態か（分けていない接続先・移している間は不可）。 */
+    private boolean cursorActive() {
+        return pickable && !dimmed;
+    }
+
+    @Override
+    public void setFocused(boolean focused) {
+        boolean gained = focused && !isFocused();
+        super.setFocused(focused);
+        if (gained) {
+            if (clickedRow) {
+                clickedRow = false;
+            } else {
+                placeCursorInitially();
+            }
         }
     }
 
@@ -190,6 +252,8 @@ public final class NotebookList extends AbstractWidget {
     *///?}
 
     private void renderList(Gfx g, int mouseX, int mouseY) {
+        // 行を押した処理とフォーカスの取得は同じイベントの中で済むので、描画の時点では目印を残さない
+        clickedRow = false;
         // 一覧の枠
         GuiCompat.outline(g, getX(), getY(), getWidth(), getHeight(), isFocused() ? WHITE : EDGE);
         if (rows.isEmpty()) {
@@ -209,7 +273,7 @@ public final class NotebookList extends AbstractWidget {
             if (index >= rows.size()) {
                 break;
             }
-            drawRow(g, rows.get(index), v, index == hovered, !dimmed && isFocused() && index == keySelected);
+            drawRow(g, rows.get(index), v, index == hovered, cursorActive() && isFocused() && index == cursor);
         }
         if (scrollbar) {
             int trackH = visibleRows * NotebookLayout.ROW_HEIGHT;
@@ -226,8 +290,12 @@ public final class NotebookList extends AbstractWidget {
         int y = getY() + NotebookLayout.LIST_PAD + visibleIndex * NotebookLayout.ROW_HEIGHT;
         int w = getWidth() - NotebookLayout.ROW_INNER_PAD * 2;
         int h = NotebookLayout.ROW_HEIGHT;
+        boolean inUseKeyed = row.inUse() && keyed;
         if (row.inUse()) {
             GuiCompat.fill(g, x, y, x + w, y + h, FACE_IN_USE);
+            if (keyed) {
+                GuiCompat.fill(g, x, y, x + w, y + h, CURSOR_OVER);
+            }
             GuiCompat.outline(g, x, y, w, h, WHITE);
         } else if (hovered || keyed) {
             GuiCompat.fill(g, x, y, x + w, y + h, FACE_HOVER);
@@ -235,14 +303,20 @@ public final class NotebookList extends AbstractWidget {
                 GuiCompat.outline(g, x, y, w, h, WHITE);
             }
         }
+        if (keyed) {
+            // カーソルの縁は白い 2px（外周 1px と、その内側 1px）
+            GuiCompat.outline(g, x + 1, y + 1, w - 2, h - 2, WHITE);
+        }
         int textY = y + (h - font.lineHeight) / 2 + 1;
         if (!(row.inUse() && renamingInUse)) {
             int nameColor = dimmed ? GRAY
-                    : (row.untitled() ? (row.inUse() ? GRAY_IN_USE : GRAY) : WHITE);
+                    : (inUseKeyed ? WHITE
+                    : (row.untitled() ? (row.inUse() ? GRAY_IN_USE : GRAY) : WHITE));
             GuiCompat.text(g, font, Component.literal(nameShown(row)), x + NotebookLayout.NAME_X, textY, nameColor,
                     !dimmed && !row.untitled());
         }
-        int sub = dimmed ? GRAY : (row.inUse() ? GRAY_IN_USE : (hovered || keyed ? GRAY_HOVER : GRAY));
+        int sub = dimmed ? GRAY : (inUseKeyed ? WHITE
+                : (row.inUse() ? GRAY_IN_USE : (hovered || keyed ? GRAY_HOVER : GRAY)));
         // 列の位置は日付の右端（274）から逆算する。件数の右端 = 日付の左端 − 8
         int dateWidth = font.width(row.date());
         int countWidth = font.width(row.count());
@@ -265,15 +339,24 @@ public final class NotebookList extends AbstractWidget {
         }
     }
 
+    /** 行を押した。押した行にカーソルを置いて（続くフォーカスの取得で上書きされない）、切り替える。 */
+    private void click(int index) {
+        if (index >= 0) {
+            setCursor(index);
+            clickedRow = true;
+        }
+        pick(index);
+    }
+
     //? if >=1.21.11 {
     @Override
     public void onClick(MouseButtonEvent event, boolean doubleClick) {
-        pick(rowIndexAt(event.x(), event.y()));
+        click(rowIndexAt(event.x(), event.y()));
     }
     //?} else {
     /*@Override
     public void onClick(double mouseX, double mouseY) {
-        pick(rowIndexAt(mouseX, mouseY));
+        click(rowIndexAt(mouseX, mouseY));
     }
     *///?}
 
@@ -304,18 +387,32 @@ public final class NotebookList extends AbstractWidget {
         if (!isFocused() || rows.isEmpty()) {
             return false;
         }
-        if (keyCode == InputConstants.KEY_DOWN) {
-            keySelected = Math.min(rows.size() - 1, keySelected + 1);
-            scrollTo(keySelected);
+        boolean down = keyCode == InputConstants.KEY_DOWN;
+        boolean up = keyCode == InputConstants.KEY_UP;
+        boolean enter = keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER;
+        if (!cursorActive()) {
+            // 押せない時は、カーソルを描かず、↑↓は一覧を1行ずつスクロールするだけ。Enter は何もしない
+            if ((down || up) && rows.size() > visibleRows) {
+                scroll += down ? 1 : -1;
+                clampScroll();
+                return true;
+            }
+            return false;
+        }
+        if (cursor < 0) {
+            placeCursorInitially();
+        }
+        if (down || up) {
+            // 折り返さない。ホイールで動いた表示から、カーソルの行が見える位置へ戻す
+            setCursor(down ? Math.min(rows.size() - 1, cursor + 1) : Math.max(0, cursor - 1));
+            scrollTo(cursor);
             return true;
         }
-        if (keyCode == InputConstants.KEY_UP) {
-            keySelected = Math.max(0, keySelected < 0 ? 0 : keySelected - 1);
-            scrollTo(keySelected);
-            return true;
-        }
-        if ((keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) && keySelected >= 0) {
-            pick(keySelected);
+        if (enter) {
+            // 使用中の行で Enter を押しても何も起きない（同じメモ帳のため）
+            if (!rows.get(cursor).inUse()) {
+                pick(cursor);
+            }
             return true;
         }
         return false;
