@@ -10,8 +10,8 @@ Notes can now be kept separately for each backend server behind a proxy such as 
 
 - Per-server notes behind a proxy (Velocity and the like). When the world seed hash of the same dimension changes within one connection to the same address, that address is split automatically. Each backend server gets its own "notebook", and notes are saved into the notebook of the server you are on (`mapscribble/servers/<address>/nb-…/`, recorded in `notebooks.json` in the same folder). Ordinary servers and singleplayer behave as before. To keep servers that change the seed on every join from creating notebooks endlessly, at most 8 notebooks are created automatically per address
 - A menu button on the tool band. Its "Notebooks…" item opens the notebook screen (multiplayer only; in singleplayer it is greyed out and reads "This world only")
-- The notebook screen: turn the split on or off for the address (you can also split by hand), switch notebooks by clicking one in the list, rename a notebook, and create a new one. There is no way to delete a notebook
-- Moving pre-split notes into the notebook in use, with "Move all" and "Move visible" on the notebook screen (a confirmation screen is shown). A move can be undone from the screen or with Ctrl+Z on the map. Before the first move, the original file is kept once in the same folder as `<file name>.before-split.bak`
+- The notebook screen: turn the split on or off for the address (you can also split by hand), switch notebooks by clicking one in the list (on an address that is not split, notebooks are shown as greyed-out rows you cannot click; an empty name reads "(no name)", and automatic names are "Notebook N"), rename a notebook (duplicate names are detected ignoring case and full-width / half-width forms), and create a new one. There is no way to delete a notebook
+- Moving pre-split notes into the notebook in use, with "Move all here (N)…" (only the pre-split notes of the current dimension) and "Move visible" on the notebook screen (a confirmation screen is shown). A move can be undone from the screen or with Ctrl+Z on the map. Before the first move, the original file is kept once in the same folder as `<file name>.before-split.bak`
 - Pre-split notes look the same on the map; only when you hover over one with the eraser or edit tool, it says "Pre-split note (shown on every server)"
 - New notices on the hint line below the band ("Notebook: …", "Notes are now split by server", "Notes moved: …", "Moved notes put back", "Move failed", "Imported 0.1.0 notes as notebooks", and so on)
 - Importing 0.1.0 notes: when one address has two or more 0.1.0 folders (under JourneyMap's `data/mp/`), each folder is imported as its own notebook
@@ -20,11 +20,12 @@ Notes can now be kept separately for each backend server behind a proxy such as 
 
 - The tool band layout was finalised. The top row gained the menu button, and the bottom row changes with the selected tool (outline: line width, fill opacity, color; line: line width, color; text: text size, color; eraser and edit have no settings and show "No settings for this tool"). The fill opacity of outlines can now be chosen from the band. The band is a little wider (a position saved far to the right in an older version is pulled back so it does not go off screen)
 - Rarely used features such as the notebook location are gathered in the menu, so the band is not filled with buttons
-- The undo / redo history is now also discarded when you move to another backend server behind a proxy
+- The undo / redo history is now also discarded when you move to another backend server behind a proxy, and the "Ctrl+Z to undo" notice that is showing disappears with it
 - The new 0.4.0 texts are available in all 10 languages (German, Spanish, French, Korean, Brazilian Portuguese, Russian, Simplified and Traditional Chinese were added)
 
 ### Fixed
 
+- Starting a drag from the margin of the tool band could open the line-note screen. A drag that starts on the band no longer starts drawing a line after you leave the band
 - The hint line below the band (button descriptions and notices) was not being drawn in 0.2.0 and 0.3.0. It is back, with a dark background so it stays readable on bright terrain, and it appears above the band when you move the band near the bottom edge of the screen
 - After moving the band, the clickable area of the buttons could be off from where the buttons were drawn
 - On closing the game, the last changes (within about 1 second of editing) could fail to be saved. Pending notes are now written out when the game closes
