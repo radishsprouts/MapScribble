@@ -61,6 +61,8 @@ public final class NotebookList extends AbstractWidget {
     private String cursorId;
     /** 行を押した処理（onClick）が済み、バニラのフォーカスの取得（setFocused）が続く間だけ真。取得時の初期化で押した行を上書きしない。 */
     private boolean clickedRow;
+    /** {@link #restore} がカーソルを戻した直後の、続くフォーカスの取得（setFocused）で、カーソルを初期化しないための一度だけの目印。 */
+    private boolean keepCursorOnFocus;
     private final String inUseLabel;
     private static final int CURSOR_OVER = 0x1FFFFFFF;
 
@@ -86,6 +88,63 @@ public final class NotebookList extends AbstractWidget {
                 cursor = rows.isEmpty() ? -1 : Math.min(cursor, rows.size() - 1);
             }
             cursorId = cursor >= 0 ? rows.get(cursor).id() : null;
+        }
+        // 行が届いた時（読み込み中→行あり）に、フォーカス中で押せるのにカーソルが無ければ置く（設計書 3.7）
+        ensureCursor();
+    }
+
+    /** 作り直しをまたいで保つ一覧の状態（設計書 3.7「画面の作り直しで保つもの」）。cursorId が null ならカーソルは無かった。 */
+    public record Snapshot(String cursorId, int cursorIndex, int scroll) {
+    }
+
+    /** 作り直しの前の状態を覚える。カーソルは、フォーカス中で押せる時だけ覚える。 */
+    public Snapshot snapshot() {
+        boolean keep = isFocused() && cursorActive() && cursor >= 0 && cursor < rows.size();
+        return new Snapshot(keep ? rows.get(cursor).id() : null, keep ? cursor : -1, scroll);
+    }
+
+    /**
+     * 作り直した後の新しい一覧へ状態を戻す（行を入れた後に呼ぶ）。スクロールは新しい範囲へ丸め、
+     * カーソルは id で追う（行が無くなっていたら範囲内へ丸める）。続くフォーカスの取得でカーソルを初期化しない。
+     */
+    public void restore(Snapshot s) {
+        scroll = s.scroll();
+        clampScroll();
+        if (s.cursorId() != null && cursorActive() && !rows.isEmpty()) {
+            int found = indexOfId(s.cursorId());
+            int index = found >= 0 ? found : Math.max(0, Math.min(s.cursorIndex(), rows.size() - 1));
+            setCursor(index);
+            scrollTo(index);
+            keepCursorOnFocus = true;
+        }
+    }
+
+    // ---- 画面の確認（単体試験・client gametest）用の読み取り口。状態は変えない ----
+
+    /** キーのカーソルの行のメモ帳の id（カーソルが無ければ null）。 */
+    public String cursorRowId() {
+        return cursor >= 0 && cursor < rows.size() ? rows.get(cursor).id() : null;
+    }
+
+    /** 一番上に見えている行の位置。 */
+    public int scrollOffset() {
+        return scroll;
+    }
+
+    /** 一覧に見せる行数（窓の大きさで 3 または 6）。 */
+    public int visibleRowCount() {
+        return visibleRows;
+    }
+
+    /** 今入っている行の数。 */
+    public int rowCount() {
+        return rows.size();
+    }
+
+    /** フォーカス中で押せて、行があるのにカーソルが無い時、フォーカスが入った時と同じ決まりでカーソルを置く。 */
+    private void ensureCursor() {
+        if (isFocused() && cursor < 0 && !rows.isEmpty() && cursorActive()) {
+            placeCursorInitially();
         }
     }
 
@@ -130,10 +189,15 @@ public final class NotebookList extends AbstractWidget {
         boolean gained = focused && !isFocused();
         super.setFocused(focused);
         if (gained) {
-            if (clickedRow) {
+            if (keepCursorOnFocus) {
+                keepCursorOnFocus = false;
+            } else if (clickedRow) {
                 clickedRow = false;
-            } else {
+            } else if (cursorActive()) {
                 placeCursorInitially();
+            } else {
+                // 押せない間はカーソルを持たない。押せるようになった時に置く（setPickable / setDimmed / setRows）
+                setCursor(-1);
             }
         }
     }
@@ -146,12 +210,29 @@ public final class NotebookList extends AbstractWidget {
 
     /** 行を押して切り替えられるか。 */
     public void setPickable(boolean pickable) {
+        boolean was = cursorActive();
         this.pickable = pickable;
+        activeChanged(was);
     }
 
     /** 行を灰色にして押せない見た目にするか（分けていない接続先）。真なら名前・件数・日付が灰色で、ホバーの面も出ない。 */
     public void setDimmed(boolean dimmed) {
+        boolean was = cursorActive();
         this.dimmed = dimmed;
+        activeChanged(was);
+    }
+
+    /**
+     * 押せる・押せないが変わった時。押せなくなったらカーソルは覚えない（戻らない）。押せるようになった時は、
+     * フォーカス中なら、フォーカスが入った時と同じ決まりでカーソルを置く。
+     */
+    private void activeChanged(boolean was) {
+        boolean now = cursorActive();
+        if (was && !now) {
+            setCursor(-1);
+        } else if (!was && now) {
+            ensureCursor();
+        }
     }
 
     /** 名前を変えている間は、使用中の行の名前を描かない（上に入力欄が重なる）。 */
@@ -254,6 +335,7 @@ public final class NotebookList extends AbstractWidget {
     private void renderList(Gfx g, int mouseX, int mouseY) {
         // 行を押した処理とフォーカスの取得は同じイベントの中で済むので、描画の時点では目印を残さない
         clickedRow = false;
+        keepCursorOnFocus = false;
         // 一覧の枠
         GuiCompat.outline(g, getX(), getY(), getWidth(), getHeight(), isFocused() ? WHITE : EDGE);
         if (rows.isEmpty()) {
@@ -383,24 +465,31 @@ public final class NotebookList extends AbstractWidget {
     *///?}
 
     /** ↑↓ で選ぶ行を移し、Enter で切り替える。処理したら true。 */
-    private boolean handleKey(int keyCode) {
-        if (!isFocused() || rows.isEmpty()) {
+    boolean handleKey(int keyCode) {
+        if (!isFocused()) {
             return false;
         }
         boolean down = keyCode == InputConstants.KEY_DOWN;
         boolean up = keyCode == InputConstants.KEY_UP;
         boolean enter = keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER;
-        if (!cursorActive()) {
-            // 押せない時は、カーソルを描かず、↑↓は一覧を1行ずつスクロールするだけ。Enter は何もしない
-            if ((down || up) && rows.size() > visibleRows) {
-                scroll += down ? 1 : -1;
-                clampScroll();
+        if (rows.isEmpty() || !cursorActive()) {
+            // 押せない時・行が無い時は、カーソルを描かない。↑↓は行の数に関係なく一覧が受け取り（フォーカスを外へ出さない）、
+            // 行が表示の数を超える時だけ1行ずつスクロールする。Enter は何もしない
+            if (down || up) {
+                if (rows.size() > visibleRows) {
+                    scroll += down ? 1 : -1;
+                    clampScroll();
+                }
                 return true;
             }
             return false;
         }
         if (cursor < 0) {
+            // 通常は ensureCursor が先に置く。通った時は、カーソルを置くだけで動かさない（最初の ↓ で使用中の行を飛ばさない）
             placeCursorInitially();
+            if (down || up) {
+                return true;
+            }
         }
         if (down || up) {
             // 折り返さない。ホイールで動いた表示から、カーソルの行が見える位置へ戻す

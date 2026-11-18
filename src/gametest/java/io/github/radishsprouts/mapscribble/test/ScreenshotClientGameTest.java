@@ -674,7 +674,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
     // ---- 画面の大きさ・倍率・言語 ----
 
     /** 画面の大きさと GUI 倍率を変えて、実際の倍率を返す（頭打ちで要求より小さくなることがある）。 */
-    private static int applyDisplay(ClientGameTestContext context, int w, int h, int scale) {
+    static int applyDisplay(ClientGameTestContext context, int w, int h, int scale) {
         context.getInput().resizeWindow(w, h);
         context.waitTicks(10);
         context.runOnClient(client -> {
