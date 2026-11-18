@@ -148,7 +148,7 @@ Forge・NeoForge の列は、その構成のビルドに使う Forge・NeoForge 
 
 - 元に戻す: Ctrl+Z（帯のボタンでも）
 - やり直す: Ctrl+Y または Ctrl+Shift+Z（帯のボタンでも）
-- 履歴は100件までで、ディメンションや接続先、サーバー（プロキシの先）が切り替わると破棄されます
+- 履歴は100件までで、ディメンションや接続先、サーバー（プロキシの先）が切り替わると破棄されます。その時、出ている「Ctrl+Z で戻せます」の知らせも消えます
 
 ### 表示の切替
 
@@ -232,10 +232,11 @@ Velocity などのプロキシでは、同じアドレスのまま、中のサ�
 メニューの「保存先…」から開きます（マルチプレイの時だけ）。
 
 - **この接続先をサーバーごとに分ける**: オン・オフを切り替えます。オフにしても、作ったメモ帳は消えません（もう一度オンにすれば戻ります）
-- **メモ帳の一覧**: 行をクリックすると、使うメモ帳がその場で切り替わります（使用中は青い行）。件数と作った日が出ます
+- **メモ帳の一覧**: 行をクリックすると、使うメモ帳がその場で切り替わります（使用中は青い行）。件数と作った日が出ます。一覧にフォーカスがある時は ↑↓ でカーソルを動かし、Enter でそのメモ帳に切り替えます。分けていない接続先では、メモ帳が灰色の押せない行で並びます。名前が空のメモ帳は「（名前なし）」と出ます
+- **メモ帳の名前**: 自動で作るメモ帳の名前は「メモ帳 N」です。名前の重複は、大文字・小文字と全角・半角を区別せずに判定します
 - **名前を変える**: 使用中のメモ帳の名前を変えます（24文字まで）。Enter で決め、Esc で取りやめます
 - **新しいメモ帳**: 新しいメモ帳を作り、このワールドで使います
-- **分ける前のメモ**: 件数が出ます。「全部を移す」（この接続先の全ディメンション）と「見えている分を移す」（開いた時に地図に見えていた範囲）で、使用中のメモ帳へ移せます。確認の画面が出て、移したメモは、ほかのサーバーには出なくなります。移した後は、画面の「元に戻す」か、地図で Ctrl+Z で戻せます
+- **分ける前のメモ**: 件数が出ます。「ここの分を移す（N件）…」（今のディメンションの、分ける前のメモだけ。ほかのディメンションの分はそのまま残ります）と「見えている分を移す」（開いた時に地図に見えていた範囲）で、使用中のメモ帳へ移せます。確認の画面が出て、移したメモは、ほかのサーバーには出なくなります。移した後は、画面の「元に戻す」か、地図で Ctrl+Z で戻せます
 - メモ帳を削除する操作はありません
 
 分ける前のメモを移す時は、移す前の元のファイルを、同じフォルダに `<ファイル名>.before-split.bak`（例: `minecraft__overworld.json.before-split.bak`）として1回だけ残します。移し先へ書いて読み直せたことを確かめてから、元から除きます。途中で失敗した時は、元のファイルのまま残ります。
@@ -341,7 +342,7 @@ MapScribble lets you draw handwritten notes on the fullscreen map of JourneyMap,
 - The pencil button that MapScribble draws itself (Xaero's World Map, FTB Chunks, JourneyMap without its official plugin) can be moved: drag it with the left button, or Shift+click it and click again to place it; right-click resets it, and Esc cancels a move. Releasing the button without moving still toggles scribble mode. The position is remembered per map mod as a distance from the nearest screen edge. The buttons in JourneyMap's right column cannot be moved.
 - The tool band can be dragged anywhere on the screen by its empty area, and remembers where you put it. The top row holds the five tools, undo / redo, a text-only visibility toggle, an overall visibility toggle, the menu button and the exit button. The bottom row changes with the selected tool (line width, fill opacity for outlines, text size, and ten colors). Note text can be up to 1000 characters. A hint line below the band shows what the selected tool does and short notices; it sits above the band when the band is near the bottom edge of the screen. UI texts are available in 10 languages.
 - The menu button opens a list with "Notebooks…" (multiplayer only; in singleplayer notes are already kept per world).
-- Notes are separated by the address you connected to, not by the map mod's own per-server folders. Since 0.4.0, on a proxy network (Velocity and the like), when the world seed hash of the same dimension changes within one connection, that address is split automatically: each backend server gets its own notebook (a folder `nb-…` under the address folder, recorded in `notebooks.json`). Ordinary servers and singleplayer behave as before. You can turn the split on or off, switch notebooks, create new ones and rename them on the Notebooks screen (menu button, "Notebooks…"). No notebook is ever deleted.
-- Your existing notes are not removed: notes saved before the split stay in the address folder and show up on every server there, and you can still edit them. On the Notebooks screen you can move them into the notebook in use ("Move all" or "Move visible"); a `.before-split.bak` copy of the original file is kept the first time, and the move can be undone. If you go back to 0.3.0, the notes in the address folder are still shown; notes that live in notebooks are not visible in older versions (the files stay on disk).
+- Notes are separated by the address you connected to, not by the map mod's own per-server folders. Since 0.4.0, on a proxy network (Velocity and the like), when the world seed hash of the same dimension changes within one connection, that address is split automatically: each backend server gets its own notebook (a folder `nb-…` under the address folder, recorded in `notebooks.json`). Ordinary servers and singleplayer behave as before. You can turn the split on or off, switch notebooks (with the list focused, Up / Down moves the cursor and Enter switches), create new ones and rename them on the Notebooks screen (menu button, "Notebooks…"). No notebook is ever deleted.
+- Your existing notes are not removed: notes saved before the split stay in the address folder and show up on every server there, and you can still edit them. On the Notebooks screen you can move them into the notebook in use ("Move all here (N)…", which moves only the pre-split notes of the current dimension, or "Move visible"); a `.before-split.bak` copy of the original file is kept the first time, and the move can be undone. If you go back to 0.3.0, the notes in the address folder are still shown; notes that live in notebooks are not visible in older versions (the files stay on disk).
 - Notes drawn in 0.1.0 (saved inside JourneyMap's data folder) are now imported when you first open the matching save location. If one address had two or more 0.1.0 folders, each is imported as its own notebook.
 - Build: `./gradlew buildAndCollect` produces one jar per Minecraft version and loader (21 configurations) in `build/libs/<mod version>/`. License: MIT.
