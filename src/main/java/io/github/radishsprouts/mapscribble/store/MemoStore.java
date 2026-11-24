@@ -77,6 +77,8 @@ public final class MemoStore implements MemoRepository {
     private long generation;
     /** 移す操作の最中。書き込み用スレッドから結果が戻る経路でも読まれるので volatile。 */
     private volatile boolean busy;
+    /** 試験専用の印。true の間は isAvailable() が false になる（setWritableForTest）。 */
+    private volatile boolean unavailableForTest;
     private volatile Consumer<String> problemHandler = message -> { };
     private volatile Consumer<Boolean> saveStateHandler = failed -> { };
     /** 書き込みに失敗したままのファイル。空になった時が「次に保存が成功した」時。 */
@@ -138,9 +140,27 @@ public final class MemoStore implements MemoRepository {
         this.problemHandler = handler == null ? message -> { } : handler;
     }
 
+    /**
+     * 試験専用。書き込み先が書き込める状態かを差し替える（false で「使えない」状態になる）。
+     * gametest が帯の説明の行の「使えない」状態を出すために使い、終わったら true へ戻す。呼ばなければ本番の動きは変わらない。
+     */
+    public void setWritableForTest(boolean writable) {
+        this.unavailableForTest = !writable;
+    }
+
+    /** 試験専用。今つながっている「読めなかった」通知先を返す（gametest が画面側の表示を動かすために呼ぶ）。 */
+    public Consumer<String> problemHandlerForTest() {
+        return problemHandler;
+    }
+
+    /** 試験専用。今つながっている保存の失敗・回復の通知先を返す（gametest が画面側の表示を動かすために呼ぶ）。 */
+    public Consumer<Boolean> saveStateHandlerForTest() {
+        return saveStateHandler;
+    }
+
     @Override
     public boolean isAvailable() {
-        return primary != null && primary.writable;
+        return primary != null && primary.writable && !unavailableForTest;
     }
 
     @Override
