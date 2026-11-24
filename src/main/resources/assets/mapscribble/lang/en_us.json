@@ -106,6 +106,8 @@
   "mapscribble.fill.tooltip": "Fill: %s",
   "mapscribble.notebook.title": "Notebooks",
   "mapscribble.notebook.address": "Server address: %s",
+
+  "mapscribble.notebook.address.label": "Server address:",
   "mapscribble.notebook.split": "Split this address by server",
   "mapscribble.notebook.split.desc.auto": "Auto-enabled: a different server was found",
   "mapscribble.notebook.split.desc.on": "Each world uses its own notebook",

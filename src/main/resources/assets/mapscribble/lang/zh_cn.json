@@ -106,6 +106,8 @@
   "mapscribble.fill.tooltip": "填充：%s",
   "mapscribble.notebook.title": "备注保存位置",
   "mapscribble.notebook.address": "连接地址：%s",
+
+  "mapscribble.notebook.address.label": "连接地址：",
   "mapscribble.notebook.split": "按服务器分开此地址",
   "mapscribble.notebook.split.desc.auto": "检测到其他服务器，已自动开启",
   "mapscribble.notebook.split.desc.on": "每个世界使用各自的记事本",

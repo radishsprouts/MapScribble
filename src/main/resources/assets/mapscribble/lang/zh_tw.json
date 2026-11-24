@@ -106,6 +106,8 @@
   "mapscribble.fill.tooltip": "填色：%s",
   "mapscribble.notebook.title": "備註儲存位置",
   "mapscribble.notebook.address": "連線位址：%s",
+
+  "mapscribble.notebook.address.label": "連線位址：",
   "mapscribble.notebook.split": "依伺服器分開此位址",
   "mapscribble.notebook.split.desc.auto": "偵測到其他伺服器，已自動開啟",
   "mapscribble.notebook.split.desc.on": "每個世界使用各自的記事本",

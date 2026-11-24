@@ -2,6 +2,7 @@ package io.github.radishsprouts.mapscribble.compat;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.radishsprouts.mapscribble.MapScribble;
+import io.github.radishsprouts.mapscribble.ui.TooltipWrap;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -241,6 +242,22 @@ public final class GuiCompat {
 
     public static void drawTooltip(Gfx g, Font font, Component component, int mouseX, int mouseY) {
         drawTooltip(g, font, List.of(component), mouseX, mouseY);
+    }
+
+    /**
+     * 幅 {@code min(286, GUI 幅 − 24)} で折り返して出すツールチップ（設計書 3.6・3.7）。
+     * 各 Component は文字列に直して折る（色・書式は付けない）。空白の無い長い語は文字単位で折る。
+     * バニラの Tooltip（ボタン用）は幅 170 で折るので、保存先の画面ではこちらで出す。
+     */
+    public static void drawWrappedTooltip(Gfx g, Font font, int guiWidth, List<Component> lines, int mouseX, int mouseY) {
+        int max = TooltipWrap.maxWidth(guiWidth);
+        List<Component> wrapped = new java.util.ArrayList<>();
+        for (Component line : lines) {
+            for (String s : TooltipWrap.wrap(line.getString(), max, font::width)) {
+                wrapped.add(Component.literal(s));
+            }
+        }
+        drawTooltip(g, font, wrapped, mouseX, mouseY);
     }
 
     /** 1.20.1 に存在しない MutableComponent.withColor(int) を吸収する。 */
