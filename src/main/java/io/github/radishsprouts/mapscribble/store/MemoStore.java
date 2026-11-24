@@ -153,6 +153,16 @@ public final class MemoStore implements MemoRepository {
         return problemHandler;
     }
 
+    /** 試験専用。今開いている主ファイル（開いていなければ null）。gametest が撮影の後に元の保存先へ戻すために控える。 */
+    public java.nio.file.Path primaryFileForTest() {
+        return primary == null ? null : primary.file;
+    }
+
+    /** 試験専用。今開いている分ける前のファイル（無ければ null）。 */
+    public java.nio.file.Path legacyFileForTest() {
+        return legacy == null ? null : legacy.file;
+    }
+
     /** 試験専用。今つながっている保存の失敗・回復の通知先を返す（gametest が画面側の表示を動かすために呼ぶ）。 */
     public Consumer<Boolean> saveStateHandlerForTest() {
         return saveStateHandler;

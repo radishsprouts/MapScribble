@@ -110,7 +110,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         }
     }
 
-    private static Projection projection(ClientGameTestContext context, Object fullscreen) {
+    static Projection projection(ClientGameTestContext context, Object fullscreen) {
         return context.computeOnClient(client -> new Projection(
                 center(fullscreen, "getCenterBlockX"), center(fullscreen, "getCenterBlockZ"), blockSize(fullscreen),
                 client.getWindow().getWidth(), client.getWindow().getHeight()));
@@ -187,7 +187,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
 
     // ---- メモの置き方（リポジトリへ直接足す。位置はウィンドウ中心からの物理ピクセル） ----
 
-    private static List<MapPoint> points(Projection p, double[][] offsets) {
+    static List<MapPoint> points(Projection p, double[][] offsets) {
         List<MapPoint> list = new ArrayList<>();
         for (double[] o : offsets) {
             list.add(new MapPoint(p.toWorldX(p.width() / 2.0 + o[0]), p.toWorldZ(p.height() / 2.0 + o[1])));
@@ -209,7 +209,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
                 {cx - halfW, cz + halfH}};
     }
 
-    private static Memo memo(MemoKind kind, List<MapPoint> pts, int color, int width, float fill, String text,
+    static Memo memo(MemoKind kind, List<MapPoint> pts, int color, int width, float fill, String text,
                              float scale) {
         Instant now = Instant.now();
         return new Memo(UUID.randomUUID(), kind, pts, color, width, fill, text, scale, true, now, now);
@@ -240,7 +240,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         context.waitTicks(5);
     }
 
-    private static final double[][] REGION_A = {{60, 30}, {210, 0}, {300, 80}, {250, 170}, {90, 150}};
+    static final double[][] REGION_A = {{60, 30}, {210, 0}, {300, 80}, {250, 170}, {90, 150}};
 
     /** 基本のメモ3種（囲み＝日本語の文字付き・塗りあり、線、文字だけ）。今の画面の中心を基準に置き直す。 */
     private static List<Memo> basicMemos(Projection p) {
@@ -255,7 +255,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
     }
 
     /** 基本メモの囲みの内側の点（画面の物理ピクセル）。クリック・ホバーの位置に使う。 */
-    private static double[] regionInside(Projection p) {
+    static double[] regionInside(Projection p) {
         MapPoint c = Shapes.centroid(points(p, REGION_A));
         return new double[] {p.toScreenX(c.x()), p.toScreenY(c.z())};
     }

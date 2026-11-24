@@ -4,14 +4,25 @@ import com.mojang.blaze3d.platform.InputConstants;
 import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.draw.DrawingState;
 import io.github.radishsprouts.mapscribble.draw.Tool;
+import io.github.radishsprouts.mapscribble.geom.Projection;
 import io.github.radishsprouts.mapscribble.jm.ScribbleBridge;
+import io.github.radishsprouts.mapscribble.model.Memo;
+import io.github.radishsprouts.mapscribble.model.MemoKind;
+import io.github.radishsprouts.mapscribble.store.MemoFile;
+import io.github.radishsprouts.mapscribble.store.MemoStore;
 import io.github.radishsprouts.mapscribble.store.NotebookAccess;
+import io.github.radishsprouts.mapscribble.store.StoreSession;
 import io.github.radishsprouts.mapscribble.ui.BandLayout;
+import io.github.radishsprouts.mapscribble.ui.FillLevel;
 import io.github.radishsprouts.mapscribble.ui.HintResolver;
 import io.github.radishsprouts.mapscribble.ui.MenuLayout;
+import io.github.radishsprouts.mapscribble.ui.NoteColor;
 import io.github.radishsprouts.mapscribble.ui.NoticeTimer;
 import io.github.radishsprouts.mapscribble.ui.NotebookScreen;
 import io.github.radishsprouts.mapscribble.ui.ScribbleUi;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -83,6 +94,7 @@ final class MenuNotebookShots {
 
             shootMenus(ctx, holder, state, ui, prefix);
             shootNotebooks(ctx, holder, state, ui, prefix, w, h);
+            shootPreSplit(ctx, holder, state, prefix);
             shootNotices(ctx, holder, state, prefix);
         } finally {
             if (restore[0] != null) {
@@ -285,6 +297,91 @@ final class MenuNotebookShots {
                     "id0", true, 5L, list)), extras);
             ScreenshotClientGameTest.snap(ctx, holder, prefix, "45_notebook_long_names", true);
         });
+    }
+
+    // ---- 分ける前のメモの見分け（AC158・AC159。設計書 3.8） ----
+
+    /**
+     * 分ける前のメモ（分ける前のファイルにあるメモ）の、ホバーのツールチップの2行目と、編集の画面の見出しを撮る。
+     * 本物のリポジトリ（{@link StoreSession#repository()}）を、使い捨ての主ファイルと分ける前のファイルで開き直して
+     * {@code isLegacy} が true のメモを作り、終わったら元の保存先へ開き直す（撮影の間だけ差し替える）。
+     */
+    private static void shootPreSplit(ClientGameTestContext ctx, Object[] holder, DrawingState state, String prefix) {
+        MemoStore store = (MemoStore) StoreSession.repository();
+        Path origPrimary = store.primaryFileForTest();
+        Path origLegacy = store.legacyFileForTest();
+        Path dir = null;
+        try {
+            ScreenshotClientGameTest.reopenFullscreen(ctx, holder);
+            Projection p = ScreenshotClientGameTest.projection(ctx, holder[0]);
+            Memo legacyMemo = ScreenshotClientGameTest.memo(MemoKind.REGION,
+                    ScreenshotClientGameTest.points(p, ScreenshotClientGameTest.REGION_A), NoteColor.RED.rgb(), 2,
+                    FillLevel.NORMAL.opacity(), "村の倉庫", 1.5f);
+            dir = Files.createTempDirectory("mapscribble-presplit");
+            Path primaryFile = dir.resolve("primary.json");
+            Path legacyFile = dir.resolve("legacy.json");
+            Files.writeString(primaryFile, MemoFile.toJson(List.of()));
+            Files.writeString(legacyFile, MemoFile.toJson(List.of(legacyMemo)));
+            ctx.runOnClient(client -> store.open(primaryFile, legacyFile));
+            ctx.waitTicks(6);
+        } catch (Throwable t) {
+            failures++;
+            log(prefix + ": 分ける前のメモの撮影の準備に失敗: " + t);
+            restoreStore(ctx, store, origPrimary, origLegacy, dir);
+            return;
+        }
+        try {
+            scene(ctx, holder, prefix, "58_presplit_hover_eraser", () -> {
+                double[] inside = ScreenshotClientGameTest.regionInside(ScreenshotClientGameTest.projection(ctx, holder[0]));
+                ScreenshotClientGameTest.setMode(ctx, state, true, Tool.ERASER);
+                ctx.getInput().setCursorPos(inside[0], inside[1]);
+                ctx.waitTicks(5);
+                ScreenshotClientGameTest.snap(ctx, holder, prefix, "58_presplit_hover_eraser", true);
+            });
+            scene(ctx, holder, prefix, "59_presplit_edit_title", () -> {
+                double[] inside = ScreenshotClientGameTest.regionInside(ScreenshotClientGameTest.projection(ctx, holder[0]));
+                ScreenshotClientGameTest.setMode(ctx, state, true, Tool.EDIT);
+                ctx.getInput().setCursorPos(inside[0], inside[1]);
+                ctx.waitTicks(5);
+                ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_LEFT);
+                ctx.waitTicks(10);
+                if (!ScreenshotClientGameTest.screenOf(ctx).endsWith(".NoteEditScreen")) {
+                    throw new IllegalStateException("分ける前のメモを編集ツールで押しても編集の画面が開かない（画面: "
+                            + ScreenshotClientGameTest.screenOf(ctx) + "）");
+                }
+                ScreenshotClientGameTest.snap(ctx, holder, prefix, "59_presplit_edit_title");
+            });
+        } finally {
+            restoreStore(ctx, store, origPrimary, origLegacy, dir);
+        }
+    }
+
+    /** 撮影の間だけ差し替えたリポジトリを、元の保存先へ開き直し、使い捨てのファイルを消す。 */
+    private static void restoreStore(ClientGameTestContext ctx, MemoStore store, Path origPrimary, Path origLegacy,
+                                     Path dir) {
+        try {
+            ctx.runOnClient(client -> {
+                if (origPrimary != null) {
+                    store.open(origPrimary, origLegacy);
+                } else {
+                    store.close();
+                }
+            });
+            ctx.waitTicks(6);
+        } catch (Throwable t) {
+            failures++;
+            log("分ける前のメモの撮影の後に、元の保存先へ開き直せない: " + t);
+        }
+        if (dir != null) {
+            try (var files = Files.list(dir)) {
+                for (Path f : files.toList()) {
+                    Files.deleteIfExists(f);
+                }
+                Files.deleteIfExists(dir);
+            } catch (IOException e) {
+                log("使い捨てのファイルを消せない: " + dir + " " + e);
+            }
+        }
     }
 
     // ---- 説明の行の新しいお知らせ（AC160〜163。設計書 3.9） ----
