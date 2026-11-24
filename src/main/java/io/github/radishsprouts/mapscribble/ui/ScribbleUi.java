@@ -46,6 +46,7 @@ public final class ScribbleUi {
 
     private Memo tooltipMemo;
     private Tool tooltipTool;
+    private boolean tooltipPreSplit;
     private List<Component> memoTooltip = List.of();
 
     public ScribbleUi(DrawingController controller, Path prefsFile) {
@@ -178,12 +179,17 @@ public final class ScribbleUi {
         }
 
         if (hoverMemo != null && !BandLayout.contains(mouseX, mouseY, state.bandX(), state.bandY())) {
-            if (hoverMemo != tooltipMemo || state.tool() != tooltipTool) {
+            boolean preSplit = isPreSplit(hoverMemo);
+            if (hoverMemo != tooltipMemo || state.tool() != tooltipTool || preSplit != tooltipPreSplit) {
                 tooltipMemo = hoverMemo;
                 tooltipTool = state.tool();
-                memoTooltip = List.of(Component.translatable(
+                tooltipPreSplit = preSplit;
+                Component first = Component.translatable(
                         state.tool() == Tool.ERASER ? "mapscribble.hover.erase" : "mapscribble.hover.edit",
-                        describe(hoverMemo)));
+                        describe(hoverMemo));
+                memoTooltip = preSplit
+                        ? List.of(first, GuiCompat.withColor(Component.translatable("mapscribble.note.presplit"), 0xA0A0A0))
+                        : List.of(first);
             }
             GuiCompat.drawTooltip(g, mc.font, memoTooltip, mouseX, mouseY);
         }
@@ -416,13 +422,20 @@ public final class ScribbleUi {
         }));
     }
 
+    /** 分ける前のメモか（分けている接続先で、直下のファイルのメモ。メモ帳を開いていない時は常に false）。 */
+    private boolean isPreSplit(Memo memo) {
+        MemoRepository repo = controller.repository();
+        return repo != null && repo.isLegacy(memo.id());
+    }
+
     private void openEdit(Memo memo) {
         Screen parent = ScreenCompat.currentScreen();
         if (parent == null) {
             return;
         }
         NoteEditScreen.Spec spec = new NoteEditScreen.Spec(memo.kind(), true, memo.text(), memo.color(),
-                FillLevel.nearest(memo.fillOpacity()), TextSize.nearest(memo.textScale()), memo.onMinimap());
+                FillLevel.nearest(memo.fillOpacity()), TextSize.nearest(memo.textScale()), memo.onMinimap(),
+                isPreSplit(memo));
         ScreenCompat.setScreen(new NoteEditScreen(parent, spec, new NoteEditScreen.Callbacks() {
             @Override
             public void confirm(NoteEditScreen.Result r) {

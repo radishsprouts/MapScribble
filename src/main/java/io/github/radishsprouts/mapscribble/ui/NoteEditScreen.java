@@ -30,7 +30,12 @@ import net.minecraft.network.chat.Component;
 public final class NoteEditScreen extends Screen {
     /** 画面を開く時の値。 */
     public record Spec(MemoKind kind, boolean edit, String text, int color, FillLevel fill, TextSize size,
-                       boolean onMinimap) {
+                       boolean onMinimap, boolean preSplit) {
+        /** 分ける前のメモではない（新規・メモ帳のメモ）場合の値。 */
+        public Spec(MemoKind kind, boolean edit, String text, int color, FillLevel fill, TextSize size,
+                    boolean onMinimap) {
+            this(kind, edit, text, color, fill, size, onMinimap, false);
+        }
     }
 
     /** 確定した値。 */
@@ -330,7 +335,7 @@ public final class NoteEditScreen extends Screen {
         int py = layout.panelY();
         int left = px + EditLayout.MARGIN;
 
-        GuiCompat.centeredText(g, font, title, px + EditLayout.PANEL_WIDTH / 2, py + layout.titleY(), TEXT_WHITE, false);
+        GuiCompat.centeredText(g, font, headline(), px + EditLayout.PANEL_WIDTH / 2, py + layout.titleY(), TEXT_WHITE, false);
         GuiCompat.text(g, font, Component.translatable("mapscribble.screen.label.text"), left, py + layout.labelY(), TEXT_LABEL, false);
 
         int hintY = py + layout.counterY();
@@ -342,6 +347,15 @@ public final class NoteEditScreen extends Screen {
 
         GuiCompat.text(g, font, Component.translatable("mapscribble.screen.label.color", colorName()), left,
                 py + layout.colorLabelY(), TEXT_LABEL, false);
+    }
+
+    /** 見出し。分ける前のメモを編集する時は、後ろに灰色の補足を続ける（同じ1行。パネルの高さは変えない）。 */
+    private Component headline() {
+        if (!spec.preSplit()) {
+            return title;
+        }
+        return Component.empty().append(title)
+                .append(GuiCompat.withColor(Component.translatable("mapscribble.screen.title.presplit"), 0xA0A0A0));
     }
 
     private Component colorName() {
