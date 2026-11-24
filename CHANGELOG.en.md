@@ -2,7 +2,7 @@
 
 English version of [CHANGELOG.md](CHANGELOG.md). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The CurseForge changelog shows this file's section first, followed by the Japanese one.
 
-## 0.4.0 (unreleased)
+## [0.4.0] - 2026-11-24
 
 Notes can now be kept separately for each backend server behind a proxy such as Velocity. Your existing notes are not removed.
 
@@ -10,7 +10,7 @@ Notes can now be kept separately for each backend server behind a proxy such as 
 
 - Per-server notes behind a proxy (Velocity and the like). When the world seed hash of the same dimension changes within one connection to the same address, that address is split automatically. Each backend server gets its own "notebook", and notes are saved into the notebook of the server you are on (`mapscribble/servers/<address>/nb-…/`, recorded in `notebooks.json` in the same folder). Ordinary servers and singleplayer behave as before. To keep servers that change the seed on every join from creating notebooks endlessly, at most 8 notebooks are created automatically per address
 - A menu button on the tool band. Its "Notebooks…" item opens the notebook screen (multiplayer only; in singleplayer it is greyed out and reads "This world only")
-- The notebook screen: turn the split on or off for the address (you can also split by hand), switch notebooks by clicking one in the list (on an address that is not split, notebooks are shown as greyed-out rows you cannot click; an empty name reads "(no name)", and automatic names are "Notebook N"), rename a notebook (duplicate names are detected ignoring case and full-width / half-width forms), and create a new one. There is no way to delete a notebook
+- The notebook screen: turn the split on or off for the address (you can also split by hand), switch notebooks by clicking one in the list (with the list focused, Up / Down moves the cursor and Enter switches; focus, cursor and any name being typed are kept when you resize the window, change the GUI scale or come back from the confirmation screen; on an address that is not split, notebooks are shown as greyed-out rows you cannot click; an empty name reads "(no name)", and automatic names are "Notebook N"), rename a notebook (duplicate names are detected ignoring case and full-width / half-width forms), and create a new one. There is no way to delete a notebook
 - Moving pre-split notes into the notebook in use, with "Move all here (N)…" (only the pre-split notes of the current dimension) and "Move visible" on the notebook screen (a confirmation screen is shown). A move can be undone from the screen or with Ctrl+Z on the map. Before the first move, the original file is kept once in the same folder as `<file name>.before-split.bak`
 - Pre-split notes look the same on the map; only when you hover over one with the eraser or edit tool, it says "Pre-split note (shown on every server)"
 - New notices on the hint line below the band ("Notebook: …", "Notes are now split by server", "Notes moved: …", "Moved notes put back", "Move failed", "Imported 0.1.0 notes as notebooks", and so on)
@@ -29,6 +29,7 @@ Notes can now be kept separately for each backend server behind a proxy such as 
 - The hint line below the band (button descriptions and notices) was not being drawn in 0.2.0 and 0.3.0. It is back, with a dark background so it stays readable on bright terrain, and it appears above the band when you move the band near the bottom edge of the screen
 - After moving the band, the clickable area of the buttons could be off from where the buttons were drawn
 - On closing the game, the last changes (within about 1 second of editing) could fail to be saved. Pending notes are now written out when the game closes
+- Opening the notebook screen while notebooks were still loading left it stuck on "Loading…" with no rows, even after loading finished. The rows now appear as soon as loading finishes, without any input
 - Notes drawn in 0.1.0 were not carried over in 0.2.0 and later. 0.1.0 saved them in JourneyMap's per-world folder (`journeymap/data/{mp,sp}/<folder>/addon-data/mapscribble/`), but the carry-over looked in a different place. The old files are left untouched
 
 ### About your existing notes
