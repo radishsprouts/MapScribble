@@ -458,16 +458,6 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         return null;
     }
 
-    private static Field storeField(String name) {
-        try {
-            Field f = MemoStore.class.getDeclaredField(name);
-            f.setAccessible(true);
-            return f;
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     /** 帯の説明の一時のお知らせ（4 秒）が消えるのを待つ（お知らせが「0件」「隠している」より優先されるため）。 */
     private static void waitNoticeExpire(ClientGameTestContext context) {
         context.waitTicks(5);
@@ -504,47 +494,26 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         snap(context, holder, prefix, "08_hint_loading");
 
         MemoStore store = (MemoStore) StoreSession.repository();
-        Field writable = storeField("writable");
         try {
-            context.runOnClient(client -> {
-                try {
-                    writable.setBoolean(store, false);
-                } catch (IllegalAccessException e) {
-                    throw new IllegalStateException(e);
-                }
-            });
+            context.runOnClient(client -> store.setWritableForTest(false));
             waitNoticeExpire(context);
             snap(context, holder, prefix, "08_hint_not_ready");
 
-            @SuppressWarnings("unchecked")
-            Consumer<String> problem = (Consumer<String>) storeField("problemHandler").get(store);
+            Consumer<String> problem = store.problemHandlerForTest();
             context.runOnClient(client -> problem.accept("test"));
             context.waitTicks(3);
             snap(context, holder, prefix, "08_hint_load_failed");
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException(e);
         } finally {
-            context.runOnClient(client -> {
-                try {
-                    writable.setBoolean(store, true);
-                } catch (IllegalAccessException e) {
-                    throw new IllegalStateException(e);
-                }
-            });
+            context.runOnClient(client -> store.setWritableForTest(true));
             context.waitTicks(3);
         }
 
-        try {
-            @SuppressWarnings("unchecked")
-            Consumer<Boolean> saveState = (Consumer<Boolean>) storeField("saveStateHandler").get(store);
-            context.runOnClient(client -> saveState.accept(true));
-            context.waitTicks(4);
-            snap(context, holder, prefix, "08_hint_save_failed");
-            context.runOnClient(client -> saveState.accept(false));
-            context.waitTicks(4);
-        } catch (IllegalAccessException e) {
-            throw new IllegalStateException(e);
-        }
+        Consumer<Boolean> saveState = store.saveStateHandlerForTest();
+        context.runOnClient(client -> saveState.accept(true));
+        context.waitTicks(4);
+        snap(context, holder, prefix, "08_hint_save_failed");
+        context.runOnClient(client -> saveState.accept(false));
+        context.waitTicks(4);
 
         // 初回の既定（囲み・赤・中）。他の試験が変えた値を、起動直後の既定へ戻してから撮る
         context.runOnClient(client -> {
