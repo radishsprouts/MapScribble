@@ -52,17 +52,28 @@ final class LangWidthClientGameTest {
         System.out.println("[MS-LANG] " + message);
     }
 
-    /** 全言語を測り、上限を超えた文言があれば落ちる。 */
-    static void run(ClientGameTestContext ctx) {
+    /**
+     * 全言語を測り、上限を超えた文言をログへ出して一覧を返す（ここでは落とさない）。
+     * 超えた訳があっても後の試験と撮影を回せるよう、落とすのは全部の試験の後の {@link #failIfOver} で行う。
+     */
+    static List<String> measure(ClientGameTestContext ctx) {
         List<String> over = ctx.computeOnClient(client -> measureAll(client.font));
-        if (!over.isEmpty()) {
+        if (over.isEmpty()) {
+            log("10 言語すべてで、メニューの補足・保存先の画面のボタンと行が上限に収まった");
+        } else {
             for (String line : over) {
                 log("上限超え: " + line);
             }
+        }
+        return over;
+    }
+
+    /** {@link #measure} の結果に上限を超えた文言があれば落ちる。 */
+    static void failIfOver(List<String> over) {
+        if (!over.isEmpty()) {
             throw new AssertionError("[MS-LANG] 固定の幅を超えた文言が " + over.size() + " 件ある:\n  "
                     + String.join("\n  ", over));
         }
-        log("10 言語すべてで、メニューの補足・保存先の画面のボタンと行が上限に収まった");
     }
 
     /** 全言語を測る。上限を超えた文言（と、読めなかったキー）の一覧を返す。 */

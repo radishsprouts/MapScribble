@@ -22,8 +22,9 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 public class AllClientGameTest implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext context) {
-        // 固定の幅に入れている文言が 10 言語すべてで収まるか（言語は切り替えず、lang の JSON を読んで測る。超えたら落ちる）
-        LangWidthClientGameTest.run(context);
+        // 固定の幅に入れている文言が 10 言語すべてで収まるか（言語は切り替えず、lang の JSON を読んで測る）。
+        // 超えた訳があっても後の試験と撮影を回すため、ここでは測ってログへ出すだけにし、落とすのは最後に行う
+        java.util.List<String> langOver = LangWidthClientGameTest.measure(context);
 
         MultiplayerClientGameTest.run(context);
 
@@ -48,6 +49,7 @@ public class AllClientGameTest implements FabricClientGameTest {
             // 落ちた時もワールドを閉じて、gametest が止まらず終わるようにする
             TestWorlds.close(context, singleplayer);
         }
+        LangWidthClientGameTest.failIfOver(langOver);
     }
 
     private static void closeScreen(ClientGameTestContext context) {
