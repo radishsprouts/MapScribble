@@ -187,6 +187,32 @@ class NotebookListKeyNeedsMinecraftTest {
     }
 
     @Test
+    void 押せない間に行を押してもカーソルは動かず_押せる時は押した行に置かれる() {
+        NotebookList list = emptyFocused(6);
+        list.setRows(rowsOf(4, 1));
+        list.setPickable(false);
+        list.click(2);
+        assertEquals(null, list.cursorRowId());
+        assertEquals(List.of(), picked);
+        // 押せるようになった時に置く決まり（使用中の行）はそのまま
+        list.setPickable(true);
+        assertEquals("id1", list.cursorRowId());
+
+        NotebookList dimmed = emptyFocused(6);
+        dimmed.setRows(rowsOf(4, 1));
+        dimmed.setDimmed(true);
+        dimmed.click(3);
+        assertEquals(null, dimmed.cursorRowId());
+
+        picked.clear();
+        NotebookList active = emptyFocused(6);
+        active.setRows(rowsOf(4, 1));
+        active.click(3);
+        assertEquals("id3", active.cursorRowId());
+        assertEquals(List.of("id3"), picked);
+    }
+
+    @Test
     void 押せなくなったらカーソルを消す() {
         NotebookList list = emptyFocused(6);
         list.setRows(rowsOf(4, 1));

@@ -28,6 +28,39 @@ class StoreNotebookExtrasTest {
     }
 
     @Test
+    void 見えている分は移した後に減り_元に戻すと戻り_開いた後に増えたメモは数えない(@TempDir Path dir) throws Exception {
+        Path overworld = dir.resolve("minecraft__overworld.json");
+        Path nbFile = dir.resolve("nb-1").resolve("minecraft__overworld.json");
+        write(overworld, memo("a"), memo("b"), memo("c"));
+        MemoStore store = new MemoStore(5000);
+        store.open(nbFile, overworld);
+        try {
+            StoreNotebookExtras extras = new StoreNotebookExtras(store);
+            List<UUID> all = new ArrayList<>();
+            for (Memo m : store.memos()) {
+                all.add(m.id());
+            }
+            // 開いた時に見えていたのは先頭の2件
+            extras.setOpenedVisible(all.subList(0, 2));
+            assertEquals(2, extras.legacyVisible());
+
+            CompletableFuture<MoveResult> moved = new CompletableFuture<>();
+            store.move(new ArrayList<>(extras.legacyVisibleIds()), MoveDirection.LEGACY_TO_PRIMARY, moved::complete);
+            assertEquals(2, moved.get(10, TimeUnit.SECONDS).moved());
+            assertEquals(0, extras.legacyVisible(), "移した後は見えている分が 0 件");
+            assertEquals(List.of(), List.copyOf(extras.legacyVisibleIds()));
+            assertEquals(1, StoreNotebookExtras.countLegacyHere(store), "開いた時に見えていなかった1件は残る");
+
+            CompletableFuture<MoveResult> back = new CompletableFuture<>();
+            store.move(new ArrayList<>(all.subList(0, 2)), MoveDirection.PRIMARY_TO_LEGACY, back::complete);
+            assertEquals(2, back.get(10, TimeUnit.SECONDS).moved());
+            assertEquals(2, extras.legacyVisible(), "元に戻すと戻る（開いた時に見えていた分だけ）");
+        } finally {
+            store.shutdown();
+        }
+    }
+
+    @Test
     void ボタンの件数は今のディメンションの分ける前のメモだけで_移る件数と一致し_ほかのディメンションは動かない(@TempDir Path dir)
             throws Exception {
         Path overworld = dir.resolve("minecraft__overworld.json");

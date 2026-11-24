@@ -178,15 +178,11 @@ public final class NotebookService implements NotebookAccess {
             return;
         }
         long hash = StoreSession.currentSeedHash();
-        if (!remember || id == null) {
+        if (selectsManually(id, remember, hash)) {
             StoreSession.setManualSelection(new ManualSelection(hash, id));
             StoreSession.rekey();
             StoreSession.notifyNotebookListeners();
             done(onDone, ok());
-            return;
-        }
-        if (hash == WorldIdentityCompat.UNKNOWN) {
-            done(onDone, fail(KEY_FAILED));
             return;
         }
         Notebooks next = cur.withBinding(hash, id);
@@ -198,6 +194,14 @@ public final class NotebookService implements NotebookAccess {
         }
         // 紐付けが効くので、手で選んだ印は外す（次の鍵は紐付けから決まる）
         write(dir, next, written -> StoreSession.setManualSelection(null), onDone);
+    }
+
+    /**
+     * 紐付けずに、今の接続・今のハッシュの間だけ手で選ぶ形にするか。remember = false・id が null の時のほか、
+     * ワールドを見分けられない（ハッシュが取れない）時も、紐付ける先が無いので手での選択にする（設計書 3.7 の状態の表）。
+     */
+    static boolean selectsManually(String id, boolean remember, long hash) {
+        return !remember || id == null || hash == WorldIdentityCompat.UNKNOWN;
     }
 
     @Override

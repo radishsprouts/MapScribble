@@ -33,8 +33,14 @@ final class StoreNotebookExtras implements NotebookExtras {
     private int legacyOther;
     private final Map<String, Integer> notebookCounts = new HashMap<>();
 
-    /** 画面を開いた時に見えていた分（開いた後に地図を動かしても変わらない）。 */
-    private List<UUID> visibleIds = List.of();
+    /**
+     * 画面を開いた時に見えていた分（開いた後に地図を動かしても変わらない）。
+     * 移した後・元に戻した後の「見えている分」は、このうち今も分ける前のものだけ（{@link #legacyVisibleIds()}）。
+     */
+    private List<UUID> openedVisibleIds = List.of();
+
+    /** 直前の移す操作で実際に移った件数。 */
+    private int lastMoved;
 
     StoreNotebookExtras(MemoStore store) {
         this.store = store;
@@ -58,7 +64,12 @@ final class StoreNotebookExtras implements NotebookExtras {
                 }
             }
         }
-        visibleIds = List.copyOf(ids);
+        setOpenedVisible(ids);
+    }
+
+    /** 開いた時に見えていた分を控える（snapshotVisible と試験から）。 */
+    void setOpenedVisible(Collection<UUID> ids) {
+        openedVisibleIds = List.copyOf(ids);
         dirty = true;
     }
 
@@ -122,12 +133,24 @@ final class StoreNotebookExtras implements NotebookExtras {
 
     @Override
     public int legacyVisible() {
-        return visibleIds.size();
+        return legacyVisibleIds().size();
+    }
+
+    /** 開いた時に見えていた ID のうち、今も分ける前のもの（移した後は減り、元に戻すと戻る）。 */
+    @Override
+    public Collection<UUID> legacyVisibleIds() {
+        List<UUID> now = new ArrayList<>(openedVisibleIds.size());
+        for (UUID id : openedVisibleIds) {
+            if (store.isLegacy(id)) {
+                now.add(id);
+            }
+        }
+        return now;
     }
 
     @Override
-    public Collection<UUID> legacyVisibleIds() {
-        return visibleIds;
+    public int lastMoved() {
+        return lastMoved;
     }
 
     @Override
@@ -150,6 +173,7 @@ final class StoreNotebookExtras implements NotebookExtras {
         }
         controller.moveLegacyToNotebook(ids, r -> {
             dirty = true;
+            lastMoved = r.moved();
             onDone.accept(new NotebookAccess.Result(r.ok(), r.messageKey()));
         });
     }

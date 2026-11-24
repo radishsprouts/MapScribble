@@ -31,6 +31,11 @@ Notes can now be kept separately for each backend server behind a proxy such as 
 - On closing the game, the last changes (within about 1 second of editing) could fail to be saved. Pending notes are now written out when the game closes
 - Opening the notebook screen while notebooks were still loading left it stuck on "Loading…" with no rows, even after loading finished. The rows now appear as soon as loading finishes, without any input
 - Notes drawn in 0.1.0 were not carried over in 0.2.0 and later. 0.1.0 saved them in JourneyMap's per-world folder (`journeymap/data/{mp,sp}/<folder>/addon-data/mapscribble/`), but the carry-over looked in a different place. The old files are left untouched
+- Undoing a move with Ctrl+Z on the map now shows the same "Moved notes put back" notice as the screen's Undo button
+- After moving pre-split notes, the count on "Move visible" stayed at the old number. It now shows the number still left (the button is disabled at 0), and the "Notes moved" notice shows the number that actually moved
+- On a connection where the world cannot be identified, clicking a notebook in the list did nothing. You can now pick one by hand, and that notebook is used for this connection. "New notebook" also no longer shows a wrong "Notebook: …" notice after closing when the pick failed
+- With "Notebook １" (full-width digit) or "Notebook1" already present, "New notebook" proposed a name that duplicated it. Numbers are now counted the same regardless of spaces or full-width / half-width forms, so the next name is "Notebook 2"
+- On the notebook screen, clicking a row with the mouse while the list could not be clicked (during a move, or on an address that is not split) left the cursor on that row. The cursor no longer moves
 
 ### About your existing notes
 

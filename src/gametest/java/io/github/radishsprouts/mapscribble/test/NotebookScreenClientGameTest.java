@@ -156,6 +156,10 @@ public final class NotebookScreenClientGameTest {
         int legacyOther = 0;
         int legacyVisible = 2;
         private Consumer<NotebookAccess.Result> pendingMove;
+        private boolean pendingMoveAll;
+        private int lastMoved;
+        private int hereBeforeMove;
+        private int visibleBeforeMove;
 
         @Override
         public String address() {
@@ -211,11 +215,21 @@ public final class NotebookScreenClientGameTest {
         public void move(Collection<UUID> ids, Consumer<NotebookAccess.Result> onDone) {
             moving = true;
             pendingMove = onDone;
+            // 本物（StoreNotebookExtras）と同じく、全部なら ids が null で、見えている分なら見えている分の件数が移る
+            pendingMoveAll = ids == null;
+        }
+
+        @Override
+        public int lastMoved() {
+            return lastMoved;
         }
 
         @Override
         public void undoMove(Consumer<NotebookAccess.Result> onDone) {
             undoCount++;
+            // 元に戻すと、移す前の件数に戻る
+            legacyHere = hereBeforeMove;
+            legacyVisible = visibleBeforeMove;
             onDone.accept(OK);
         }
 
@@ -223,6 +237,12 @@ public final class NotebookScreenClientGameTest {
         void finishMove() {
             moving = false;
             undoable = true;
+            hereBeforeMove = legacyHere;
+            visibleBeforeMove = legacyVisible;
+            // 本物と同じ。実際に移った件数を返し、移した分は分ける前でなくなる（見えている分も残りの件数になる）
+            lastMoved = pendingMoveAll ? legacyHere : legacyVisible;
+            legacyHere -= lastMoved;
+            legacyVisible = 0;
             Consumer<NotebookAccess.Result> done = pendingMove;
             pendingMove = null;
             done.accept(OK);

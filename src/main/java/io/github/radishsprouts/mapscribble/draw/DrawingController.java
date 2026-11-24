@@ -27,6 +27,8 @@ public final class DrawingController {
     static final String DEFAULT_TEXT_MEMO = "メモ";
 
     public static final String NOTICE_UNDONE = "mapscribble.msg.undone";
+    /** 移す操作を取り消した時のお知らせ（画面の「元に戻す」と同じキー）。 */
+    public static final String NOTICE_MOVE_UNDONE = "mapscribble.msg.move_undone";
     public static final String NOTICE_REDONE = "mapscribble.msg.redone";
     public static final String NOTICE_DELETED = "mapscribble.msg.deleted";
     public static final String NOTICE_TOO_SMALL = "mapscribble.msg.too_small";
@@ -195,7 +197,7 @@ public final class DrawingController {
                     state.notice(result.messageKey());
                 }
             });
-            state.notice(NOTICE_UNDONE);
+            state.notice(NOTICE_MOVE_UNDONE);
             return true;
         }
         Edit edit = (Edit) entry;
