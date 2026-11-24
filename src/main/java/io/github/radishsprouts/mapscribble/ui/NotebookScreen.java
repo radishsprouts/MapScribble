@@ -45,12 +45,14 @@ public final class NotebookScreen extends Screen {
     }
 
     private static final int CURTAIN = 0x80000000;
-    private static final int PANEL_BG = 0xF0202428;
+    /** 不透明（背後の帯の説明の行の文字が透けて読めないように。文字入力の画面など、ほかの画面の背景は変えない）。 */
+    private static final int PANEL_BG = 0xFF202428;
     private static final int PANEL_EDGE = 0xFF50565E;
     private static final int WHITE = 0xFFFFFFFF;
     private static final int GRAY = 0xFFA0A0A0;
     private static final int LABEL = 0xFFE0E0E0;
-    private static final int RENAME_EDIT_WIDTH = 190;
+    /** 入力欄を作る時の幅。実際の幅は、使用中の行に重ねる時に件数の左端に合わせて決める（{@link #fitRenameEdit}）。 */
+    private static final int RENAME_EDIT_INITIAL_WIDTH = 190;
 
     private final Screen parent;
     private final NotebookAccess access;
@@ -158,7 +160,7 @@ public final class NotebookScreen extends Screen {
 
         // 入力欄は作り直しをまたいで同じものを使う（打った文字・カーソル・選んでいる範囲がそのまま残る）
         if (renameEdit == null) {
-            renameEdit = new EditBox(font, left, py + layout.listY(), RENAME_EDIT_WIDTH, NotebookLayout.ROW_HEIGHT,
+            renameEdit = new EditBox(font, left, py + layout.listY(), RENAME_EDIT_INITIAL_WIDTH, NotebookLayout.ROW_HEIGHT,
                     Component.translatable("mapscribble.notebook.rename.label"));
             renameEdit.setMaxLength(NotebookPanel.NAME_MAX);
         }
@@ -223,10 +225,22 @@ public final class NotebookScreen extends Screen {
 
     /** 名前を変えている間、入力欄を使用中の行に重ねる（行が見えていなければそのまま）。 */
     private void positionRenameEdit() {
+        fitRenameEdit();
+    }
+
+    /**
+     * 入力欄を使用中の行に重ね、右端を名前の右端の上限（件数の左端 − 6）に合わせる（設計書 3.7）。
+     * 長い名前は欄の中でスクロールする（バニラのまま）。行が見えていなければそのまま。
+     */
+    private void fitRenameEdit() {
         int[] bounds = list.inUseRowBounds();
         if (bounds != null) {
-            renameEdit.setX(bounds[0] + 2);
+            renameEdit.setX(bounds[0] + NotebookLayout.EDIT_X);
             renameEdit.setY(bounds[1]);
+            int width = list.inUseRenameEditWidth();
+            if (width > 0) {
+                renameEdit.setWidth(width);
+            }
         }
     }
 
@@ -434,10 +448,11 @@ public final class NotebookScreen extends Screen {
                         NotebookNames.display(current.name())))
                 .append(Component.literal("\n"))
                 .append(Component.translatable("mapscribble.notebook.move.desc2")));
+        // 「元に戻す」の間は、移すボタンの説明（…へ移します／確認の画面が出ます）をどちらのボタンにも出さない（設計書 3.7）
         moveAllButton.setTooltip(undoShown ? null : (kind == NotebookPanel.Kind.UNSPLIT ? disabledOff
                 : (moveAllButton.active ? movable : null)));
-        moveVisibleButton.setTooltip(kind == NotebookPanel.Kind.UNSPLIT ? disabledOff
-                : (moveVisibleButton.active ? movable : null));
+        moveVisibleButton.setTooltip(undoShown ? null : (kind == NotebookPanel.Kind.UNSPLIT ? disabledOff
+                : (moveVisibleButton.active ? movable : null)));
         if (!split) {
             moveAllButton.active = false;
             moveVisibleButton.active = false;
@@ -558,11 +573,7 @@ public final class NotebookScreen extends Screen {
         renameError = null;
         list.scrollToInUse();
         refresh();
-        int[] bounds = list.inUseRowBounds();
-        if (bounds != null) {
-            renameEdit.setX(bounds[0] + 2);
-            renameEdit.setY(bounds[1]);
-        }
+        fitRenameEdit();
         renameEdit.setValue(current.name());
         renameEdit.setHighlightPos(0);
         renameEdit.visible = true;

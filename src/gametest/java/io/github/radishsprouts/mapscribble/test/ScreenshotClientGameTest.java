@@ -735,8 +735,9 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
 
             // メニュー・保存先の画面・お知らせ（日本語。倍率 4 は名前の先頭が欠けて見えないかを見る）
             switchLanguage(context, "ja_jp");
+            // 4 つ目が 1 の組は、保存先の画面の基本の 3 場面（30・31・45）だけを撮る（大きい画面で一覧が 6 行・パネル 300×268 になる）
             shootMenuNotebook(context, holder, state, "ja",
-                    new int[][] {{640, 480, 2}, {854, 480, 2}, {1920, 1080, 4}});
+                    new int[][] {{640, 480, 2}, {854, 480, 2}, {1920, 1080, 4}, {1920, 1080, 2, 1}, {1920, 1080, 1, 1}});
 
             // 英語: GUI 倍率 2 で、大きい画面と小さい画面
             switchLanguage(context, "en_us");
@@ -810,7 +811,8 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
                 continue;
             }
             try {
-                failCount += MenuNotebookShots.shoot(context, holder, state, lang, c[0], c[1], c[2]);
+                failCount += MenuNotebookShots.shoot(context, holder, state, lang, c[0], c[1], c[2],
+                        c.length > 3 && c[3] == 1);
             } catch (Throwable t) {
                 failCount++;
                 log(lang + " " + c[0] + "x" + c[1] + " 倍率 " + c[2] + " のメニュー・保存先の撮影に失敗: " + t);

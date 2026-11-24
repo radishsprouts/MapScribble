@@ -100,7 +100,7 @@
   "mapscribble.menu.desc": "Opens notebooks and more",
   "mapscribble.menu.notebooks": "Notebooks…",
   "mapscribble.menu.notebooks.shared": "Not split",
-  "mapscribble.menu.notebooks.single": "This world only",
+  "mapscribble.menu.notebooks.single": "Per world",
   "mapscribble.menu.notebooks.single.desc": "In single player, notes are already kept per world",
   "mapscribble.band.no_settings": "No settings for this tool",
   "mapscribble.fill.tooltip": "Fill: %s",

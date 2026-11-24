@@ -266,6 +266,19 @@ public final class NotebookList extends AbstractWidget {
         return null;
     }
 
+    /**
+     * 名前を変えている間の入力欄の幅（使用中の行の日付・件数の実際の幅から、名前の右端の上限＝件数の左端 − 6 に右端を合わせる）。
+     * 使用中の行が無ければ -1。
+     */
+    public int inUseRenameEditWidth() {
+        for (Row row : rows) {
+            if (row.inUse()) {
+                return NotebookLayout.renameEditWidth(font.width(row.date()), font.width(row.count()));
+            }
+        }
+        return -1;
+    }
+
     /** マウスの下の行の、省略していない全名（名前を「…」で切っている時だけ。それ以外は null）。 */
     public String truncatedNameAt(double mouseX, double mouseY) {
         int index = rowIndexAt(mouseX, mouseY);

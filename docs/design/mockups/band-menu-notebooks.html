@@ -375,10 +375,10 @@ function panel(title, state) {
   }
   h += t(state.pre || '分ける前のメモ：23件（どのサーバーにも出ます）', 7, 162, state.preCls || 'label');
   if (state.after) {
-    h += b('元に戻す', 7, 173, 141); h += b('見えている分を移す（0件）…', 152, 173, 141, 'disabled');
+    h += b('元に戻す', 7, 173, 141); h += b('見える分を移す（0件）…', 152, 173, 141, 'disabled');
   } else {
     h += b(state.moveAll || '全部を移す（23件）…', 7, 173, 141, state.moveDisabled?'disabled':(state.hoverMove?'hover':''));
-    h += b(state.moveVis || '見えている分を移す（5件）…', 152, 173, 141, state.moveDisabled?'disabled':'');
+    h += b(state.moveVis || '見える分を移す（5件）…', 152, 173, 141, state.moveDisabled?'disabled':'');
   }
   h += b('完了', 100, 199, 100);
   if (state.tip) h += `<div class="tip" style="left:${px(state.tip.x)};top:${px(state.tip.y)};">${state.tip.html}</div>`;
@@ -400,7 +400,7 @@ panel('4-b 名前を変えている（入力の検証に失敗）', { rows:[{nam
   caption:'「名前を変える」で使用中の行が Minecraft の入力欄（EditBox）になり、開いた時は今の名前が全部選ばれている。Enter で決定・Esc で取りやめ（画面は閉じない）。検証は決定の時だけ行い、失敗は欄の下に赤で出して入力を消さない。' });
 panel('4-c 分けていない（普通のサーバー・空の状態）', { splitLabel:'この接続先をサーバーごとに分ける：オフ', desc:'この接続先のどのサーバーでも、同じメモを使います',
   listText:'まだメモ帳はありません', listText2:'オンにすると、ワールドごとにメモ帳ができます', renameDisabled:true, newDisabled:true,
-  pre:'この接続先のメモ：23件（どのサーバーにも出ます）', preCls:'gray', moveAll:'全部を移す…', moveVis:'見えている分を移す…', moveDisabled:true,
+  pre:'この接続先のメモ：23件（どのサーバーにも出ます）', preCls:'gray', moveAll:'全部を移す…', moveVis:'見える分を移す…', moveDisabled:true,
   caption:'分けていない間は、メモ帳の操作と移す操作は押せない（ホバーで「サーバーごとに分けている時だけ使えます」）。' });
 panel('4-d ワールドを見分けられない（分けている接続先で、識別値が来ない）', { splitLabel:'この接続先をサーバーごとに分ける：オン', splitDisabled:true,
   desc:'ワールドを見分けられないため、自動では分けられません', descCls:'yellow', renameDisabled:true,
@@ -428,7 +428,7 @@ panel('4-f 一覧を読み込めない（知らない形式の notebooks.json）
     <div class="vbtn hover" style="left:150px; top:300px; width:160px;">移す</div>
     <div class="vbtn" style="left:330px; top:300px; width:160px;">キャンセル</div>`;
   wrap.appendChild(scr);
-  const c=document.createElement('p'); c.className='caption'; c.textContent='見えている分を移す時は、1行目が「見えている範囲の 5件を、メモ帳「資源ワールド」へ移します。」になる。Esc はキャンセルと同じ。';
+  const c=document.createElement('p'); c.className='caption'; c.textContent='見える分を移す時は、1行目が「見えている範囲の 5件を、メモ帳「資源ワールド」へ移します。」になる。Esc はキャンセルと同じ。';
   wrap.appendChild(c);
   P.appendChild(wrap);
 })();
