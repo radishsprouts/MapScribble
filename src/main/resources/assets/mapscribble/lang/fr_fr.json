@@ -106,6 +106,8 @@
   "mapscribble.fill.tooltip": "Remplissage : %s",
   "mapscribble.notebook.title": "Carnets",
   "mapscribble.notebook.address": "Adresse du serveur : %s",
+
+  "mapscribble.notebook.address.label": "Adresse du serveur :",
   "mapscribble.notebook.split": "Séparer cette adresse par serveur",
   "mapscribble.notebook.split.desc.auto": "Activé automatiquement : autre serveur détecté",
   "mapscribble.notebook.split.desc.on": "Chaque monde utilise son propre carnet",

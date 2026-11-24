@@ -104,9 +104,10 @@
   .editbox .caret { display: inline-block; width: 2px; height: 18px; background: #d0d0d0; vertical-align: -3px; }
   .scroll { position: absolute; width: 6px; background: #8b8b8b; }
 
-  /* ---- ツールチップ ---- */
+  /* ---- ツールチップ（幅は min(286, GUI 幅 − 24) の 2 倍の描画寸法で折り返す。空白の無い語は文字単位。設計書 3.6・3.7） ---- */
   .tip { position: absolute; background: #100010f0; border: 2px solid #2d0a63; padding: 6px 8px;
-         font-size: 16px; color: #fff; white-space: nowrap; z-index: 20; text-shadow: 2px 2px 0 #3f3f3f; }
+         font-size: 16px; color: #fff; white-space: normal; width: max-content; max-width: 572px; overflow-wrap: anywhere;
+         z-index: 20; text-shadow: 2px 2px 0 #3f3f3f; }
   .tip .sub { color: #a0a0a0; display: block; }
 
   table { border-collapse: collapse; font-size: 13px; margin-top: 8px; }

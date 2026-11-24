@@ -20,7 +20,6 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -89,8 +88,14 @@ public final class NotebookScreen extends Screen {
     /** 「…」で切った行にマウスを載せた時に全文を出すための、この描画の候補。 */
     private final List<Truncated> truncated = new ArrayList<>();
 
-    private record Truncated(int x, int y, int w, String full) {
+    private record Truncated(int x, int y, int w, List<Component> lines) {
     }
+
+    /** ボタンのホバーで出す説明（無ければ null）。バニラの Tooltip は使わない（幅 170 で折るため）。 */
+    private List<Component> renameTip;
+    private List<Component> newTip;
+    private List<Component> moveAllTip;
+    private List<Component> moveVisibleTip;
 
     /** フォーカスのあった部品の役目（作り直しで部品が新しくなっても、役目で対応づける。設計書 3.7）。 */
     private enum Role { NONE, SPLIT, LIST, EDIT, RENAME, NEW, MOVE_ALL, MOVE_VISIBLE, DONE }
@@ -396,17 +401,15 @@ public final class NotebookScreen extends Screen {
             newButton.setMessage(Component.translatable("gui.cancel"));
             renameButton.active = true;
             newButton.active = true;
-            renameButton.setTooltip(null);
-            newButton.setTooltip(null);
+            renameTip = null;
+            newTip = null;
         } else {
             renameButton.setMessage(Component.translatable("mapscribble.notebook.rename"));
             newButton.setMessage(Component.translatable("mapscribble.notebook.new"));
             renameButton.active = NotebookPanel.renameEnabled(kind) && idle && inUse() != null;
             newButton.active = NotebookPanel.newEnabled(kind) && idle;
-            renameButton.setTooltip(renameButton.active
-                    ? Tooltip.create(Component.translatable("mapscribble.notebook.rename.desc")) : null);
-            newButton.setTooltip(newButton.active
-                    ? Tooltip.create(Component.translatable("mapscribble.notebook.new.desc")) : null);
+            renameTip = renameButton.active ? List.of(Component.translatable("mapscribble.notebook.rename.desc")) : null;
+            newTip = newButton.active ? List.of(Component.translatable("mapscribble.notebook.new.desc")) : null;
         }
 
         refreshMoveButtons(kind, idle);
@@ -441,18 +444,16 @@ public final class NotebookScreen extends Screen {
             moveVisibleButton.active = available && idle && visible > 0;
         }
 
-        Tooltip disabledOff = Tooltip.create(Component.translatable("mapscribble.notebook.move.disabled_off"));
+        List<Component> disabledOff = List.of(Component.translatable("mapscribble.notebook.move.disabled_off"));
         NotebookAccess.Info current = inUse();
-        Tooltip movable = current == null ? null : Tooltip.create(Component.empty()
-                .append(Component.translatable("mapscribble.notebook.move.desc",
-                        NotebookNames.display(current.name())))
-                .append(Component.literal("\n"))
-                .append(Component.translatable("mapscribble.notebook.move.desc2")));
+        List<Component> movable = current == null ? null : List.of(
+                Component.translatable("mapscribble.notebook.move.desc", NotebookNames.display(current.name())),
+                Component.translatable("mapscribble.notebook.move.desc2"));
         // 「元に戻す」の間は、移すボタンの説明（…へ移します／確認の画面が出ます）をどちらのボタンにも出さない（設計書 3.7）
-        moveAllButton.setTooltip(undoShown ? null : (kind == NotebookPanel.Kind.UNSPLIT ? disabledOff
-                : (moveAllButton.active ? movable : null)));
-        moveVisibleButton.setTooltip(undoShown ? null : (kind == NotebookPanel.Kind.UNSPLIT ? disabledOff
-                : (moveVisibleButton.active ? movable : null)));
+        moveAllTip = undoShown ? null : (kind == NotebookPanel.Kind.UNSPLIT ? disabledOff
+                : (moveAllButton.active ? movable : null));
+        moveVisibleTip = undoShown ? null : (kind == NotebookPanel.Kind.UNSPLIT ? disabledOff
+                : (moveVisibleButton.active ? movable : null));
         if (!split) {
             moveAllButton.active = false;
             moveVisibleButton.active = false;
@@ -908,7 +909,10 @@ public final class NotebookScreen extends Screen {
                     py + layout.addressY(), GRAY, false);
             if (!shown.equals(full)) {
                 int w = font.width(shown);
-                truncated.add(new Truncated(px + (NotebookLayout.PANEL_WIDTH - w) / 2, py + layout.addressY(), w, full));
+                // 1 行目はラベル、2 行目以降はアドレスの全文（折り返しは描く時に行う）
+                truncated.add(new Truncated(px + (NotebookLayout.PANEL_WIDTH - w) / 2, py + layout.addressY(), w,
+                        List.of(Component.translatable("mapscribble.notebook.address.label"),
+                                Component.literal(address))));
             }
         }
 
@@ -937,16 +941,28 @@ public final class NotebookScreen extends Screen {
 
         drawLegacyLine(g, kind, left, py + layout.legacyY());
 
-        // 「…」で切った行・長い名前のホバー（全文をバニラのツールチップで出す）
+        // 「…」で切った行・長い名前・ボタンのホバー（全文を、幅 min(286, GUI 幅 − 24) で折り返したツールチップで出す。設計書 3.7）
         for (Truncated t : truncated) {
             if (mouseX >= t.x() && mouseX < t.x() + t.w() && mouseY >= t.y() - 1 && mouseY < t.y() + 9) {
-                GuiCompat.drawTooltip(g, font, List.of(Component.literal(t.full())), mouseX, mouseY);
+                GuiCompat.drawWrappedTooltip(g, font, width, t.lines(), mouseX, mouseY);
                 return;
             }
         }
         String fullName = list.truncatedNameAt(mouseX, mouseY);
         if (fullName != null) {
-            GuiCompat.drawTooltip(g, font, List.of(Component.literal(fullName)), mouseX, mouseY);
+            GuiCompat.drawWrappedTooltip(g, font, width, List.of(Component.literal(fullName)), mouseX, mouseY);
+            return;
+        }
+        drawButtonTooltip(g, renameButton, renameTip, mouseX, mouseY);
+        drawButtonTooltip(g, newButton, newTip, mouseX, mouseY);
+        drawButtonTooltip(g, moveAllButton, moveAllTip, mouseX, mouseY);
+        drawButtonTooltip(g, moveVisibleButton, moveVisibleTip, mouseX, mouseY);
+    }
+
+    /** ボタンのツールチップ。バニラの Tooltip は幅 170 で折るので使わず、こちらで同じ幅の決まりで折って出す。 */
+    private void drawButtonTooltip(Gfx g, Button button, List<Component> tip, int mouseX, int mouseY) {
+        if (tip != null && button != null && button.visible && button.isMouseOver(mouseX, mouseY)) {
+            GuiCompat.drawWrappedTooltip(g, font, width, tip, mouseX, mouseY);
         }
     }
 
@@ -1005,7 +1021,7 @@ public final class NotebookScreen extends Screen {
         String shown = NotebookPanel.ellipsize(text, NotebookLayout.CONTENT_WIDTH, font::width);
         GuiCompat.text(g, font, Component.literal(shown), x, y, color, false);
         if (!shown.equals(text)) {
-            truncated.add(new Truncated(x, y, font.width(shown), text));
+            truncated.add(new Truncated(x, y, font.width(shown), List.of(Component.literal(text))));
         }
     }
 

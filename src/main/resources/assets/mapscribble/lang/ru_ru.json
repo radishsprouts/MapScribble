@@ -106,6 +106,8 @@
   "mapscribble.fill.tooltip": "Заливка: %s",
   "mapscribble.notebook.title": "Блокноты",
   "mapscribble.notebook.address": "Адрес сервера: %s",
+
+  "mapscribble.notebook.address.label": "Адрес сервера:",
   "mapscribble.notebook.split": "Разделять этот адрес по серверам",
   "mapscribble.notebook.split.desc.auto": "Включено автоматически: найден другой сервер",
   "mapscribble.notebook.split.desc.on": "У каждого мира свой блокнот",

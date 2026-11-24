@@ -96,7 +96,7 @@ public final class BandMenu {
             }
         }
         if (tooltip != null) {
-            GuiCompat.drawTooltip(g, font, List.of(tooltip), mouseX, mouseY);
+            GuiCompat.drawWrappedTooltip(g, font, screenW, List.of(tooltip), mouseX, mouseY);
         }
     }
 

@@ -106,6 +106,8 @@
   "mapscribble.fill.tooltip": "Preenchimento: %s",
   "mapscribble.notebook.title": "Cadernos",
   "mapscribble.notebook.address": "Endereço do servidor: %s",
+
+  "mapscribble.notebook.address.label": "Endereço do servidor:",
   "mapscribble.notebook.split": "Separar este endereço por servidor",
   "mapscribble.notebook.split.desc.auto": "Ativado automaticamente: outro servidor",
   "mapscribble.notebook.split.desc.on": "Cada mundo usa seu próprio caderno",

@@ -106,6 +106,8 @@
   "mapscribble.fill.tooltip": "Füllung: %s",
   "mapscribble.notebook.title": "Notizbücher",
   "mapscribble.notebook.address": "Serveradresse: %s",
+
+  "mapscribble.notebook.address.label": "Serveradresse:",
   "mapscribble.notebook.split": "Diese Adresse pro Server trennen",
   "mapscribble.notebook.split.desc.auto": "Automatisch aktiviert: Server wechselte",
   "mapscribble.notebook.split.desc.on": "Jede Welt nutzt ein eigenes Notizbuch",
