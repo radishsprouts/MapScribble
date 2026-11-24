@@ -100,7 +100,7 @@
   "mapscribble.menu.desc": "Abre los cuadernos y más",
   "mapscribble.menu.notebooks": "Cuadernos…",
   "mapscribble.menu.notebooks.shared": "Sin separar",
-  "mapscribble.menu.notebooks.single": "Solo este mundo",
+  "mapscribble.menu.notebooks.single": "Por mundo",
   "mapscribble.menu.notebooks.single.desc": "En un jugador, las notas ya se guardan por mundo",
   "mapscribble.band.no_settings": "Esta herramienta no tiene ajustes",
   "mapscribble.fill.tooltip": "Relleno: %s",

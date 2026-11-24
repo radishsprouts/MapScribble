@@ -100,7 +100,7 @@
   "mapscribble.menu.desc": "Открывает блокноты и другое",
   "mapscribble.menu.notebooks": "Блокноты…",
   "mapscribble.menu.notebooks.shared": "Не разделено",
-  "mapscribble.menu.notebooks.single": "Только этот мир",
+  "mapscribble.menu.notebooks.single": "По мирам",
   "mapscribble.menu.notebooks.single.desc": "В одиночной игре заметки уже хранятся по мирам",
   "mapscribble.band.no_settings": "У этого инструмента нет настроек",
   "mapscribble.fill.tooltip": "Заливка: %s",
