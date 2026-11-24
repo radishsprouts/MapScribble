@@ -99,6 +99,13 @@ public final class NotebookScreen extends Screen {
 
     private Kept kept;
 
+    /**
+     * メモ帳の状態の変化（読み込みの完了など）を受ける口。画面を開いている間だけ登録する（init で足し、removed で外す）。
+     * 作り直し（窓の大きさの変更）では removed が呼ばれないので、登録済みなら足さない。
+     */
+    private final Runnable notebookListener = this::onNotebookChanged;
+    private boolean listening;
+
     public NotebookScreen(Screen parent, NotebookAccess access, NotebookExtras extras, Callbacks callbacks) {
         super(Component.translatable("mapscribble.notebook.title"));
         this.parent = parent;
@@ -186,6 +193,32 @@ public final class NotebookScreen extends Screen {
         if (renaming) {
             positionRenameEdit();
         }
+        if (!listening) {
+            listening = true;
+            extras.addListener(notebookListener);
+        }
+    }
+
+    /** メモ帳の状態が変わった（読み込みの完了など）。描画スレッドの外から来ても、主スレッドで行を出し直す。 */
+    private void onNotebookChanged() {
+        Minecraft.getInstance().execute(() -> {
+            if (listening) {
+                refresh();
+                if (renaming) {
+                    positionRenameEdit();
+                }
+            }
+        });
+    }
+
+    /** 画面を離れる時（閉じる・確認画面へ移る）に受け手を外す。戻ってきた時は init で付け直す。 */
+    @Override
+    public void removed() {
+        if (listening) {
+            listening = false;
+            extras.removeListener(notebookListener);
+        }
+        super.removed();
     }
 
     /** 名前を変えている間、入力欄を使用中の行に重ねる（行が見えていなければそのまま）。 */

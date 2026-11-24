@@ -74,6 +74,16 @@ final class StoreNotebookExtras implements NotebookExtras {
     }
 
     @Override
+    public void addListener(Runnable listener) {
+        StoreSession.addNotebookListener(listener);
+    }
+
+    @Override
+    public void removeListener(Runnable listener) {
+        StoreSession.removeNotebookListener(listener);
+    }
+
+    @Override
     public int noteCount(String notebookId) {
         refresh();
         return notebookId == null ? 0 : notebookCounts.getOrDefault(notebookId, 0);

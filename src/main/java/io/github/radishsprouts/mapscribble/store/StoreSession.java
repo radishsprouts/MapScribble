@@ -137,6 +137,13 @@ public final class StoreSession {
         }
     }
 
+    /** {@link #addNotebookListener} で足した受け手を外す（足していなければ何もしない）。 */
+    public static void removeNotebookListener(Runnable listener) {
+        if (listener != null) {
+            NOTEBOOK_LISTENERS.remove(listener);
+        }
+    }
+
     /**
      * ディメンション切り替え時・接続時、そしてクライアントの毎 tick（20 回/秒）から呼ぶ。
      * 前回と同じ ClientLevel・ディメンション・接続先なら、鍵も組み立てずに返る（参照の比較だけ）。
