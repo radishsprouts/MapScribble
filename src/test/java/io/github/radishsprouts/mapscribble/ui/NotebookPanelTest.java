@@ -123,6 +123,16 @@ class NotebookPanelTest {
     }
 
     @Test
+    void 既定の名前は間の空白の有無と全角半角を問わず同じ番号として数える() {
+        assertEquals("メモ帳 2", NotebookPanel.defaultName(List.of(info("a", "メモ帳１")), n -> "メモ帳 " + n));
+        assertEquals("メモ帳 2", NotebookPanel.defaultName(List.of(info("a", "メモ帳1")), n -> "メモ帳 " + n));
+        assertEquals("メモ帳 3", NotebookPanel.defaultName(
+                List.of(info("a", "メモ帳１"), info("b", "メモ帳　2")), n -> "メモ帳 " + n));
+        assertEquals("Notebook 2", NotebookPanel.defaultName(List.of(info("a", "notebook1")), n -> "Notebook " + n));
+        assertEquals("メモ帳 1", NotebookPanel.defaultName(List.of(info("a", "メモ帳 10")), n -> "メモ帳 " + n));
+    }
+
+    @Test
     void 分ける前のメモの行の分岐() {
         // ほかのディメンションに無ければ今までどおり
         assertEquals("mapscribble.notebook.presplit", NotebookPanel.legacyKey(NotebookPanel.Kind.SPLIT_AUTO, 4, 0));

@@ -537,7 +537,10 @@ public final class NotebookScreen extends Screen {
             final String id = newId;
             // このワールドで使うメモ帳にして、すぐ名前を変える状態に入る
             access.select(id, true, selected -> {
-                switchedTo = name;
+                // 選べた時だけ「使うメモ帳」にする（選べなかった時に、閉じた後の知らせを誤って出さない）
+                if (selected.ok()) {
+                    switchedTo = name;
+                }
                 refresh();
                 if (selected.ok()) {
                     startRename();
@@ -687,20 +690,21 @@ public final class NotebookScreen extends Screen {
             ScreenCompat.setScreen(this);
             restoreWithoutInitialFocus();
             if (yes) {
-                doMove(all, n, shownName);
+                doMove(all, shownName);
             }
         }, Component.translatable("mapscribble.notebook.confirm.title"), message,
                 Component.translatable("mapscribble.notebook.confirm.yes"), Component.translatable("gui.cancel")));
     }
 
-    private void doMove(boolean all, int n, String name) {
+    private void doMove(boolean all, String name) {
         moving = true;
         moveFailed = false;
         refresh();
         extras.move(all ? null : extras.legacyVisibleIds(), result -> {
             moving = false;
             if (result.ok()) {
-                movedCount = n;
+                // 実際に移った件数（押した時の件数ではなく、移す処理の結果）
+                movedCount = extras.lastMoved();
                 movedName = name;
                 moveUndone = false;
                 moveFailed = false;

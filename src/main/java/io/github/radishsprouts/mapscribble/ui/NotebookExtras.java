@@ -66,6 +66,11 @@ public interface NotebookExtras {
         }
 
         @Override
+        public int lastMoved() {
+            return 0;
+        }
+
+        @Override
         public void move(Collection<UUID> ids, Consumer<NotebookAccess.Result> onDone) {
             onDone.accept(new NotebookAccess.Result(false, "mapscribble.notebook.move_failed"));
         }
@@ -116,6 +121,9 @@ public interface NotebookExtras {
 
     /** 直前に移した操作を、元に戻せるか。 */
     boolean canUndoMove();
+
+    /** 直前の {@link #move} で実際に移ったメモの数（onDone の中で読む）。 */
+    int lastMoved();
 
     /** 分ける前のメモを使用中のメモ帳へ移す。ids が null なら全部。元に戻すの履歴に積む。 */
     void move(Collection<UUID> ids, Consumer<NotebookAccess.Result> onDone);

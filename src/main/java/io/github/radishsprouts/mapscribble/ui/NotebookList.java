@@ -422,8 +422,9 @@ public final class NotebookList extends AbstractWidget {
     }
 
     /** 行を押した。押した行にカーソルを置いて（続くフォーカスの取得で上書きされない）、切り替える。 */
-    private void click(int index) {
-        if (index >= 0) {
+    void click(int index) {
+        // 押せない間（移している間・灰色の行）はカーソルを持たないので、押してもカーソルを動かさない
+        if (index >= 0 && cursorActive()) {
             setCursor(index);
             clickedRow = true;
         }

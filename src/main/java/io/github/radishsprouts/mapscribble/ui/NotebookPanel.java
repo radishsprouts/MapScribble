@@ -4,8 +4,10 @@ import io.github.radishsprouts.mapscribble.store.NotebookAccess;
 import io.github.radishsprouts.mapscribble.store.NotebookFile;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.text.Normalizer;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
 
@@ -219,13 +221,17 @@ public final class NotebookPanel {
         return name;
     }
 
-    /** 「メモ帳 N」のうち、使われていない最小の N の名前。 */
+    /**
+     * 「メモ帳 N」のうち、使われていない最小の N の名前。既にある「メモ帳 N」「メモ帳N」「メモ帳Ｎ」（全角）は同じ番号として数える
+     * （名前の重複の判定そのものは {@link NotebookFile#sameName} のまま。ここは自動で付ける番号を決める所だけ）。
+     */
     public static String defaultName(List<NotebookAccess.Info> notebooks, IntFunction<String> nameOf) {
         for (int n = 1; ; n++) {
             String candidate = nameOf.apply(n);
+            String candidateKey = numberingKey(candidate);
             boolean used = false;
             for (NotebookAccess.Info info : notebooks) {
-                if (NotebookFile.sameName(info.name(), candidate)) {
+                if (NotebookFile.sameName(info.name(), candidate) || numberingKey(info.name()).equals(candidateKey)) {
                     used = true;
                     break;
                 }
@@ -234,6 +240,12 @@ public final class NotebookPanel {
                 return candidate;
             }
         }
+    }
+
+    /** 番号の数え方用の鍵。NFKC・小文字にして、空白をすべて除く（「メモ帳 1」「メモ帳1」「メモ帳１」が同じになる）。 */
+    private static String numberingKey(String name) {
+        String t = Normalizer.normalize(name == null ? "" : name, Normalizer.Form.NFKC);
+        return t.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
     }
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
