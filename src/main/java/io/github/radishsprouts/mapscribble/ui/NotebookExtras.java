@@ -82,6 +82,17 @@ public interface NotebookExtras {
     /** メモ帳の一覧を読み込み中か。 */
     boolean isLoading();
 
+    /**
+     * メモ帳の状態が変わった時（読み込みの完了・切り替わり・記録の更新）に呼ばれる受け手を足す。
+     * 画面は開いている間だけ足し、閉じる時に {@link #removeListener} で外す。既定は何もしない。
+     */
+    default void addListener(Runnable listener) {
+    }
+
+    /** {@link #addListener} で足した受け手を外す。既定は何もしない。 */
+    default void removeListener(Runnable listener) {
+    }
+
     /** このメモ帳のメモの件数。分からなければ 0。 */
     int noteCount(String notebookId);
 

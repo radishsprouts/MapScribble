@@ -80,6 +80,8 @@ public final class StoreSession {
     private static final Set<Path> IMPORT_CHECKED = new HashSet<>();
     /** 0.1.0 のメモをメモ帳として取り込んでいる最中のアドレス。この間は自動の記録の提案を重ねない。 */
     private static final Set<Path> IMPORTING = new HashSet<>();
+    /** 試験用に、取り込み中の状態を強制する印（setNotebookLoadingForTest）。本番では常に false。主スレッドだけが読み書きする。 */
+    private static boolean loadingForTest;
     /** 読めない記録ファイルを知らせたアドレス。同じ知らせを繰り返さない。 */
     private static final Set<Path> UNREADABLE_NOTIFIED = new HashSet<>();
 
@@ -132,6 +134,13 @@ public final class StoreSession {
     public static void addNotebookListener(Runnable listener) {
         if (listener != null) {
             NOTEBOOK_LISTENERS.add(listener);
+        }
+    }
+
+    /** {@link #addNotebookListener} で足した受け手を外す（足していなければ何もしない）。 */
+    public static void removeNotebookListener(Runnable listener) {
+        if (listener != null) {
+            NOTEBOOK_LISTENERS.remove(listener);
         }
     }
 
@@ -457,12 +466,28 @@ public final class StoreSession {
 
     /** 0.1.0 のメモをメモ帳として取り込んでいる最中か。 */
     static boolean isNotebookLoading() {
+        if (loadingForTest) {
+            return true;
+        }
         if (IMPORTING.isEmpty()) {
             // 毎フレーム呼ばれるので、取り込みが無い時はパスを組み立てない
             return false;
         }
         Target t = currentTarget;
         return t != null && IMPORTING.contains(normalize(t.saveDir()));
+    }
+
+    /**
+     * 試験用（client gametest）。取り込み中（保存先の画面の「読み込んでいます…」）の状態を作る・解く。
+     * 実機ではローカル接続の取り込みが一瞬で終わり、この状態を作れないため。主スレッドから呼ぶ。
+     * 解く時は、取り込みの完了と同じ通知（notifyNotebookListeners）を出す。呼ばなければ本番の動きは変わらない。
+     */
+    public static void setNotebookLoadingForTest(boolean loading) {
+        boolean was = loadingForTest;
+        loadingForTest = loading;
+        if (was && !loading) {
+            notifyNotebookListeners();
+        }
     }
 
     /** 保存先の画面に渡す件数・移す操作の窓口。呼ぶたびに、画面を開いた時に見えている範囲を控え直す。 */

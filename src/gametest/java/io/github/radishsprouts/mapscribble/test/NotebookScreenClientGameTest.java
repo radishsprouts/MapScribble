@@ -3,6 +3,7 @@ package io.github.radishsprouts.mapscribble.test;
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.radishsprouts.mapscribble.compat.ScreenCompat;
 import io.github.radishsprouts.mapscribble.store.NotebookAccess;
+import io.github.radishsprouts.mapscribble.store.StoreSession;
 import io.github.radishsprouts.mapscribble.ui.NotebookExtras;
 import io.github.radishsprouts.mapscribble.ui.NotebookLayout;
 import io.github.radishsprouts.mapscribble.ui.NotebookScreen;
@@ -22,13 +23,13 @@ import net.minecraft.network.chat.Component;
 
 /**
  * 保存先の画面（設計書 3.7）の、作り直しで保つもの・押せない一覧の ↑↓・カーソルが無いまま押せる状態になった時を確かめる
- * （確かめる項目 AC195・AC205〜AC211。AC212 は下の注、AC213 は実機）。偽の {@link NotebookAccess} と {@link NotebookExtras} で
+ * （確かめる項目 AC195・AC202・AC205〜AC212。AC213 は実機）。偽の {@link NotebookAccess} と {@link NotebookExtras} で
  * {@link NotebookScreen} を開き、Tab・↓・Enter・窓の大きさ・GUI の倍率を変える。判定が外れたら AssertionError で落とす。
  * 経過は標準出力へ「[MS-NB] 」を付けて出す。
  *
- * <p>AC212（読み込み中に一覧へフォーカスを入れ、行が届く）は、画面が読み込みの完了を受ける口（addListener の購読・tick での
- * 更新）を持たず、refresh は操作の結果でしか呼ばれないため、gametest では「行が届く」を作れない。
- * 一覧の論理（フォーカス中に setRows で行が届く）は単体試験（NotebookListKeyNeedsMinecraftTest）で確かめる。
+ * <p>AC212（読み込み中に一覧へフォーカスを入れ、行が届く）は、本物の読み込み中の判定を
+ * {@code StoreSession.setNotebookLoadingForTest} で作って確かめる。一覧の論理（フォーカス中に setRows で行が届く）は
+ * 単体試験（NotebookListKeyNeedsMinecraftTest）でも確かめている。
  *
  * <p>終わると、変えた画面の大きさと GUI の倍率を元へ戻す。
  */
@@ -358,7 +359,11 @@ public final class NotebookScreenClientGameTest {
             ac209(ctx);
             ac210(ctx);
             ac211(ctx);
-            log("保存先の画面の試験が最後まで通った（AC195・AC205〜AC211）");
+            ac202(ctx);
+            // AC212 は、画面が読み込みの完了を受けて行を出す口を持たない間は落ちる（設計書どおりに作る側の不足を示す）。
+            // 他の項目の結果を先に出すため、最後に置く
+            ac212(ctx);
+            log("保存先の画面の試験が最後まで通った（AC195・AC202・AC205〜AC212）");
         } finally {
             closeScreen(ctx);
             ScreenshotClientGameTest.applyDisplay(ctx, saved[1], saved[2], saved[0]);
@@ -693,5 +698,92 @@ public final class NotebookScreenClientGameTest {
         check(cursorOf(ctx, s).equals("id1"), "AC211: 最初の ↓ は使用中の次の行（id1）へ動くはず: " + cursorOf(ctx, s));
         closeScreen(ctx);
         log("AC211 通った");
+    }
+
+    // ---- AC202（移している間・分けていない接続先）: 一覧にカーソルが出ず、↑↓ は 1 行ずつスクロールし、Enter は何も変えない ----
+
+    private static void ac202(ClientGameTestContext ctx) {
+        big(ctx);
+        // 移している間（偽の窓口が移す操作を保留している。画面の「移す」の経路で moving になる）
+        FakeAccess access = new FakeAccess(splitState("id0", 8));
+        FakeExtras extras = new FakeExtras();
+        NotebookScreen s = open(ctx, access, extras);
+        tabTo(ctx, s, "MOVE_ALL");
+        key(ctx, InputConstants.KEY_RETURN);
+        key(ctx, InputConstants.KEY_RETURN);
+        check(extras.moving, "AC202: 移す操作が始まらない");
+        try {
+            tabTo(ctx, s, "LIST");
+            check(cursorOf(ctx, s).equals("null"), "AC202(移している間): 一覧にフォーカスがあってもカーソルは出ないはず: " + cursorOf(ctx, s));
+            for (int i = 1; i <= 3; i++) {
+                key(ctx, InputConstants.KEY_DOWN);
+                check(scrollOf(ctx, s) == Math.min(i, 2), "AC202(移している間): ↓ " + i + " 回目で 1 行ずつスクロールするはず: "
+                        + scrollOf(ctx, s));
+                check(cursorOf(ctx, s).equals("null"), "AC202(移している間): ↓ でカーソルが出た: " + cursorOf(ctx, s));
+            }
+            key(ctx, InputConstants.KEY_UP);
+            check(scrollOf(ctx, s) == 1, "AC202(移している間): ↑ で 1 行戻るはず: " + scrollOf(ctx, s));
+            key(ctx, InputConstants.KEY_RETURN);
+            check(access.selected.isEmpty(), "AC202(移している間): Enter でメモ帳が切り替わった: " + access.selected);
+            check(cursorOf(ctx, s).equals("null"), "AC202(移している間): Enter でカーソルが出た: " + cursorOf(ctx, s));
+            check(scrollOf(ctx, s) == 1, "AC202(移している間): Enter でスクロールが変わった: " + scrollOf(ctx, s));
+        } finally {
+            ctx.runOnClient(client -> extras.finishMove());
+            closeScreen(ctx);
+        }
+
+        // 分けていない接続先で、灰色の行が出ている時（行が表示の数を超える）
+        NotebookAccess.State unsplit8 = new NotebookAccess.State(NotebookAccess.Mode.OFF, true, false, null, false, 0L,
+                infos(8));
+        FakeAccess plain = new FakeAccess(unsplit8);
+        s = open(ctx, plain, new FakeExtras());
+        tabTo(ctx, s, "LIST");
+        check(cursorOf(ctx, s).equals("null"), "AC202(分けていない): 灰色の行にカーソルが出た: " + cursorOf(ctx, s));
+        keys(ctx, InputConstants.KEY_DOWN, 2);
+        check(scrollOf(ctx, s) == 2, "AC202(分けていない): ↓ 2 回で 2 行スクロールするはず: " + scrollOf(ctx, s));
+        key(ctx, InputConstants.KEY_RETURN);
+        check(plain.selected.isEmpty(), "AC202(分けていない): Enter でメモ帳が切り替わった: " + plain.selected);
+        check(cursorOf(ctx, s).equals("null"), "AC202(分けていない): Enter でカーソルが出た: " + cursorOf(ctx, s));
+        closeScreen(ctx);
+        log("AC202 通った");
+    }
+
+    // ---- AC212: 読み込み中に一覧へフォーカスを入れ、そのまま行が届くと、使用中の行にカーソルが出る ----
+
+    /**
+     * 読み込み中の状態は、本物の窓口（{@code StoreSession.notebookExtras()}）の読み込み中を
+     * {@code StoreSession.setNotebookLoadingForTest} で作り、解く時は取り込みの完了と同じ通知が出る。
+     * 偽の {@link NotebookAccess} は、行（使用中は id1）を初めから持つ。読み込み中は画面が行を出さず、解けたら行が届く。
+     * 解いた後に操作を一切せずに待ち、画面が自分で行を出すかを見る（実機で読み込みが終わる時と同じ）。
+     */
+    private static void ac212(ClientGameTestContext ctx) {
+        big(ctx);
+        FakeAccess access = new FakeAccess(splitState("id1", 4));
+        NotebookExtras real = ctx.computeOnClient(client -> StoreSession.notebookExtras());
+        ctx.runOnClient(client -> StoreSession.setNotebookLoadingForTest(true));
+        try {
+            NotebookScreen s = open(ctx, access, real);
+            check(ctx.computeOnClient(client -> s.notebookList().rowCount()) == 0,
+                    "AC212: 読み込み中は一覧に行が出ないはず");
+            tabTo(ctx, s, "LIST");
+            check(cursorOf(ctx, s).equals("null"), "AC212: 読み込み中はカーソルが出ないはず: " + cursorOf(ctx, s));
+
+            ctx.runOnClient(client -> StoreSession.setNotebookLoadingForTest(false));
+            ctx.waitTicks(10);
+            int rows = ctx.computeOnClient(client -> s.notebookList().rowCount());
+            check(rows == 4, "AC212: 読み込みが終わっても行が届かない（行 " + rows
+                    + "）。画面が読み込みの完了を受ける口を持たず、操作があるまで行を出さない");
+            check(focusOf(ctx, s).equals("LIST"), "AC212: 行が届いた時にフォーカスが一覧から移った: " + focusOf(ctx, s));
+            check(cursorOf(ctx, s).equals("id1"), "AC212: 届いた時点のカーソルは使用中の行（id1）のはず: " + cursorOf(ctx, s));
+            int[] v = ctx.computeOnClient(client -> new int[] {s.notebookList().scrollOffset(),
+                    s.notebookList().visibleRowCount()});
+            check(1 >= v[0] && 1 < v[0] + v[1], "AC212: 使用中の行が見える位置に無い（scroll=" + v[0] + " 表示 " + v[1] + " 行）");
+            key(ctx, InputConstants.KEY_DOWN);
+            check(cursorOf(ctx, s).equals("id2"), "AC212: 最初の ↓ は使用中の次の行（id2）へ動くはず: " + cursorOf(ctx, s));
+            log("AC212 通った");
+        } finally {
+            ctx.runOnClient(client -> StoreSession.setNotebookLoadingForTest(false));
+            closeScreen(ctx);
+        }
     }
 }
