@@ -46,7 +46,7 @@ public final class NotebookScreenClientGameTest {
     /** 大きい窓のまま倍率だけ 4 にする（GUI 480x270、一覧 3 行）。 */
     private static final int BIG_SCALE_4 = 4;
 
-    private static final NotebookAccess.Result OK = new NotebookAccess.Result(true, null);
+    static final NotebookAccess.Result OK = new NotebookAccess.Result(true, null);
 
     private NotebookScreenClientGameTest() {
     }
@@ -63,7 +63,7 @@ public final class NotebookScreenClientGameTest {
 
     // ---- 偽の窓口 ----
 
-    private static List<NotebookAccess.Info> infos(int count) {
+    static List<NotebookAccess.Info> infos(int count) {
         List<NotebookAccess.Info> list = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             list.add(new NotebookAccess.Info("id" + i, "メモ帳 " + i, Instant.parse("2026-11-01T00:00:00Z"), "auto",
@@ -73,13 +73,13 @@ public final class NotebookScreenClientGameTest {
     }
 
     /** 分けている接続先。current が null ならワールドを見分けられない状態（使用中の行が無い）。 */
-    private static NotebookAccess.State splitState(String current, int count) {
+    static NotebookAccess.State splitState(String current, int count) {
         return new NotebookAccess.State(NotebookAccess.Mode.USER, true, false, current, current != null,
                 current == null ? 0L : 5L, infos(count));
     }
 
-    private static final class FakeAccess implements NotebookAccess {
-        private NotebookAccess.State state;
+    static final class FakeAccess implements NotebookAccess {
+        NotebookAccess.State state;
         final List<String> selected = new ArrayList<>();
         final List<String> renamed = new ArrayList<>();
 
@@ -143,16 +143,23 @@ public final class NotebookScreenClientGameTest {
     }
 
     /** 分ける前のメモが 3 件（見えている分は 2 件）ある偽の窓口。移す操作は finishMove まで保留する。 */
-    private static final class FakeExtras implements NotebookExtras {
+    static final class FakeExtras implements NotebookExtras {
         boolean loading;
         boolean moving;
         boolean undoable;
         int undoCount;
+        /** 撮影の試験が場面ごとに変える値（既定は従来の試験と同じ）。 */
+        String address = "テスト接続";
+        int noteCount = 1;
+        int legacyTotal = 3;
+        int legacyHere = 3;
+        int legacyOther = 0;
+        int legacyVisible = 2;
         private Consumer<NotebookAccess.Result> pendingMove;
 
         @Override
         public String address() {
-            return "テスト接続";
+            return address;
         }
 
         @Override
@@ -162,27 +169,27 @@ public final class NotebookScreenClientGameTest {
 
         @Override
         public int noteCount(String notebookId) {
-            return 1;
+            return noteCount;
         }
 
         @Override
         public int legacyTotal() {
-            return 3;
+            return legacyTotal;
         }
 
         @Override
         public int legacyHere() {
-            return 3;
+            return legacyHere;
         }
 
         @Override
         public int legacyOtherDimensions() {
-            return 0;
+            return legacyOther;
         }
 
         @Override
         public int legacyVisible() {
-            return 2;
+            return legacyVisible;
         }
 
         @Override
@@ -220,6 +227,14 @@ public final class NotebookScreenClientGameTest {
             pendingMove = null;
             done.accept(OK);
         }
+
+        /** 保留していた移す操作を失敗で終える（クライアントのスレッドから呼ぶ）。 */
+        void failMove() {
+            moving = false;
+            Consumer<NotebookAccess.Result> done = pendingMove;
+            pendingMove = null;
+            done.accept(new NotebookAccess.Result(false, "mapscribble.notebook.error.save_failed"));
+        }
     }
 
     /** 保存先の画面の親にする、何も描かない画面。 */
@@ -250,7 +265,7 @@ public final class NotebookScreenClientGameTest {
         ctx.waitTicks(5);
     }
 
-    private static void key(ClientGameTestContext ctx, int code) {
+    static void key(ClientGameTestContext ctx, int code) {
         ctx.getInput().pressKey(code);
         ctx.waitTicks(2);
     }
@@ -261,7 +276,7 @@ public final class NotebookScreenClientGameTest {
         }
     }
 
-    private static String focusOf(ClientGameTestContext ctx, NotebookScreen s) {
+    static String focusOf(ClientGameTestContext ctx, NotebookScreen s) {
         return ctx.computeOnClient(client -> s.focusedPartName());
     }
 
@@ -285,7 +300,7 @@ public final class NotebookScreenClientGameTest {
     }
 
     /** Tab を押して、その部品にフォーカスが届くまで進める（最大 12 回）。 */
-    private static void tabTo(ClientGameTestContext ctx, NotebookScreen s, String part) {
+    static void tabTo(ClientGameTestContext ctx, NotebookScreen s, String part) {
         for (int i = 0; i < 12; i++) {
             if (focusOf(ctx, s).equals(part)) {
                 return;

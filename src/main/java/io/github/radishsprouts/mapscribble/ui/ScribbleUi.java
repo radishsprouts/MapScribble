@@ -77,6 +77,20 @@ public final class ScribbleUi {
         this.notebookExtras = extras == null ? () -> NotebookExtras.NONE : extras;
     }
 
+    /**
+     * 試験用: 保存先の窓口を差し替え、元へ戻す手続きを返す（撮影の試験が、分けている接続先などを偽の窓口で作る）。
+     * 呼ばなければ本番の動きは変わらない。
+     */
+    public Runnable replaceNotebookAccessForTest(Supplier<NotebookAccess> access, Supplier<NotebookExtras> extras) {
+        Supplier<NotebookAccess> previousAccess = this.notebooks;
+        Supplier<NotebookExtras> previousExtras = this.notebookExtras;
+        setNotebookAccess(access, extras);
+        return () -> {
+            this.notebooks = previousAccess;
+            this.notebookExtras = previousExtras;
+        };
+    }
+
     public boolean isMenuOpen() {
         return menu.isOpen();
     }
