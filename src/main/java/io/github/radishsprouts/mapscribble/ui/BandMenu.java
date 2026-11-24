@@ -26,6 +26,14 @@ public final class BandMenu {
     /** ラベルと補足の間に空ける幅。 */
     private static final int LABEL_NOTE_GAP = 8;
 
+    /**
+     * 補足に使える幅。行の幅 150 から左右の余白 10・ラベルの幅・間 8 を引いた残り（設計書 3.6）。
+     * 補足のうち固定の文言（分けていない時・シングルプレイの時）はこの幅の内側で作る。幅の試験もこの式を使う。
+     */
+    public static int noteRoom(int labelWidth) {
+        return MenuLayout.WIDTH - MenuLayout.TEXT_PAD * 2 - labelWidth - LABEL_NOTE_GAP;
+    }
+
     private boolean open;
     private int selected = -1;
 
@@ -74,7 +82,7 @@ public final class BandMenu {
 
             String note = item.note();
             if (note != null && !note.isEmpty()) {
-                int room = rect.w() - MenuLayout.TEXT_PAD * 2 - font.width(item.label()) - LABEL_NOTE_GAP;
+                int room = noteRoom(font.width(item.label()));
                 String shown = NotebookPanel.ellipsize(note, Math.max(0, room), font::width);
                 int noteColor = !item.enabled() ? DISABLED : (hover || keyed ? NOTE_HOVER : NOTE);
                 GuiCompat.text(g, font, Component.literal(shown),

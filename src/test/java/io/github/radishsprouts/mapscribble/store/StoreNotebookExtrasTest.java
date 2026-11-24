@@ -2,6 +2,7 @@ package io.github.radishsprouts.mapscribble.store;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.radishsprouts.mapscribble.model.MapPoint;
@@ -55,6 +56,55 @@ class StoreNotebookExtrasTest {
             store.move(new ArrayList<>(all.subList(0, 2)), MoveDirection.PRIMARY_TO_LEGACY, back::complete);
             assertEquals(2, back.get(10, TimeUnit.SECONDS).moved());
             assertEquals(2, extras.legacyVisible(), "元に戻すと戻る（開いた時に見えていた分だけ）");
+        } finally {
+            store.shutdown();
+        }
+    }
+
+    @Test
+    void 移した後は移し先のメモ帳の件数が移した分だけ増え_元に戻すと減る_終わった時点で数え直す状態になっている(@TempDir Path dir)
+            throws Exception {
+        Path overworld = dir.resolve("minecraft__overworld.json");
+        Path nbFile = dir.resolve("nb-1").resolve("minecraft__overworld.json");
+        write(overworld, memo("a"), memo("b"), memo("c"));
+        write(nbFile, memo("fresh"));
+        MemoStore store = new MemoStore(5000);
+        store.open(nbFile, overworld);
+        try {
+            StoreNotebookExtras extras = new StoreNotebookExtras(store);
+            extras.refreshFrom(dir, overworld);
+            assertEquals(1, extras.noteCount("nb-1"), "移す前の使用中のメモ帳は 1 件");
+            assertEquals(3, extras.legacyTotal());
+            assertFalse(extras.isDirty());
+
+            List<UUID> target = new ArrayList<>();
+            for (Memo m : store.memos()) {
+                if (store.isLegacy(m.id())) {
+                    target.add(m.id());
+                }
+            }
+            // 移す操作が終わった時点（画面が結果を受けて一覧を出し直す時）で、書き込みは済み、数え直す状態になっている
+            boolean[] atDone = new boolean[2];
+            CompletableFuture<MoveResult> moved = new CompletableFuture<>();
+            store.move(target, MoveDirection.LEGACY_TO_PRIMARY, r -> {
+                atDone[0] = store.isBusy();
+                atDone[1] = extras.isDirty();
+                moved.complete(r);
+            });
+            assertEquals(3, moved.get(10, TimeUnit.SECONDS).moved());
+            assertFalse(atDone[0], "終わった時点では、移している最中の印は外れている（数え直せる）");
+            assertTrue(atDone[1], "終わった時点で、件数は数え直す状態になっている");
+            extras.refreshFrom(dir, overworld);
+            assertEquals(4, extras.noteCount("nb-1"), "移した 3 件が使用中のメモ帳の件数に足される");
+            assertEquals(0, extras.legacyTotal());
+
+            CompletableFuture<MoveResult> back = new CompletableFuture<>();
+            store.move(target, MoveDirection.PRIMARY_TO_LEGACY, back::complete);
+            assertEquals(3, back.get(10, TimeUnit.SECONDS).moved());
+            assertTrue(extras.isDirty());
+            extras.refreshFrom(dir, overworld);
+            assertEquals(1, extras.noteCount("nb-1"), "元に戻すと件数も戻る");
+            assertEquals(3, extras.legacyTotal());
         } finally {
             store.shutdown();
         }

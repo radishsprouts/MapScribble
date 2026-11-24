@@ -201,12 +201,23 @@ final class StoreNotebookExtras implements NotebookExtras {
         if (!dirty || store.isBusy()) {
             return;
         }
+        refreshFrom(StoreSession.notebookAddressDir(), StoreSession.currentLegacyFile());
+    }
+
+    /** 件数を数え直したい状態か（メモ・メモ帳が変わった時から、次に数えるまで真）。単体試験から確かめる。 */
+    boolean isDirty() {
+        return dirty;
+    }
+
+    /**
+     * アドレスのフォルダ {@code dir} と、いま開いている分ける前のファイル {@code openLegacy} から件数を数え直す。
+     * {@link #refresh} が使う実体で、保存先の状態（{@link StoreSession}）に頼らず試験できるよう分けてある。
+     */
+    void refreshFrom(Path dir, Path openLegacy) {
         dirty = false;
-        Path dir = StoreSession.notebookAddressDir();
         notebookCounts.clear();
         legacyTotal = 0;
         legacyOther = 0;
-        Path openLegacy = StoreSession.currentLegacyFile();
         String openLegacyName = openLegacy == null ? null : openLegacy.getFileName().toString();
         if (dir == null || !Files.isDirectory(dir)) {
             return;

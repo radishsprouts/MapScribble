@@ -17,6 +17,7 @@ import io.github.radishsprouts.mapscribble.ui.FillLevel;
 import io.github.radishsprouts.mapscribble.ui.HintResolver;
 import io.github.radishsprouts.mapscribble.ui.MenuLayout;
 import io.github.radishsprouts.mapscribble.ui.NoteColor;
+import io.github.radishsprouts.mapscribble.ui.NotebookLayout;
 import io.github.radishsprouts.mapscribble.ui.NoticeTimer;
 import io.github.radishsprouts.mapscribble.ui.NotebookScreen;
 import io.github.radishsprouts.mapscribble.ui.ScribbleUi;
@@ -79,6 +80,17 @@ final class MenuNotebookShots {
      */
     static int shoot(ClientGameTestContext ctx, Object[] holder, DrawingState state, String lang, int w, int h,
                      int scale) {
+        return shoot(ctx, holder, state, lang, w, h, scale, false);
+    }
+
+    /**
+     * 今の言語・画面の大きさ・倍率で撮る。{@code basicsOnly} が真なら、保存先の画面の基本の3場面（30・31・45）だけを撮る
+     * （大きい画面で一覧が6行・パネルが 300×268 になる倍率 2・倍率 1 の見た目を見るため。メニュー・お知らせ等は撮らない）。
+     *
+     * @return 失敗した場面の数
+     */
+    static int shoot(ClientGameTestContext ctx, Object[] holder, DrawingState state, String lang, int w, int h,
+                     int scale, boolean basicsOnly) {
         failures = 0;
         String prefix = lang + "_gui" + scale + "_" + w + "x" + h;
         ScribbleUi ui = ctx.computeOnClient(client -> ScribbleBridge.instance().uiForTest());
@@ -92,10 +104,16 @@ final class MenuNotebookShots {
             NotebookScreenClientGameTest.FakeExtras plain = new NotebookScreenClientGameTest.FakeExtras();
             restore[0] = ctx.computeOnClient(client -> ui.replaceNotebookAccessForTest(() -> null, () -> plain));
 
-            shootMenus(ctx, holder, state, ui, prefix);
-            shootNotebooks(ctx, holder, state, ui, prefix, w, h);
-            shootPreSplit(ctx, holder, state, prefix);
-            shootNotices(ctx, holder, state, prefix);
+            if (basicsOnly) {
+                scene30And31(ctx, holder, state, ui, prefix);
+                scene45(ctx, holder, state, ui, prefix);
+            } else {
+                shootMenus(ctx, holder, state, ui, prefix);
+                shootNotebooks(ctx, holder, state, ui, prefix, w, h);
+                shootNotebookHovers(ctx, holder, state, ui, prefix);
+                shootPreSplit(ctx, holder, state, prefix);
+                shootNotices(ctx, holder, state, prefix);
+            }
         } finally {
             if (restore[0] != null) {
                 Runnable r = restore[0];
@@ -154,6 +172,16 @@ final class MenuNotebookShots {
             ScreenshotClientGameTest.snap(ctx, holder, prefix, "25_menu_single_hover", true);
             closeMenu(ctx, ui);
         });
+        // 使用中のメモ帳の名前が長く、補足が「…」で切れる。その行のホバーで全文（AC129）
+        scene(ctx, holder, prefix, "29_menu_hover_long_notebook", () -> {
+            useAccess(ctx, ui, new NotebookScreenClientGameTest.FakeAccess(longNamesState()),
+                    new NotebookScreenClientGameTest.FakeExtras());
+            openMenu(ctx, holder, state, ui);
+            ScreenshotClientGameTest.snap(ctx, holder, prefix, "29_menu_long_notebook");
+            hoverRow(ctx, state);
+            ScreenshotClientGameTest.snap(ctx, holder, prefix, "29_menu_hover_long_notebook", true);
+            closeMenu(ctx, ui);
+        });
         // 帯を端へ動かしてから開く（分けている接続先で）
         useAccess(ctx, ui, new NotebookScreenClientGameTest.FakeAccess(NotebookScreenClientGameTest.splitState("id0", 4)),
                 new NotebookScreenClientGameTest.FakeExtras());
@@ -183,16 +211,7 @@ final class MenuNotebookShots {
     private static void shootNotebooks(ClientGameTestContext ctx, Object[] holder, DrawingState state, ScribbleUi ui,
                                        String prefix, int w, int h) {
         // 分けている通常（使用中の行）
-        scene(ctx, holder, prefix, "30_notebook_split", () -> {
-            NotebookScreen s = openNotebooks(ctx, holder, state, ui, access(NotebookScreenClientGameTest.splitState("id0", 4)),
-                    new NotebookScreenClientGameTest.FakeExtras());
-            ScreenshotClientGameTest.snap(ctx, holder, prefix, "30_notebook_split", true);
-            // 使用中の行にカーソル
-            NotebookScreenClientGameTest.tabTo(ctx, s, "LIST");
-            ScreenshotClientGameTest.snap(ctx, holder, prefix, "31_notebook_cursor_in_use", true);
-            // 名前の変更
-            closeNotebook(ctx);
-        });
+        scene30And31(ctx, holder, state, ui, prefix);
         scene(ctx, holder, prefix, "32_notebook_rename", () -> {
             NotebookScreen s = openNotebooks(ctx, holder, state, ui, access(NotebookScreenClientGameTest.splitState("id0", 4)),
                     new NotebookScreenClientGameTest.FakeExtras());
@@ -280,22 +299,95 @@ final class MenuNotebookShots {
             ScreenshotClientGameTest.snap(ctx, holder, prefix, "44_notebook_load_failed", true);
         });
         // 長い名前・999+ の件数
+        scene45(ctx, holder, state, ui, prefix);
+    }
+
+    /** 30 分けている通常（使用中の行）と、31 使用中の行にカーソル。 */
+    private static void scene30And31(ClientGameTestContext ctx, Object[] holder, DrawingState state, ScribbleUi ui,
+                                     String prefix) {
+        scene(ctx, holder, prefix, "30_notebook_split", () -> {
+            NotebookScreen s = openNotebooks(ctx, holder, state, ui, access(NotebookScreenClientGameTest.splitState("id0", 4)),
+                    new NotebookScreenClientGameTest.FakeExtras());
+            ScreenshotClientGameTest.snap(ctx, holder, prefix, "30_notebook_split", true);
+            // 使用中の行にカーソル
+            NotebookScreenClientGameTest.tabTo(ctx, s, "LIST");
+            ScreenshotClientGameTest.snap(ctx, holder, prefix, "31_notebook_cursor_in_use", true);
+            closeNotebook(ctx);
+        });
+    }
+
+    /** 45 長い名前（使用中の名前・接続先が切れる）と 999+ の件数。 */
+    private static void scene45(ClientGameTestContext ctx, Object[] holder, DrawingState state, ScribbleUi ui,
+                                String prefix) {
         scene(ctx, holder, prefix, "45_notebook_long_names", () -> {
-            NotebookScreenClientGameTest.FakeExtras extras = new NotebookScreenClientGameTest.FakeExtras();
-            extras.noteCount = 1500;
-            extras.legacyTotal = 1500;
-            extras.legacyHere = 1200;
-            extras.legacyOther = 300;
-            extras.legacyVisible = 1000;
-            extras.address = "とても長い名前のサーバーの接続先.example.com:25565";
-            List<NotebookAccess.Info> list = new ArrayList<>();
-            for (int i = 0; i < 4; i++) {
-                list.add(new NotebookAccess.Info("id" + i, i == 0 ? LONG_NAME : "メモ帳 " + i,
-                        Instant.parse("2026-11-01T00:00:00Z"), "auto", List.of()));
-            }
-            openNotebooks(ctx, holder, state, ui, access(new NotebookAccess.State(NotebookAccess.Mode.USER, true, false,
-                    "id0", true, 5L, list)), extras);
+            openLongNames(ctx, holder, state, ui);
             ScreenshotClientGameTest.snap(ctx, holder, prefix, "45_notebook_long_names", true);
+        });
+    }
+
+    /** 45 の状態（使用中の名前が長く・接続先が長く・件数が 999+）で保存先の画面を開く。 */
+    private static NotebookScreen openLongNames(ClientGameTestContext ctx, Object[] holder, DrawingState state,
+                                                ScribbleUi ui) {
+        NotebookScreenClientGameTest.FakeExtras extras = new NotebookScreenClientGameTest.FakeExtras();
+        extras.noteCount = 1500;
+        extras.legacyTotal = 1500;
+        extras.legacyHere = 1200;
+        extras.legacyOther = 300;
+        extras.legacyVisible = 1000;
+        extras.address = "とても長い名前のサーバーの接続先.example.com:25565";
+        return openNotebooks(ctx, holder, state, ui, access(longNamesState()), extras);
+    }
+
+    /** 1 つ目のメモ帳（使用中）の名前が長い、分けている接続先。 */
+    private static NotebookAccess.State longNamesState() {
+        List<NotebookAccess.Info> list = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            list.add(new NotebookAccess.Info("id" + i, i == 0 ? LONG_NAME : "メモ帳 " + i,
+                    Instant.parse("2026-11-01T00:00:00Z"), "auto", List.of()));
+        }
+        return new NotebookAccess.State(NotebookAccess.Mode.USER, true, false, "id0", true, 5L, list);
+    }
+
+    // ---- ホバーで全文を出す動き（AC129・AC141・AC145・AC146。設計書 3.6・3.7） ----
+
+    /**
+     * 切れた表示のホバーで全文が出ること（一覧の切れた名前・接続先）と、押せないボタンのホバーで理由が出ること
+     * （分けていない接続先の「サーバーごとに分けている時だけ使えます」）を撮る。
+     */
+    private static void shootNotebookHovers(ClientGameTestContext ctx, Object[] holder, DrawingState state,
+                                            ScribbleUi ui, String prefix) {
+        int[] gui = guiSize(ctx);
+        NotebookLayout layout = new NotebookLayout(gui[1]);
+        int px = layout.panelX(gui[0]);
+        int py = layout.panelY(gui[1]);
+        // 45 の状態で、一覧の切れた名前の行（1 行目）にホバー
+        scene(ctx, holder, prefix, "46_notebook_hover_long_name", () -> {
+            openLongNames(ctx, holder, state, ui);
+            ScreenshotClientGameTest.hoverGui(ctx, px + NotebookLayout.MARGIN + NotebookLayout.ROW_INNER_PAD
+                            + NotebookLayout.NAME_X + 30,
+                    py + layout.rowY(0) + NotebookLayout.ROW_HEIGHT / 2.0);
+            ScreenshotClientGameTest.snap(ctx, holder, prefix, "46_notebook_hover_long_name", true);
+        });
+        // 45 の状態で、接続先にホバー（長い接続先は「…」で切れている）
+        scene(ctx, holder, prefix, "47_notebook_hover_address", () -> {
+            openLongNames(ctx, holder, state, ui);
+            ScreenshotClientGameTest.hoverGui(ctx, px + NotebookLayout.PANEL_WIDTH / 2.0, py + layout.addressY() + 4);
+            ScreenshotClientGameTest.snap(ctx, holder, prefix, "47_notebook_hover_address", true);
+        });
+        // 36 の状態（分けていない接続先）で、押せない移すボタンにホバー
+        NotebookAccess.State unsplit = new NotebookAccess.State(NotebookAccess.Mode.OFF, true, false, null, false, 0L,
+                NotebookScreenClientGameTest.infos(8));
+        scene(ctx, holder, prefix, "48_notebook_hover_move_all_off", () -> {
+            openNotebooks(ctx, holder, state, ui, access(unsplit), new NotebookScreenClientGameTest.FakeExtras());
+            ScreenshotClientGameTest.hoverGui(ctx, px + layout.moveAllX() + layout.moveWidth() / 2.0,
+                    py + layout.moveY() + NotebookLayout.BUTTON_HEIGHT / 2.0);
+            ScreenshotClientGameTest.snap(ctx, holder, prefix, "48_notebook_hover_move_all_off", true);
+        });
+        scene(ctx, holder, prefix, "49_notebook_hover_move_visible_off", () -> {
+            openNotebooks(ctx, holder, state, ui, access(unsplit), new NotebookScreenClientGameTest.FakeExtras());
+            ScreenshotClientGameTest.hoverGui(ctx, px + layout.moveVisibleX() + layout.moveWidth() / 2.0,
+                    py + layout.moveY() + NotebookLayout.BUTTON_HEIGHT / 2.0);
+            ScreenshotClientGameTest.snap(ctx, holder, prefix, "49_notebook_hover_move_visible_off", true);
         });
     }
 

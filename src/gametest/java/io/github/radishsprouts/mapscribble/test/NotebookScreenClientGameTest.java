@@ -151,6 +151,10 @@ public final class NotebookScreenClientGameTest {
         /** 撮影の試験が場面ごとに変える値（既定は従来の試験と同じ）。 */
         String address = "テスト接続";
         int noteCount = 1;
+        /** 移した分が足される、使用中のメモ帳の id（本物は移し先＝使用中のメモ帳の件数が、移した後に増える）。 */
+        String inUseId = "id0";
+        /** 移した後に、使用中のメモ帳の件数へ足された分（元に戻すと 0 へ戻る）。 */
+        int movedIn;
         int legacyTotal = 3;
         int legacyHere = 3;
         int legacyOther = 0;
@@ -173,7 +177,8 @@ public final class NotebookScreenClientGameTest {
 
         @Override
         public int noteCount(String notebookId) {
-            return noteCount;
+            // 本物（StoreNotebookExtras）と同じく、移した後は移し先の使用中のメモ帳の件数が移した分だけ増える（AC149）
+            return noteCount + (inUseId != null && inUseId.equals(notebookId) ? movedIn : 0);
         }
 
         @Override
@@ -230,6 +235,7 @@ public final class NotebookScreenClientGameTest {
             // 元に戻すと、移す前の件数に戻る
             legacyHere = hereBeforeMove;
             legacyVisible = visibleBeforeMove;
+            movedIn = 0;
             onDone.accept(OK);
         }
 
@@ -243,6 +249,7 @@ public final class NotebookScreenClientGameTest {
             lastMoved = pendingMoveAll ? legacyHere : legacyVisible;
             legacyHere -= lastMoved;
             legacyVisible = 0;
+            movedIn += lastMoved;
             Consumer<NotebookAccess.Result> done = pendingMove;
             pendingMove = null;
             done.accept(OK);

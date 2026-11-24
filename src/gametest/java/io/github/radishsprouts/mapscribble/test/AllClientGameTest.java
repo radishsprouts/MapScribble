@@ -22,6 +22,9 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContex
 public class AllClientGameTest implements FabricClientGameTest {
     @Override
     public void runTest(ClientGameTestContext context) {
+        // 固定の幅に入れている文言が 10 言語すべてで収まるか（言語は切り替えず、lang の JSON を読んで測る。超えたら落ちる）
+        LangWidthClientGameTest.run(context);
+
         MultiplayerClientGameTest.run(context);
 
         TestSingleplayerContext singleplayer = TestWorlds.open(context);

@@ -40,6 +40,24 @@ public final class NotebookLayout {
     public static int nameMaxWidth(int dateWidth, int countWidth) {
         return Math.max(0, Math.min(NAME_MAX_WIDTH, nameRightLimitX(dateWidth, countWidth) - NAME_X));
     }
+    /** ボタンの文字を描ける幅は、ボタンの幅から左右 4 ずつを引いた残り（バニラのボタンの内側の余白）。 */
+    public static final int BUTTON_TEXT_PAD = 4;
+
+    /** ボタンの内側の幅（文字が「…」で切られずに収まる幅）。 */
+    public static int buttonTextRoom(int buttonWidth) {
+        return buttonWidth - BUTTON_TEXT_PAD * 2;
+    }
+
+    /** 一覧の行と入力欄の間の、名前の変更中の入力欄の左端（行内の x）。 */
+    public static final int EDIT_X = 2;
+    /** 名前を変えている間の入力欄の最小の幅（件数・日付が極端に長い言語でも、欄が消えないように）。 */
+    public static final int EDIT_MIN_WIDTH = 40;
+
+    /** 名前を変えている間の入力欄の幅。右端を名前の右端の上限（件数の左端 − 6）に合わせる。 */
+    public static int renameEditWidth(int dateWidth, int countWidth) {
+        return Math.max(EDIT_MIN_WIDTH, nameRightLimitX(dateWidth, countWidth) - EDIT_X);
+    }
+
     public static final int SCROLLBAR_X = 279;
     public static final int SCROLLBAR_WIDTH = 4;
 
