@@ -158,6 +158,11 @@ public final class ScribbleBridge implements PrimaryMapBridge {
         return INSTANCE;
     }
 
+    /** 試験用: 帯・メニューの画面の窓口（保存先の窓口の差し替えに使う）。 */
+    public ScribbleUi uiForTest() {
+        return ui;
+    }
+
     /** イベントを購読する。 */
     public void register() {
         //? if >=26.1 {

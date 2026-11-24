@@ -116,12 +116,12 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
                 client.getWindow().getWidth(), client.getWindow().getHeight()));
     }
 
-    private static String screenOf(ClientGameTestContext context) {
+    static String screenOf(ClientGameTestContext context) {
         return context.computeOnClient(ScreenshotClientGameTest::screenName);
     }
 
     /** 全画面マップが閉じていたら開き直す（文字入力の画面など、他の画面が出ている時は何もしない）。 */
-    private static void ensureFullscreen(ClientGameTestContext context, Object[] holder) {
+    static void ensureFullscreen(ClientGameTestContext context, Object[] holder) {
         String name = screenOf(context);
         if (name.endsWith(".Fullscreen") || !name.equals("null")) {
             return;
@@ -133,7 +133,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
     }
 
     /** 全画面マップを閉じて開き直す（画面の大きさ・倍率・言語を変えた後に、画面を作り直すため）。 */
-    private static void reopenFullscreen(ClientGameTestContext context, Object[] holder) {
+    static void reopenFullscreen(ClientGameTestContext context, Object[] holder) {
         context.setScreen(() -> null);
         context.waitTicks(5);
         context.runOnClient(client -> holder[0] = openFullscreen());
@@ -147,7 +147,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
      * 載らない位置（全画面マップは右寄りの上、文字入力の画面はパネルの外の左端）。撮る前にここへ置かないと、
      * 前の操作で残ったマウスの位置の下にある部品のツールチップが写り込む。
      */
-    private static void parkCursor(ClientGameTestContext context) {
+    static void parkCursor(ClientGameTestContext context) {
         int w = context.computeOnClient(c -> c.getWindow().getWidth());
         int h = context.computeOnClient(c -> c.getWindow().getHeight());
         if (screenOf(context).endsWith(".NoteEditScreen")) {
@@ -158,13 +158,13 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         context.waitTicks(3);
     }
 
-    private static void snap(ClientGameTestContext context, Object[] holder, String prefix, String suffix) {
+    static void snap(ClientGameTestContext context, Object[] holder, String prefix, String suffix) {
         snap(context, holder, prefix, suffix, false);
     }
 
     /** keepCursor: ホバー・ツールチップの撮影で、今のマウスの位置を保つ（それ以外は撮る前に無害な位置へ動かす）。 */
-    private static void snap(ClientGameTestContext context, Object[] holder, String prefix, String suffix,
-                             boolean keepCursor) {
+    static void snap(ClientGameTestContext context, Object[] holder, String prefix, String suffix,
+                     boolean keepCursor) {
         if (!keepCursor) {
             parkCursor(context);
         }
@@ -175,7 +175,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         ensureFullscreen(context, holder);
     }
 
-    private static void setMode(ClientGameTestContext context, DrawingState state, boolean on, Tool tool) {
+    static void setMode(ClientGameTestContext context, DrawingState state, boolean on, Tool tool) {
         context.runOnClient(client -> {
             state.setModeOn(on);
             if (tool != null) {
@@ -459,7 +459,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
     }
 
     /** 帯の説明の一時のお知らせ（4 秒）が消えるのを待つ（お知らせが「0件」「隠している」より優先されるため）。 */
-    private static void waitNoticeExpire(ClientGameTestContext context) {
+    static void waitNoticeExpire(ClientGameTestContext context) {
         context.waitTicks(5);
         try {
             Thread.sleep(4500);
@@ -470,7 +470,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
     }
 
     /** マウスを GUI 座標 (gx, gy) の位置へ動かして、ツールチップが出るのを待つ。 */
-    private static void hoverGui(ClientGameTestContext context, double gx, double gy) {
+    static void hoverGui(ClientGameTestContext context, double gx, double gy) {
         double scale = context.computeOnClient(client -> client.getWindow().getGuiScale());
         context.getInput().setCursorPos(gx * scale, gy * scale);
         context.waitTicks(8);
@@ -654,7 +654,7 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
         return context.computeOnClient(client -> client.getWindow().getGuiScale());
     }
 
-    private static void switchLanguage(ClientGameTestContext context, String code) {
+    static void switchLanguage(ClientGameTestContext context, String code) {
         CompletableFuture<?>[] future = new CompletableFuture<?>[1];
         context.runOnClient(client -> {
             client.getLanguageManager().setSelected(code);
@@ -733,6 +733,11 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
                 }
             }
 
+            // メニュー・保存先の画面・お知らせ（日本語。倍率 4 は名前の先頭が欠けて見えないかを見る）
+            switchLanguage(context, "ja_jp");
+            shootMenuNotebook(context, holder, state, "ja",
+                    new int[][] {{640, 480, 2}, {854, 480, 2}, {1920, 1080, 4}});
+
             // 英語: GUI 倍率 2 で、大きい画面と小さい画面
             switchLanguage(context, "en_us");
             for (int[] size : new int[][] {{1920, 1080}, {854, 480}}) {
@@ -744,6 +749,8 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
                 }
                 runCombination(context, holder, state, basicIds, "en", size[0], size[1], 2, false, false);
             }
+            // メニュー・保存先の画面・お知らせ（英語は 640x480 と 854x480。補足の文が切れて見えないかも見る）
+            shootMenuNotebook(context, holder, state, "en", new int[][] {{640, 480, 2}, {854, 480, 2}});
 
             // 日本語へ戻して、拡大した地図の斜めの線と円
             switchLanguage(context, "ja_jp");
@@ -788,6 +795,26 @@ public class ScreenshotClientGameTest implements FabricClientGameTest {
             context.runOnClient(client -> client.resizeGui());
             context.waitTicks(10);
             log("撮影 " + shotCount + " 枚 / 撮らなかった組 " + skipCount + " / 失敗した組 " + failCount);
+        }
+    }
+
+    /** メニュー・保存先の画面・お知らせの撮影を、大きさと倍率の組ごとに行う。頭打ちの組は撮らない。 */
+    private static void shootMenuNotebook(ClientGameTestContext context, Object[] holder, DrawingState state,
+                                          String lang, int[][] combos) {
+        for (int[] c : combos) {
+            int actual = applyDisplay(context, c[0], c[1], c[2]);
+            if (actual != c[2]) {
+                skipCount++;
+                log(lang + " " + c[0] + "x" + c[1] + " 倍率 " + c[2] + ": 実際の倍率が " + actual
+                        + " に頭打ちのためメニュー・保存先の画面は撮らない");
+                continue;
+            }
+            try {
+                failCount += MenuNotebookShots.shoot(context, holder, state, lang, c[0], c[1], c[2]);
+            } catch (Throwable t) {
+                failCount++;
+                log(lang + " " + c[0] + "x" + c[1] + " 倍率 " + c[2] + " のメニュー・保存先の撮影に失敗: " + t);
+            }
         }
     }
 
